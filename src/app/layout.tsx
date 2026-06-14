@@ -19,6 +19,11 @@ export const metadata: Metadata = {
   title: "NTG Lounge — Namma Tulunad Gaming",
   description:
     "Mangaluru's premier esports lounge. Ryzen 5 7600X · RTX 5060 · 300Hz. Home to VAL CUP, CS CUP and AUC CUP tournaments.",
+  icons: {
+    icon: [{ url: "/ntg-logo.png", type: "image/png" }],
+    apple: "/ntg-logo.png",
+    shortcut: "/ntg-logo.png",
+  },
 };
 
 export const viewport: Viewport = {
