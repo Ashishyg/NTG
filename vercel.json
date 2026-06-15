@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/sync-ranks",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/sync-reel-covers",
+      "schedule": "0 */6 * * *"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Inter } from "next/font/google";
 import Navbar from "@/components/Navbar";
+import AuthSessionProvider from "@/components/providers/SessionProvider";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -41,8 +42,10 @@ export default function RootLayout({
       className={`${spaceGrotesk.variable} ${inter.variable} antialiased`}
     >
       <body>
-        <Navbar />
-        {children}
+        <AuthSessionProvider>
+          <Navbar />
+          {children}
+        </AuthSessionProvider>
       </body>
     </html>
   );
