@@ -1,0 +1,74 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+export type Crumb = { label: string; href?: string };
+
+const SEGMENT_LABELS: Record<string, string> = {
+  esports: "Esports",
+  tournaments: "Cups",
+  leaderboard: "Rankings",
+  gallery: "Moments",
+  profile: "Profile",
+  login: "Sign in",
+  signup: "Join",
+  admin: "Admin",
+};
+
+function titleFromSlug(slug: string) {
+  return slug
+    .split("-")
+    .map((w) => w.toUpperCase())
+    .join(" ");
+}
+
+export function crumbsFromPath(pathname: string): Crumb[] {
+  if (pathname === "/esports") return [{ label: "Esports" }];
+  if (pathname === "/gallery") return [{ label: "Esports", href: "/esports" }, { label: "Moments" }];
+  if (pathname === "/profile") return [{ label: "Esports", href: "/esports" }, { label: "Profile" }];
+  if (pathname === "/login" || pathname === "/signup") {
+    return [{ label: "Esports", href: "/esports" }, { label: SEGMENT_LABELS[pathname.slice(1)] ?? "Account" }];
+  }
+
+  const parts = pathname.split("/").filter(Boolean);
+  const crumbs: Crumb[] = [];
+
+  if (parts[0] === "esports") {
+    crumbs.push({ label: "Esports", href: "/esports" });
+    if (parts[1] === "tournaments") {
+      crumbs.push({ label: "Cups", href: parts[2] ? "/esports/tournaments" : undefined });
+      if (parts[2]) crumbs.push({ label: titleFromSlug(parts[2]) });
+    } else if (parts[1] === "leaderboard") {
+      crumbs.push({ label: "Rankings" });
+    }
+  }
+
+  return crumbs;
+}
+
+export default function PlatformBreadcrumb() {
+  const pathname = usePathname();
+  const crumbs = crumbsFromPath(pathname);
+  if (crumbs.length <= 1 && pathname === "/esports") return null;
+
+  return (
+    <nav aria-label="Breadcrumb" className="mb-8 flex items-center gap-2 text-[11px] uppercase tracking-[0.2em]">
+      <Link href="/" className="text-white/35 transition-colors hover:text-white/60">
+        Lounge
+      </Link>
+      {crumbs.map((crumb, i) => (
+        <span key={`${crumb.label}-${i}`} className="flex items-center gap-2">
+          <span className="text-white/20">/</span>
+          {crumb.href ? (
+            <Link href={crumb.href} className="text-white/45 transition-colors hover:text-white/75">
+              {crumb.label}
+            </Link>
+          ) : (
+            <span className="text-white/70">{crumb.label}</span>
+          )}
+        </span>
+      ))}
+    </nav>
+  );
+}

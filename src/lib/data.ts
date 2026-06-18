@@ -63,7 +63,7 @@ export type Tournament = {
 
 /** Active registration callout — set `active: false` when sign-ups close. */
 export const tournamentRegistration = {
-  active: true,
+  active: false,
   cupId: "fc26-cup-1",
   title: "FC26 CUP I",
   detail: "2v2 · 20 June 2026",
@@ -74,8 +74,8 @@ export const tournamentRegistration = {
   hideAfter: "2026-06-20",
 };
 
-/** True while the registration banner should render (respects `active` + `hideAfter`). */
-export function isTournamentRegistrationLive(
+/** True while the static marketing registration banner should render (respects `active` + `hideAfter`). */
+export function isStaticRegistrationBannerLive(
   reg: typeof tournamentRegistration = tournamentRegistration,
 ): boolean {
   if (!reg.active) return false;
@@ -149,8 +149,7 @@ export const tournaments: Tournament[] = [
     game: "EA FC 26 · 2v2",
     season: "Season 01",
     date: "June 2026",
-    status: "Soon",
-    platform: "PS5",
+    status: "Hosted",
     iconPath: siEa.path,
     hex: `#${siEa.hex}`,
   },
@@ -186,7 +185,7 @@ export const brand = {
   name: "NTG Lounge",
   meaning: "Namma Tulunad Gaming",
   tagline: "Esport Lounge",
-  hours: "10 AM — 11 PM",
+  hours: "10 AM - 11 PM",
   address: "302, Lotus Paradise Elite, Bunts Hostel, MLR",
   // Lat/Lng of the lounge — used for the embedded map so it never
   // auto-opens Google's place info card.

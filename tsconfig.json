@@ -19,7 +19,12 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@core/*": ["./src/core/*"],
+      "@auth-membership/*": ["./src/modules/auth-membership/*"],
+      "@tournaments-leagues/*": ["./src/modules/tournaments-leagues/*"],
+      "@socials-gallery/*": ["./src/modules/socials-gallery/*"],
+      "@landing-home/*": ["./src/modules/landing-home/*"]
     }
   },
   "include": [
