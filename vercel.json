@@ -6,11 +6,7 @@
     },
     {
       "path": "/api/cron/sync-tournament-status",
-      "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/cron/sync-reel-covers",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 19 * * *"
     }
   ]
 }
