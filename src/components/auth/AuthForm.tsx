@@ -14,6 +14,7 @@ export default function AuthForm({ mode }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/profile";
+  const justRegistered = searchParams.get("registered") === "1";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -107,6 +108,12 @@ export default function AuthForm({ mode }: Props) {
               placeholder="Min. 8 characters"
             />
           </label>
+
+          {justRegistered ? (
+            <p className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+              Account created. Sign in with your email and password.
+            </p>
+          ) : null}
 
           {error ? (
             <p className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-300">

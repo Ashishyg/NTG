@@ -187,6 +187,7 @@ export async function finalizePendingSignup(
     phone: pending.phone,
     displayName: pending.displayName,
     olympusId: pending.olympusId,
+    excludePendingEmail: pending.email,
   });
   if (!identityCheck.ok) return identityCheck;
 

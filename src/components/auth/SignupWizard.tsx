@@ -269,15 +269,15 @@ export default function SignupWizard() {
         return;
       }
 
+      const loginEmail = typeof data.email === "string" ? data.email : email;
       const result = await signIn("credentials", {
-        email,
+        email: loginEmail,
         password,
         redirect: false,
       });
 
       if (result?.error) {
-        setError("Account created. Please sign in.");
-        router.push("/login");
+        router.push("/login?registered=1");
         return;
       }
 

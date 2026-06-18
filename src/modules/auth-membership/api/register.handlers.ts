@@ -326,7 +326,7 @@ export async function handleVerifyOtp(req: Request) {
 
 
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, email: result.email });
 
   } catch {
 
