@@ -39,7 +39,38 @@ export type CreateTournamentInput = {
   showOnEsportsHub?: boolean;
 };
 
-export type UpdateTournamentInput = Partial<CreateTournamentInput> & {
+export type UpdateTournamentInput = Partial<
+  Omit<
+    CreateTournamentInput,
+    | "gameLabel"
+    | "seasonId"
+    | "description"
+    | "prizeNotes"
+    | "bracketUrl"
+    | "posterUrl"
+    | "rulebookUrl"
+    | "hubBannerUrl"
+    | "startsAt"
+    | "endsAt"
+    | "registrationOpensAt"
+    | "registrationClosesAt"
+    | "prizePool"
+  >
+> & {
+  /** null clears the stored value on PATCH */
+  gameLabel?: string | null;
+  seasonId?: string | null;
+  description?: string | null;
+  prizeNotes?: string | null;
+  bracketUrl?: string | null;
+  posterUrl?: string | null;
+  rulebookUrl?: string | null;
+  hubBannerUrl?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  registrationOpensAt?: string | null;
+  registrationClosesAt?: string | null;
+  prizePool?: number | null;
   hideAfter?: string | null;
   teams?: string[];
 };

@@ -1,7 +1,7 @@
 import { prisma } from "@core/database/client";
 import { serverEnv } from "@core/config/env.server";
 import { henrikFetch, henrikHeaders } from "@/lib/henrik-client";
-import { GameSlug } from "@prisma/client";
+import { GameSlug, LeaderboardScope, Prisma } from "@prisma/client";
 
 const PLATFORM = "pc";
 /** Daily cron processes at most this many players per batch (~28 req/min with Henrik spacing). */
@@ -260,13 +260,13 @@ type LinkedPlayerFilter = {
   fullRefreshBefore?: Date;
 };
 
-function linkedPlayerWhere(filter: LinkedPlayerFilter = {}) {
-  const base = {
+function linkedPlayerWhere(filter: LinkedPlayerFilter = {}): Prisma.UserWhereInput {
+  const base: Prisma.UserWhereInput = {
     signupCompleted: true,
     riotPuuid: { not: null },
     riotGameName: { not: null },
     riotTagLine: { not: null },
-  } as const;
+  };
 
   if (!filter.fullRefreshBefore) {
     return base;
@@ -277,14 +277,14 @@ function linkedPlayerWhere(filter: LinkedPlayerFilter = {}) {
     OR: [
       {
         leaderboard: {
-          none: { game: GameSlug.VALORANT, scope: "TOWN", seasonId: null },
+          none: { game: GameSlug.VALORANT, scope: LeaderboardScope.TOWN, seasonId: null },
         },
       },
       {
         leaderboard: {
           some: {
             game: GameSlug.VALORANT,
-            scope: "TOWN",
+            scope: LeaderboardScope.TOWN,
             seasonId: null,
             lastSyncedAt: { lt: filter.fullRefreshBefore },
           },

@@ -3,14 +3,26 @@
  * Run: dotenv -e .env.local -- tsx scripts/migrate-static-to-db.ts
  */
 import { prisma } from "../src/core/database/client";
-import { STATIC_TOURNAMENT_DETAIL } from "../src/lib/tournament-static-detail";
 import { loungeFeaturedDeck } from "../src/lib/moments-featured";
 import { defaultPrizeSplit } from "../src/modules/tournaments-leagues/application/admin-tournament.service";
+
+type StaticTournamentOverlay = {
+  bracketUrl?: string;
+  teams?: string[];
+  placements?: {
+    champion?: string;
+    runnerUp?: string;
+    mvp?: string;
+  };
+};
+
+/** Historical overlays for one-time migration — empty after prod cutover. */
+const MIGRATION_OVERLAYS: Record<string, StaticTournamentOverlay> = {};
 
 async function main() {
   console.log("Migrating static tournament data to DB…");
 
-  for (const [slug, overlay] of Object.entries(STATIC_TOURNAMENT_DETAIL)) {
+  for (const [slug, overlay] of Object.entries(MIGRATION_OVERLAYS)) {
     const tournament = await prisma.tournament.findUnique({ where: { slug } });
     if (!tournament) {
       console.log(`  skip ${slug} — not in DB`);

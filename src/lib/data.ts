@@ -150,6 +150,7 @@ export const tournaments: Tournament[] = [
     season: "Season 01",
     date: "June 2026",
     status: "Hosted",
+    platform: "PS5",
     iconPath: siEa.path,
     hex: `#${siEa.hex}`,
   },

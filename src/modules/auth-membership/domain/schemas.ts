@@ -78,7 +78,7 @@ export const cs2FaceitRankSchema = z.string().trim().min(1).max(32);
 
 const registrationTermsField = {
   acceptedTerms: z.literal(true, {
-    errorMap: () => ({ message: "You must agree to the rules and policy." }),
+    message: "You must agree to the rules and policy.",
   }),
 };
 
