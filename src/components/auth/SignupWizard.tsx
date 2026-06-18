@@ -372,9 +372,6 @@ export default function SignupWizard() {
                   onChange={(e) => setDisplayName(e.target.value)}
                   className={inputClass}
                 />
-                <p className="text-xs text-white/35">
-                  Unique username: letters, numbers, underscores, and hyphens. Teammates add you by this name in FIFA cups.
-                </p>
                 <input
                   type="email"
                   required
@@ -399,19 +396,14 @@ export default function SignupWizard() {
                   className={inputClass}
                   aria-label="Date of birth"
                 />
-                <div>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Olympus ID"
-                    value={olympusId}
-                    onChange={(e) => setOlympusId(e.target.value)}
-                    className={inputClass}
-                  />
-                  <p className="mt-1 text-xs text-white/35">
-                    Must be unique. One Olympus ID per NTG account.
-                  </p>
-                </div>
+                <input
+                  type="text"
+                  required
+                  placeholder="Olympus ID"
+                  value={olympusId}
+                  onChange={(e) => setOlympusId(e.target.value)}
+                  className={inputClass}
+                />
                 <input
                   type="password"
                   required
