@@ -10,6 +10,7 @@
     "postinstall": "prisma generate --schema=src/core/database/prisma/schema.prisma",
     "db:generate": "prisma generate --schema=src/core/database/prisma/schema.prisma",
     "db:migrate": "dotenv -e .env.local -- prisma migrate dev --schema=src/core/database/prisma/schema.prisma",
+    "db:migrate:deploy": "dotenv -e .env.local -- prisma migrate deploy --schema=src/core/database/prisma/schema.prisma",
     "db:push": "dotenv -e .env.local -- prisma db push --schema=src/core/database/prisma/schema.prisma",
     "db:seed": "dotenv -e .env.local -- tsx src/core/database/seed.ts",
     "db:migrate-static": "dotenv -e .env.local -- tsx scripts/migrate-static-to-db.ts",
