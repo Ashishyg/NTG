@@ -80,7 +80,11 @@ function deferRankSync(userId: string): void {
 
   after(() => {
 
-    syncUserRank(userId).catch(() => {});
+    syncUserRank(userId, { tryAllRegions: true }).catch((err) => {
+
+      console.error("[rank-sync defer]", userId, err);
+
+    });
 
   });
 
@@ -588,11 +592,19 @@ export async function handleLinkRiotProfile(req: Request) {
 
     await addPlayedGame(session.user.id, "VALORANT");
 
-    deferRankSync(session.user.id);
+    const rankSync = await syncUserRank(session.user.id, { tryAllRegions: true });
 
 
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({
+
+      ok: true,
+
+      rankSynced: rankSync.ok,
+
+      ...(rankSync.ok ? {} : { rankSyncError: rankSync.error }),
+
+    });
 
   } catch {
 
@@ -678,11 +690,21 @@ export async function handleGameProfileGet() {
 
 
 
-  const profile = await getPlayerGameProfile(session.user.id);
+  let profile = await getPlayerGameProfile(session.user.id);
 
   if (!profile) {
 
     return NextResponse.json({ error: "Profile not found." }, { status: 404 });
+
+  }
+
+
+
+  if (profile.riotPuuid && !profile.valorantRankTier) {
+
+    await syncUserRank(session.user.id, { tryAllRegions: true });
+
+    profile = (await getPlayerGameProfile(session.user.id)) ?? profile;
 
   }
 

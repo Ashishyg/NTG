@@ -1,6 +1,7 @@
 import { prisma } from "@core/database/client";
 import { serverEnv } from "@core/config/env.server";
 import { henrikFetch, henrikHeaders } from "@/lib/henrik-client";
+import { mmrRegionsToTry, normalizeHenrikRegion } from "@/lib/henrik-region";
 import { GameSlug, LeaderboardScope, Prisma } from "@prisma/client";
 
 const PLATFORM = "pc";
@@ -39,11 +40,17 @@ function sleep(ms: number): Promise<void> {
 
 function parseV3MmrBody(body: HenrikV3MmrResponse): MmrSnapshot | null {
   const current = body.data?.current;
-  if (!current?.tier?.id || current.elo == null) return null;
+  const tierId = current?.tier?.id;
+  // Tier 0 / missing = unranked for current act
+  if (tierId == null || tierId <= 0 || !current) return null;
 
-  const rankTierId = current.tier.id;
-  const rankTier = current.tier.name ?? "Unranked";
-  const mmr = current.elo;
+  const mmr =
+    current.elo ??
+    (typeof current.rr === "number" ? estimateEloFromTier(tierId, current.rr) : null);
+  if (mmr == null) return null;
+
+  const rankTierId = tierId;
+  const rankTier = current.tier?.name ?? "Unranked";
   const peakTierId = body.data?.peak?.tier?.id ?? rankTierId;
   const peakMmr = Math.max(
     mmr,
@@ -58,6 +65,11 @@ function parseV3MmrBody(body: HenrikV3MmrResponse): MmrSnapshot | null {
     gameName: body.data?.account?.name,
     tagLine: body.data?.account?.tag,
   };
+}
+
+/** Rough MMR when Henrik omits `elo` but returns tier + RR. */
+function estimateEloFromTier(tierId: number, rr: number): number {
+  return tierId * 100 + rr;
 }
 
 async function fetchV3MmrByPuuid(
@@ -104,7 +116,8 @@ export async function fetchCompetitiveMmr(
   gameName: string,
   tagLine: string,
   puuid?: string,
-): Promise<MmrSnapshot | null> {
+  options?: { tryAllRegions?: boolean },
+): Promise<{ snapshot: MmrSnapshot; region: string } | null> {
   const apiKey = serverEnv.henrikdevApiKey;
 
   if (!apiKey && process.env.NODE_ENV === "development") {
@@ -124,25 +137,42 @@ export async function fetchCompetitiveMmr(
       "Ascendant 1",
     ];
     return {
-      mmr,
-      rankTier: tiers[hash % tiers.length]!,
-      rankTierId: tierId,
-      peakMmr: mmr + 120,
+      region: normalizeHenrikRegion(region),
+      snapshot: {
+        mmr,
+        rankTier: tiers[hash % tiers.length]!,
+        rankTierId: tierId,
+        peakMmr: mmr + 120,
+      },
     };
   }
 
   if (!apiKey) return null;
 
-  if (puuid) {
-    const byPuuid = await fetchV3MmrByPuuid(region, puuid);
-    if (byPuuid) return byPuuid;
+  const regions = options?.tryAllRegions
+    ? mmrRegionsToTry(region)
+    : [normalizeHenrikRegion(region)];
+
+  for (const reg of regions) {
+    try {
+      if (puuid) {
+        const byPuuid = await fetchV3MmrByPuuid(reg, puuid);
+        if (byPuuid) return { snapshot: byPuuid, region: reg };
+      }
+
+      const byName = await fetchV3MmrByName(reg, gameName, tagLine);
+      if (byName) return { snapshot: byName, region: reg };
+    } catch {
+      continue;
+    }
   }
 
-  return fetchV3MmrByName(region, gameName, tagLine);
+  return null;
 }
 
 export async function syncUserRank(
   userId: string,
+  options?: { tryAllRegions?: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -153,23 +183,29 @@ export async function syncUserRank(
     return { ok: false, error: "Riot ID not linked." };
   }
 
-  const region = user.riotRegion ?? "ap";
+  const region = normalizeHenrikRegion(user.riotRegion);
 
-  let snapshot: MmrSnapshot | null;
+  let fetched: { snapshot: MmrSnapshot; region: string } | null;
   try {
-    snapshot = await fetchCompetitiveMmr(
+    fetched = await fetchCompetitiveMmr(
       region,
       user.riotGameName,
       user.riotTagLine,
       user.riotPuuid,
+      { tryAllRegions: options?.tryAllRegions ?? true },
     );
   } catch {
     return { ok: false, error: "Could not fetch rank from Riot." };
   }
 
-  if (!snapshot) {
+  if (!fetched) {
+    if (!serverEnv.henrikdevApiKey) {
+      return { ok: false, error: "Rank sync is not configured (HENRIKDEV_API_KEY)." };
+    }
     return { ok: false, error: "No competitive rank data found." };
   }
+
+  const { snapshot, region: resolvedRegion } = fetched;
 
   if (snapshot.gameName && snapshot.tagLine) {
     await prisma.user.update({
@@ -177,8 +213,13 @@ export async function syncUserRank(
       data: {
         riotGameName: snapshot.gameName,
         riotTagLine: snapshot.tagLine,
-        riotRegion: region,
+        riotRegion: resolvedRegion,
       },
+    });
+  } else if (resolvedRegion !== user.riotRegion) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { riotRegion: resolvedRegion },
     });
   }
 
@@ -238,11 +279,12 @@ const NON_RETRYABLE_ERRORS = new Set([
 
 async function syncUserRankWithRetry(
   userId: string,
+  options?: { tryAllRegions?: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   let last: { ok: false; error: string } = { ok: false, error: "Sync failed." };
 
   for (let attempt = 0; attempt < SYNC_RETRY_ATTEMPTS; attempt++) {
-    const result = await syncUserRank(userId);
+    const result = await syncUserRank(userId, options);
     if (result.ok) return result;
 
     last = result;
@@ -329,7 +371,7 @@ export async function syncAllLinkedPlayers(options?: {
   let skipped = 0;
 
   for (const user of users) {
-    const result = await syncUserRankWithRetry(user.id);
+    const result = await syncUserRankWithRetry(user.id, { tryAllRegions: false });
     if (result.ok) synced += 1;
     else if (result.error === "No competitive rank data found.") skipped += 1;
     else {

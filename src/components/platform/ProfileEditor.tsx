@@ -164,6 +164,9 @@ export default function ProfileEditor() {
         setSaving(false);
         return;
       }
+      if (data.rankSyncError) {
+        setError(`Riot linked, but rank sync failed: ${data.rankSyncError}`);
+      }
       setPendingRiotId("");
     }
 

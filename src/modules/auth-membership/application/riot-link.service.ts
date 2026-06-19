@@ -1,6 +1,7 @@
 import { prisma } from "@core/database/client";
 import { GameSlug } from "@prisma/client";
 import { linkGameIdentity } from "./profile.service";
+import { normalizeHenrikRegion } from "@/lib/henrik-region";
 import { parseRiotId, resolveRiotAccount } from "./riot-henrik.service";
 
 /** Link Riot ID only — rank sync runs in background via route `after()`. */
@@ -37,7 +38,7 @@ export async function linkRiotAccount(
       riotPuuid: account.puuid,
       riotGameName: account.gameName,
       riotTagLine: account.tagLine,
-      riotRegion: account.region ?? "ap",
+      riotRegion: normalizeHenrikRegion(account.region),
     },
   });
 

@@ -32,7 +32,7 @@ export const serverEnv = {
     return optional("EMAIL_FROM") ?? "NTG Lounge <onboarding@resend.dev>";
   },
   get henrikdevApiKey() {
-    return optional("HENRIKDEV_API_KEY");
+    return optional("HENRIKDEV_API_KEY") ?? optional("HENRIKDEV");
   },
   get steamWebApiKey() {
     return optional("STEAM_WEB_API_KEY");

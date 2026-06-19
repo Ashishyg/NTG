@@ -56,6 +56,22 @@ export default function GameProfilesPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  async function refreshValorantRank() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/profile/sync-rank", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Could not refresh rank.");
+        return;
+      }
+      await onRefresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function addGame(game: "VALORANT" | "CS2") {
     setBusy(true);
     setError(null);
@@ -125,6 +141,11 @@ export default function GameProfilesPanel({
                 <dt className="text-white/40">Current rank</dt>
                 <dd className="text-white/85">{profile.valorantRankTier}</dd>
               </div>
+            ) : profile.riotPuuid ? (
+              <div className="flex justify-between gap-4">
+                <dt className="text-white/40">Current rank</dt>
+                <dd className="text-white/45">Not synced yet</dd>
+              </div>
             ) : null}
           </dl>
 
@@ -138,8 +159,18 @@ export default function GameProfilesPanel({
               />
             </div>
           ) : (
-            <div className="pt-2">
-              <p className="mb-2 text-xs text-white/45">
+            <div className="pt-2 space-y-3">
+              {!profile.valorantRankTier ? (
+                <button
+                  type="button"
+                  onClick={refreshValorantRank}
+                  disabled={busy}
+                  className="rounded-full border border-white/15 px-4 py-2 text-xs uppercase tracking-wider text-white/70 hover:text-white disabled:opacity-50"
+                >
+                  {busy ? "Syncing rank…" : "Refresh Valorant rank"}
+                </button>
+              ) : null}
+              <p className="text-xs text-white/45">
                 Click to select your roles (required for Valorant cups)
               </p>
               <div className="flex flex-wrap gap-2">

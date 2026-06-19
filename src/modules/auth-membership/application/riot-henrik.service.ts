@@ -1,5 +1,6 @@
 import { serverEnv } from "@core/config/env.server";
 import { henrikFetch, henrikHeaders } from "@/lib/henrik-client";
+import { normalizeHenrikRegion } from "@/lib/henrik-region";
 
 export type RiotAccount = {
   puuid: string;
@@ -56,6 +57,6 @@ export async function resolveRiotAccount(
     puuid,
     gameName: data.data?.game_name ?? gameName,
     tagLine: data.data?.tag_line ?? tagLine,
-    region: data.data?.region,
+    region: normalizeHenrikRegion(data.data?.region),
   };
 }
