@@ -11,8 +11,12 @@ export {
 export {
   syncUserRank,
   syncAllLinkedPlayers,
+  runFullLeaderboardSync,
+  getLeaderboardSyncStats,
   RANK_SYNC_MAX_BATCH_SIZE,
   type SyncAllResult,
+  type SyncRunTotals,
+  type LeaderboardSyncStats,
 } from "./application/rank-sync.service";
 export {
   registerForTournament,

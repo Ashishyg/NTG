@@ -748,6 +748,10 @@ export async function handleGameProfilePatch(req: Request) {
 
       if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
 
+      if (game === "VALORANT") {
+        deferRankSync(session.user.id);
+      }
+
       return NextResponse.json({ ok: true });
 
     }

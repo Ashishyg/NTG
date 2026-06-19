@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AdminLeaderboardSyncPanel from "@/components/admin/AdminLeaderboardSyncPanel";
 import { listTournamentsAdmin } from "@tournaments-leagues/index";
 import { prisma } from "@core/database/client";
 import { serverEnv } from "@core/config/env.server";
@@ -86,6 +87,8 @@ export default async function AdminDashboardPage() {
           </div>
         </div>
       ) : null}
+
+      <AdminLeaderboardSyncPanel />
 
       {/* Statistics Section */}
       <div className="grid gap-4 sm:grid-cols-3">

@@ -98,7 +98,7 @@ export async function GET(req: Request) {
 
   if (userId) {
     try {
-      const result = await syncUserRank(userId);
+      const result = await syncUserRank(userId, { tryAllRegions: true });
       return NextResponse.json({
         ok: result.ok,
         ...(result.ok ? { synced: 1 } : { error: result.error }),
