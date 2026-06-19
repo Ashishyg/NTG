@@ -191,10 +191,18 @@ export async function createTournament(
   return { ok: true, slug };
 }
 
+export async function listSeasonsAdmin() {
+  return prisma.season.findMany({
+    orderBy: [{ startsAt: "desc" }, { label: "asc" }],
+    select: { id: true, label: true },
+  });
+}
+
 export type AdminCupFieldsSnapshot = {
   name: string;
   game: GameSlug;
   gameLabel: string | null;
+  seasonId: string | null;
   status: TournamentStatus;
   description: string | null;
   posterUrl: string | null;
@@ -225,6 +233,7 @@ export function toAdminCupFieldsSnapshot(
     name: t.name,
     game: t.game,
     gameLabel: t.gameLabel,
+    seasonId: t.seasonId,
     status: t.status,
     description: t.description,
     posterUrl: t.posterUrl,

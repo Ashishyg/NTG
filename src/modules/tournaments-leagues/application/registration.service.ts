@@ -54,7 +54,10 @@ async function getValorantRankSnapshot(userId: string): Promise<{
   });
 
   if (!entry?.mmr) {
-    await syncUserRank(userId, { tryAllRegions: true }).catch(() => {});
+    await syncUserRank(userId, {
+      tryAllRegions: true,
+      context: { source: "registration" },
+    }).catch(() => {});
     entry = await prisma.leaderboardEntry.findFirst({
       where: { userId, game: "VALORANT", scope: "TOWN" },
     });

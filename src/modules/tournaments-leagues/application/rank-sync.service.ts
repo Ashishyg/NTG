@@ -2,13 +2,108 @@ import { prisma } from "@core/database/client";
 import { serverEnv } from "@core/config/env.server";
 import { henrikFetch, henrikHeaders } from "@/lib/henrik-client";
 import { mmrRegionsToTry, normalizeHenrikRegion } from "@/lib/henrik-region";
-import { GameSlug, LeaderboardScope, Prisma } from "@prisma/client";
+import { GameSlug, LeaderboardScope, LeaderboardSyncSource, Prisma } from "@prisma/client";
 
 const PLATFORM = "pc";
-/** Daily cron processes at most this many players per batch (~28 req/min with Henrik spacing). */
-export const RANK_SYNC_MAX_BATCH_SIZE = 26;
-/** Admin manual refresh with all-region lookup — smaller to stay under serverless timeout. */
-export const RANK_SYNC_ADMIN_BATCH_SIZE = 10;
+/** Henrik spacing (~2.1s/call) — 10 players/batch keeps cron + manual under serverless timeout. */
+export const RANK_SYNC_BATCH_SIZE = 10;
+/** @deprecated use RANK_SYNC_BATCH_SIZE */
+export const RANK_SYNC_MAX_BATCH_SIZE = RANK_SYNC_BATCH_SIZE;
+export const RANK_SYNC_ADMIN_BATCH_SIZE = RANK_SYNC_BATCH_SIZE;
+
+export type RankSyncSource =
+  | "cron"
+  | "manual"
+  | "profile"
+  | "riot_link"
+  | "registration"
+  | "admin_member";
+
+export type RankSyncContext = {
+  source: RankSyncSource;
+  runId?: string;
+  adminId?: string;
+};
+function toPrismaSyncSource(source: RankSyncSource): LeaderboardSyncSource {
+  const map: Record<RankSyncSource, LeaderboardSyncSource> = {
+    cron: LeaderboardSyncSource.CRON,
+    manual: LeaderboardSyncSource.MANUAL,
+    profile: LeaderboardSyncSource.PROFILE,
+    riot_link: LeaderboardSyncSource.RIOT_LINK,
+    registration: LeaderboardSyncSource.REGISTRATION,
+    admin_member: LeaderboardSyncSource.ADMIN_MEMBER,
+  };
+  return map[source];
+}
+
+type RankSnapshotFields = {
+  rankTier: string | null;
+  rankTierId: number | null;
+  mmr: number | null;
+};
+
+function rankChanged(
+  previous: RankSnapshotFields | null,
+  snapshot: MmrSnapshot,
+): boolean {
+  if (!previous?.rankTier && !previous?.mmr) return true;
+  return (
+    previous.rankTier !== snapshot.rankTier ||
+    previous.rankTierId !== snapshot.rankTierId ||
+    previous.mmr !== snapshot.mmr
+  );
+}
+
+async function writeRankAudit(params: {
+  userId: string;
+  riotGameName?: string | null;
+  riotTagLine?: string | null;
+  context: RankSyncContext;
+  previous: RankSnapshotFields | null;
+  snapshot?: MmrSnapshot | null;
+  error?: string;
+}): Promise<void> {
+  const changed = params.snapshot
+    ? rankChanged(params.previous, params.snapshot)
+    : false;
+
+  await prisma.leaderboardRankAuditLog.create({
+    data: {
+      userId: params.userId,
+      riotGameName: params.riotGameName ?? params.snapshot?.gameName ?? null,
+      riotTagLine: params.riotTagLine ?? params.snapshot?.tagLine ?? null,
+      source: toPrismaSyncSource(params.context.source),
+      runId: params.context.runId ?? null,
+      adminId: params.context.adminId ?? null,
+      previousRankTier: params.previous?.rankTier ?? null,
+      previousRankTierId: params.previous?.rankTierId ?? null,
+      previousMmr: params.previous?.mmr ?? null,
+      newRankTier: params.snapshot?.rankTier ?? null,
+      newRankTierId: params.snapshot?.rankTierId ?? null,
+      newMmr: params.snapshot?.mmr ?? null,
+      changed,
+      error: params.error ?? null,
+    },
+  });
+}
+
+async function readTownRankSnapshot(userId: string): Promise<RankSnapshotFields | null> {
+  const entry = await prisma.leaderboardEntry.findFirst({
+    where: {
+      game: GameSlug.VALORANT,
+      scope: LeaderboardScope.TOWN,
+      seasonId: null,
+      userId,
+    },
+    select: { rankTier: true, rankTierId: true, mmr: true },
+  });
+  if (!entry) return null;
+  return {
+    rankTier: entry.rankTier,
+    rankTierId: entry.rankTierId,
+    mmr: entry.mmr,
+  };
+}
 const SYNC_RETRY_ATTEMPTS = 3;
 const SYNC_RETRY_BASE_MS = 1_500;
 
@@ -175,15 +270,32 @@ export async function fetchCompetitiveMmr(
 
 export async function syncUserRank(
   userId: string,
-  options?: { tryAllRegions?: boolean },
+  options?: { tryAllRegions?: boolean; context?: RankSyncContext },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: { playerProfile: true },
   });
 
+  const auditContext = options?.context;
+  const previousRank = auditContext ? await readTownRankSnapshot(userId) : null;
+
+  async function fail(error: string): Promise<{ ok: false; error: string }> {
+    if (auditContext) {
+      await writeRankAudit({
+        userId,
+        riotGameName: user?.riotGameName,
+        riotTagLine: user?.riotTagLine,
+        context: auditContext,
+        previous: previousRank,
+        error,
+      }).catch(() => {});
+    }
+    return { ok: false, error };
+  }
+
   if (!user?.riotPuuid || !user.riotGameName || !user.riotTagLine) {
-    return { ok: false, error: "Riot ID not linked." };
+    return fail("Riot ID not linked.");
   }
 
   const region = normalizeHenrikRegion(user.riotRegion);
@@ -198,14 +310,14 @@ export async function syncUserRank(
       { tryAllRegions: options?.tryAllRegions ?? true },
     );
   } catch {
-    return { ok: false, error: "Could not fetch rank from Riot." };
+    return fail("Could not fetch rank from Riot.");
   }
 
   if (!fetched) {
     if (!serverEnv.henrikdevApiKey) {
-      return { ok: false, error: "Rank sync is not configured (HENRIKDEV_API_KEY)." };
+      return fail("Rank sync is not configured (HENRIKDEV_API_KEY).");
     }
-    return { ok: false, error: "No competitive rank data found." };
+    return fail("No competitive rank data found.");
   }
 
   const { snapshot, region: resolvedRegion } = fetched;
@@ -259,6 +371,17 @@ export async function syncUserRank(
     });
   }
 
+  if (auditContext) {
+    await writeRankAudit({
+      userId,
+      riotGameName: user.riotGameName,
+      riotTagLine: user.riotTagLine,
+      context: auditContext,
+      previous: previousRank,
+      snapshot,
+    }).catch(() => {});
+  }
+
   return { ok: true };
 }
 
@@ -282,7 +405,7 @@ const NON_RETRYABLE_ERRORS = new Set([
 
 async function syncUserRankWithRetry(
   userId: string,
-  options?: { tryAllRegions?: boolean },
+  options?: { tryAllRegions?: boolean; context?: RankSyncContext },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   let last: { ok: false; error: string } = { ok: false, error: "Sync failed." };
 
@@ -404,10 +527,11 @@ export async function syncAllLinkedPlayers(options?: {
   maxBatchSize?: number;
   /** Try all Henrik regions per player (admin manual refresh). */
   tryAllRegions?: boolean;
+  context?: RankSyncContext;
 }): Promise<SyncAllResult> {
   const maxBatchSize = Math.min(
-    options?.maxBatchSize ?? RANK_SYNC_MAX_BATCH_SIZE,
-    RANK_SYNC_MAX_BATCH_SIZE,
+    options?.maxBatchSize ?? RANK_SYNC_BATCH_SIZE,
+    RANK_SYNC_BATCH_SIZE,
   );
   const where = linkedPlayerWhere({ fullRefreshBefore: options?.fullRefreshBefore });
 
@@ -428,6 +552,7 @@ export async function syncAllLinkedPlayers(options?: {
   for (const user of users) {
     const result = await syncUserRankWithRetry(user.id, {
       tryAllRegions: options?.tryAllRegions ?? false,
+      context: options?.context,
     });
     if (result.ok) synced += 1;
     else if (result.error === "No competitive rank data found.") skipped += 1;
@@ -453,9 +578,11 @@ export async function syncAllLinkedPlayers(options?: {
 export async function runFullLeaderboardSync(options?: {
   fullRefreshBefore?: Date;
   tryAllRegions?: boolean;
+  context?: RankSyncContext;
   onBatch?: (batch: SyncAllResult, totals: SyncRunTotals) => void;
 }): Promise<SyncRunTotals & { complete: true }> {
   const runStartedAt = options?.fullRefreshBefore ?? new Date();
+  const runId = options?.context?.runId ?? runStartedAt.toISOString();
   const totals: SyncRunTotals = { synced: 0, failed: 0, skipped: 0, batches: 0 };
 
   let hasMore = true;
@@ -463,6 +590,9 @@ export async function runFullLeaderboardSync(options?: {
     const batch = await syncAllLinkedPlayers({
       fullRefreshBefore: runStartedAt,
       tryAllRegions: options?.tryAllRegions,
+      context: options?.context
+        ? { ...options.context, runId }
+        : undefined,
     });
     totals.synced += batch.synced;
     totals.failed += batch.failed;
@@ -473,4 +603,68 @@ export async function runFullLeaderboardSync(options?: {
   }
 
   return { ...totals, complete: true };
+}
+
+export type LeaderboardRankAuditRow = {
+  id: string;
+  userId: string;
+  displayName: string | null;
+  riotId: string | null;
+  source: LeaderboardSyncSource;
+  runId: string | null;
+  previousRankTier: string | null;
+  previousMmr: number | null;
+  newRankTier: string | null;
+  newMmr: number | null;
+  changed: boolean;
+  error: string | null;
+  createdAt: string;
+};
+
+export async function listLeaderboardRankAudits(options?: {
+  limit?: number;
+  changedOnly?: boolean;
+  source?: LeaderboardSyncSource;
+}): Promise<LeaderboardRankAuditRow[]> {
+  const limit = Math.min(Math.max(options?.limit ?? 50, 1), 200);
+
+  const rows = await prisma.leaderboardRankAuditLog.findMany({
+    where: {
+      ...(options?.changedOnly ? { changed: true } : {}),
+      ...(options?.source ? { source: options.source } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    include: {
+      user: {
+        select: {
+          name: true,
+          riotGameName: true,
+          riotTagLine: true,
+          playerProfile: { select: { displayName: true } },
+        },
+      },
+    },
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    userId: row.userId,
+    displayName: row.user.playerProfile?.displayName ?? row.user.name,
+    riotId:
+      row.riotGameName && row.riotTagLine
+        ? `${row.riotGameName}#${row.riotTagLine}`
+        : row.user.riotGameName && row.user.riotTagLine
+          ? `${row.user.riotGameName}#${row.user.riotTagLine}`
+          : null,
+    source: row.source,
+    runId: row.runId,
+    previousRankTier: row.previousRankTier,
+    previousMmr: row.previousMmr,
+    newRankTier: row.newRankTier,
+    newMmr: row.newMmr,
+    changed: row.changed,
+    error: row.error,
+    createdAt: row.createdAt.toISOString(),
+  }));
 }

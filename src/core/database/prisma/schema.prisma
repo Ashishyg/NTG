@@ -133,6 +133,7 @@ model User {
   matchSlots    MatchParticipant[]
   placements    TournamentPlacement[]
   leaderboard   LeaderboardEntry[]
+  leaderboardRankAudits LeaderboardRankAuditLog[]
   captainedTeams TournamentTeam[] @relation("TeamCaptain")
   teamPlayers   TournamentTeamPlayer[]
   adminAuditLogs AdminAuditLog[]
@@ -437,6 +438,41 @@ model LeaderboardEntry {
   updatedAt      DateTime         @updatedAt
 
   @@unique([game, scope, seasonId, userId])
+}
+
+enum LeaderboardSyncSource {
+  CRON
+  MANUAL
+  PROFILE
+  RIOT_LINK
+  REGISTRATION
+  ADMIN_MEMBER
+}
+
+/** Rank change history from Henrik sync (cron, manual refresh, profile, etc.). */
+model LeaderboardRankAuditLog {
+  id               String                @id @default(cuid())
+  userId           String
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  riotGameName     String?
+  riotTagLine      String?
+  source           LeaderboardSyncSource
+  runId            String?
+  adminId          String?
+  previousRankTier   String?
+  previousRankTierId Int?
+  previousMmr        Int?
+  newRankTier        String?
+  newRankTierId      Int?
+  newMmr             Int?
+  changed          Boolean               @default(false)
+  error            String?
+  createdAt        DateTime              @default(now())
+
+  @@index([userId, createdAt])
+  @@index([source, createdAt])
+  @@index([runId])
+  @@index([createdAt])
 }
 
 // ─── @socials-gallery ───────────────────────────────────────────────────────

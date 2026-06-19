@@ -76,11 +76,11 @@ import type { PlayedGame } from "@prisma/client";
 
 
 
-function deferRankSync(userId: string): void {
+function deferRankSync(userId: string, source: "registration" | "riot_link" = "registration"): void {
 
   after(() => {
 
-    syncUserRank(userId, { tryAllRegions: true }).catch((err) => {
+    syncUserRank(userId, { tryAllRegions: true, context: { source } }).catch((err) => {
 
       console.error("[rank-sync defer]", userId, err);
 
@@ -592,7 +592,10 @@ export async function handleLinkRiotProfile(req: Request) {
 
     await addPlayedGame(session.user.id, "VALORANT");
 
-    const rankSync = await syncUserRank(session.user.id, { tryAllRegions: true });
+    const rankSync = await syncUserRank(session.user.id, {
+      tryAllRegions: true,
+      context: { source: "riot_link" },
+    });
 
 
 
@@ -702,7 +705,10 @@ export async function handleGameProfileGet() {
 
   if (profile.riotPuuid && !profile.valorantRankTier) {
 
-    await syncUserRank(session.user.id, { tryAllRegions: true });
+    await syncUserRank(session.user.id, {
+      tryAllRegions: true,
+      context: { source: "profile" },
+    });
 
     profile = (await getPlayerGameProfile(session.user.id)) ?? profile;
 

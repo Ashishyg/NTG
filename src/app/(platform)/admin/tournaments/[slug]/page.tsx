@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import AdminTournamentEditor from "@/components/admin/AdminTournamentEditor";
 import {
   getTournamentAdmin,
+  listSeasonsAdmin,
   listUnassignedPlayerRegistrations,
   parsePrizeSplit,
 } from "@tournaments-leagues/index";
@@ -21,9 +22,10 @@ export default async function AdminTournamentEditPage({ params }: Props) {
   if (!serverEnv.databaseUrl) notFound();
 
   const { slug } = await params;
-  const [t, poolPlayers] = await Promise.all([
+  const [t, poolPlayers, seasons] = await Promise.all([
     getTournamentAdmin(slug),
     listUnassignedPlayerRegistrations(slug),
+    listSeasonsAdmin(),
   ]);
   if (!t) notFound();
 
@@ -32,6 +34,7 @@ export default async function AdminTournamentEditPage({ params }: Props) {
     name: t.name,
     game: t.game,
     gameLabel: t.gameLabel,
+    seasonId: t.seasonId,
     status: t.status,
     description: t.description,
     posterUrl: t.posterUrl,
@@ -89,6 +92,6 @@ export default async function AdminTournamentEditPage({ params }: Props) {
   };
 
   return (
-    <AdminTournamentEditor initial={initial} />
+    <AdminTournamentEditor initial={initial} seasons={seasons} />
   );
 }

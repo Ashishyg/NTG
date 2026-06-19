@@ -134,7 +134,7 @@ function AuthNavAction({
           Admin
         </Link>
       ) : null}
-      <div className="flex h-10 shrink-0 items-center gap-0.5 rounded-full border border-white/10 bg-[#121a2e] py-0 pl-2.5 pr-0.5 sm:bg-white/[0.04] sm:pl-3.5">
+      <div className="site-nav-mobile-btn flex h-10 shrink-0 items-center gap-0.5 rounded-full border border-white/10 bg-white/[0.04] py-0 pl-2.5 pr-0.5 sm:pl-3.5">
         <Link
           href="/profile"
           className={`truncate text-[12px] font-medium leading-none tracking-[0.02em] text-white/85 transition-colors hover:text-white sm:text-[13px] ${
@@ -370,7 +370,7 @@ function NavbarContent() {
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <button
               type="button"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#121a2e] text-white/80 transition-colors hover:bg-white/10 hover:text-white md:hidden"
+              className="site-nav-mobile-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/80 transition-colors hover:bg-white/10 hover:text-white md:hidden"
               aria-label={menuOpen ? "Close menu" : "Open menu"}
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((v) => !v)}

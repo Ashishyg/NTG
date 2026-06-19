@@ -6,7 +6,7 @@ import {
 } from "@/lib/leaderboard-sync-notify";
 import { serverEnv } from "@core/config/env.server";
 import {
-  RANK_SYNC_MAX_BATCH_SIZE,
+  RANK_SYNC_BATCH_SIZE,
   syncAllLinkedPlayers,
   syncUserRank,
   type SyncAllResult,
@@ -14,7 +14,7 @@ import {
 import { after, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-/** Up to 26 Henrik calls × ~2.1s ≈ 55s per batch; chain via follow-up HTTP calls. */
+/** Up to 10 Henrik calls × ~2.1s ≈ 21s per batch; chain via follow-up HTTP calls. */
 export const maxDuration = 120;
 
 type RunTotals = {
@@ -138,7 +138,10 @@ export async function GET(req: Request) {
 
   if (userId) {
     try {
-      const result = await syncUserRank(userId, { tryAllRegions: true });
+      const result = await syncUserRank(userId, {
+        tryAllRegions: true,
+        context: { source: "cron" },
+      });
       return NextResponse.json({
         ok: result.ok,
         ...(result.ok ? { synced: 1 } : { error: result.error }),
@@ -158,10 +161,12 @@ export async function GET(req: Request) {
   const priorTotals = isContinuation ? readRunTotals(searchParams) : emptyTotals();
 
   try {
+    const runId = runStartedAt.toISOString();
     const result = await syncAllLinkedPlayers({
       fullRefreshBefore: runStartedAt,
-      maxBatchSize: RANK_SYNC_MAX_BATCH_SIZE,
+      maxBatchSize: RANK_SYNC_BATCH_SIZE,
       tryAllRegions: true,
+      context: { source: "cron", runId },
     });
 
     const totals = accumulate(priorTotals, result);

@@ -64,7 +64,10 @@ export async function PATCH(req: Request, { params }: Props) {
     const result = await linkMemberRiotAdmin(id, String(body.riotId ?? ""));
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
     after(() => {
-      syncUserRank(id).catch(console.error);
+      syncUserRank(id, {
+        tryAllRegions: true,
+        context: { source: "admin_member", adminId: auth.userId },
+      }).catch(console.error);
     });
     await logAdminAction(auth.userId, "member.linkRiot", id);
     return NextResponse.json({ ok: true });

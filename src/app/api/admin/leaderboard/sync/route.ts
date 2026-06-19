@@ -3,7 +3,7 @@ import { logAdminAction } from "@/lib/admin-audit";
 import { serverEnv } from "@core/config/env.server";
 import {
   getLeaderboardSyncStats,
-  RANK_SYNC_ADMIN_BATCH_SIZE,
+  RANK_SYNC_BATCH_SIZE,
   syncAllLinkedPlayers,
   type SyncRunTotals,
 } from "@tournaments-leagues/index";
@@ -68,10 +68,16 @@ export async function POST(req: Request) {
   }
 
   try {
+    const runId = runStartedAt.toISOString();
     const batch = await syncAllLinkedPlayers({
       fullRefreshBefore: runStartedAt,
       tryAllRegions: true,
-      maxBatchSize: RANK_SYNC_ADMIN_BATCH_SIZE,
+      maxBatchSize: RANK_SYNC_BATCH_SIZE,
+      context: {
+        source: "manual",
+        runId,
+        adminId: auth.userId,
+      },
     });
 
     const totals = accumulateTotals(body.totals, {

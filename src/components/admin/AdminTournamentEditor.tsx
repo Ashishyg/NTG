@@ -56,6 +56,7 @@ type TournamentData = {
   name: string;
   game: string;
   gameLabel: string | null;
+  seasonId: string | null;
   status: string;
   description: string | null;
   posterUrl: string | null;
@@ -109,7 +110,13 @@ function applyCupFields(form: TournamentData, fields: CupFields): TournamentData
   return { ...form, ...fields };
 }
 
-export default function AdminTournamentEditor({ initial }: { initial: TournamentData }) {
+export default function AdminTournamentEditor({
+  initial,
+  seasons,
+}: {
+  initial: TournamentData;
+  seasons: { id: string; label: string }[];
+}) {
   const router = useRouter();
   const { openDeleteConfirm, DeleteConfirmDialog } = useAdminDeleteConfirm();
   const [form, setForm] = useState(initial);
@@ -306,6 +313,7 @@ export default function AdminTournamentEditor({ initial }: { initial: Tournament
           name: form.name.trim(),
           game: form.game,
           gameLabel: emptyToNull(form.gameLabel),
+          seasonId: form.seasonId || null,
           status: form.status,
           description: emptyToNull(form.description),
           posterUrl: emptyToNull(form.posterUrl),
@@ -646,6 +654,24 @@ export default function AdminTournamentEditor({ initial }: { initial: Tournament
                     <option value="OTHER" className="bg-[#0a1020]">Other</option>
                   </select>
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-white/40">Season</label>
+                <select
+                  className={inputClass}
+                  value={form.seasonId ?? ""}
+                  onChange={(e) =>
+                    setForm({ ...form, seasonId: e.target.value ? e.target.value : null })
+                  }
+                >
+                  <option value="" className="bg-[#0a1020]">No season</option>
+                  {seasons.map((season) => (
+                    <option key={season.id} value={season.id} className="bg-[#0a1020]">
+                      {season.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="space-y-1">

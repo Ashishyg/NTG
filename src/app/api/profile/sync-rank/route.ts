@@ -18,7 +18,10 @@ export async function POST() {
       return NextResponse.json({ error: "Link your Riot ID first." }, { status: 400 });
     }
 
-    const result = await syncUserRank(session.user.id, { tryAllRegions: true });
+    const result = await syncUserRank(session.user.id, {
+      tryAllRegions: true,
+      context: { source: "profile" },
+    });
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
