@@ -125,31 +125,33 @@ function AuthNavAction({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
       {isAdmin ? (
         <Link
           href="/admin"
-          className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-200"
+          className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-amber-500/35 bg-amber-500/15 px-2.5 text-[9px] font-semibold uppercase leading-none tracking-[0.12em] text-amber-200 sm:px-3 sm:text-[10px] sm:tracking-[0.14em]"
         >
           Admin
         </Link>
       ) : null}
-      <div className="flex items-center gap-0.5 rounded-full border border-white/10 bg-white/[0.04] py-1 pl-3.5 pr-1">
-      <Link
-        href="/profile"
-        className="max-w-[100px] truncate text-[12px] font-medium tracking-[0.02em] text-white/85 transition-colors hover:text-white sm:max-w-[140px] sm:text-[13px]"
-        title={displayName}
-      >
-        {displayName}
-      </Link>
-      <button
-        type="button"
-        onClick={() => signOut({ callbackUrl: "/" })}
-        aria-label="Sign out"
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/40 transition-colors hover:bg-red-500/10 hover:text-red-300"
-      >
-        <LogOutIcon className="h-4 w-4" />
-      </button>
+      <div className="flex h-10 shrink-0 items-center gap-0.5 rounded-full border border-white/10 bg-[#121a2e] py-0 pl-2.5 pr-0.5 sm:bg-white/[0.04] sm:pl-3.5">
+        <Link
+          href="/profile"
+          className={`truncate text-[12px] font-medium leading-none tracking-[0.02em] text-white/85 transition-colors hover:text-white sm:text-[13px] ${
+            isAdmin ? "max-w-[4.25rem] sm:max-w-[140px]" : "max-w-[5.5rem] sm:max-w-[140px]"
+          }`}
+          title={displayName}
+        >
+          {displayName}
+        </Link>
+        <button
+          type="button"
+          onClick={() => signOut({ callbackUrl: "/" })}
+          aria-label="Sign out"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/40 transition-colors hover:bg-red-500/10 hover:text-red-300"
+        >
+          <LogOutIcon className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );
@@ -325,11 +327,11 @@ function NavbarContent() {
       }}
     >
       <nav
-        className="glass pointer-events-auto w-full max-w-7xl rounded-2xl px-4 py-2.5 sm:px-5 sm:py-3"
+        className="site-nav-shell glass pointer-events-auto w-full max-w-7xl rounded-2xl px-3 py-2 sm:px-5 sm:py-3"
         style={{ transform: "translateZ(0)" }}
       >
-        <div className="flex items-center justify-between gap-4">
-          <Link href={logoHref} className="flex shrink-0 items-center gap-3" aria-label="NTG Lounge">
+        <div className="flex items-center justify-between gap-2 sm:gap-4">
+          <Link href={logoHref} className="flex min-w-0 shrink items-center gap-2 sm:gap-3" aria-label="NTG Lounge">
             <Image
               src="/ntg-logo.png"
               alt="NTG Lounge"
@@ -338,7 +340,7 @@ function NavbarContent() {
               priority
               className="h-10 w-10 rounded-xl object-cover drop-shadow-[0_0_12px_rgba(94,234,212,0.55)] sm:h-11 sm:w-11"
             />
-            <span className="font-display text-[13px] font-semibold tracking-[0.14em] text-white/95 sm:text-[15px] sm:tracking-[0.18em]">
+            <span className="truncate font-display text-[12px] font-semibold tracking-[0.12em] text-white/95 sm:text-[15px] sm:tracking-[0.18em]">
               NTG{" "}
               <span className={platform ? "bg-gradient-to-r from-[var(--color-iris)] to-[var(--color-brand)] bg-clip-text text-transparent" : "text-[var(--color-brand)]"}>
                 {platform ? "ESPORTS" : "LOUNGE"}
@@ -365,10 +367,10 @@ function NavbarContent() {
             ))}
           </ul>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <button
               type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/80 transition-colors hover:bg-white/10 hover:text-white md:hidden"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#121a2e] text-white/80 transition-colors hover:bg-white/10 hover:text-white md:hidden"
               aria-label={menuOpen ? "Close menu" : "Open menu"}
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((v) => !v)}
