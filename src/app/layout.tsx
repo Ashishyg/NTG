@@ -4,6 +4,7 @@ import Navbar from "@/components/Navbar";
 import AuthSessionProvider from "@/components/providers/SessionProvider";
 import RouteProgressBar from "@/components/providers/RouteProgressBar";
 import { getSession } from "@core/auth/session";
+import CustomCursor from "@/components/CustomCursor";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -81,6 +82,7 @@ export default async function RootLayout({
         <AuthSessionProvider session={session}>
           <RouteProgressBar />
           <Navbar />
+          <CustomCursor />
           {children}
         </AuthSessionProvider>
       </body>
