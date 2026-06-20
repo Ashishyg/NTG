@@ -1,21 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion, useMotionValue, useSpring } from "framer-motion";
+import { usePathname } from "next/navigation";
+import { motion, useMotionValue } from "framer-motion";
 
 export default function CustomCursor() {
   const [isHovered, setIsHovered] = useState(false);
   const [isInput, setIsInput] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
 
+  const pathname = usePathname();
   const cursorX = useMotionValue(-100);
   const cursorY = useMotionValue(-100);
 
-  const springConfig = { damping: 35, stiffness: 350, mass: 0.35 };
-  const cursorXSpring = useSpring(cursorX, springConfig);
-  const cursorYSpring = useSpring(cursorY, springConfig);
+  const excludedPaths = ["/login", "/signup", "/profile", "/admin"];
+  const isExcluded = excludedPaths.some((path) => pathname?.startsWith(path));
 
   useEffect(() => {
+    if (isExcluded) return;
+
     // Only activate cursor on PC (devices supporting hover, fine pointer, and screen width >= 1024px)
     const mediaQuery = window.matchMedia("(hover: hover) and (pointer: fine) and (min-width: 1024px)");
     if (!mediaQuery.matches) return;
@@ -57,7 +60,7 @@ export default function CustomCursor() {
     // but preserve it for user inputs and text areas for better accessibility.
     const style = document.createElement("style");
     style.innerHTML = `
-      body, a, button, [role="button"], .cursor-pointer {
+      * {
         cursor: none !important;
       }
       input, textarea, select, option, iframe {
@@ -72,9 +75,9 @@ export default function CustomCursor() {
       document.body.style.cursor = "auto";
       style.remove();
     };
-  }, [cursorX, cursorY]);
+  }, [cursorX, cursorY, isExcluded]);
 
-  if (!isVisible) return null;
+  if (!isVisible || isExcluded) return null;
 
   return (
     <motion.div
@@ -87,8 +90,8 @@ export default function CustomCursor() {
         mixBlendMode: "difference",
         pointerEvents: "none",
         zIndex: 999999,
-        x: cursorXSpring,
-        y: cursorYSpring,
+        x: cursorX,
+        y: cursorY,
         translateX: "-50%",
         translateY: "-50%",
         display: isInput ? "none" : "block",
