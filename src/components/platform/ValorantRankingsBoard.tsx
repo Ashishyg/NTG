@@ -135,11 +135,11 @@ function sortByMmr(entries: LeaderboardPreviewEntry[]): LeaderboardPreviewEntry[
 
 function tierEdgeColor(tierId: number | null | undefined): string {
   if (tierId == null) return "bg-white/10 group-hover:bg-white/30";
-  if (tierId >= 24) return "bg-rose-500/40 group-hover:bg-rose-500/80 group-hover:shadow-[0_0_12px_rgba(244,63,94,0.4)]"; // Radiant/Immortal
-  if (tierId >= 21) return "bg-emerald-500/40 group-hover:bg-emerald-500/80 group-hover:shadow-[0_0_12px_rgba(16,185,129,0.4)]"; // Ascendant
-  if (tierId >= 18) return "bg-violet-500/40 group-hover:bg-violet-500/80 group-hover:shadow-[0_0_12px_rgba(139,92,246,0.4)]"; // Diamond
-  if (tierId >= 15) return "bg-cyan-500/40 group-hover:bg-cyan-500/80 group-hover:shadow-[0_0_12px_rgba(6,182,212,0.4)]"; // Platinum
-  if (tierId >= 12) return "bg-amber-500/40 group-hover:bg-amber-500/80 group-hover:shadow-[0_0_12px_rgba(245,158,11,0.4)]"; // Gold
+  if (tierId >= 24) return "bg-rose-500/40 group-hover:bg-rose-500/80 group-hover:shadow-[-4px_0_10px_rgba(244,63,94,0.5)]"; // Radiant/Immortal
+  if (tierId >= 21) return "bg-emerald-500/40 group-hover:bg-emerald-500/80 group-hover:shadow-[-4px_0_10px_rgba(16,185,129,0.5)]"; // Ascendant
+  if (tierId >= 18) return "bg-violet-500/40 group-hover:bg-violet-500/80 group-hover:shadow-[-4px_0_10px_rgba(139,92,246,0.5)]"; // Diamond
+  if (tierId >= 15) return "bg-cyan-500/40 group-hover:bg-cyan-500/80 group-hover:shadow-[-4px_0_10px_rgba(6,182,212,0.5)]"; // Platinum
+  if (tierId >= 12) return "bg-amber-500/40 group-hover:bg-amber-500/80 group-hover:shadow-[-4px_0_10px_rgba(245,158,11,0.5)]"; // Gold
   return "bg-white/10 group-hover:bg-white/30";
 }
 
@@ -508,34 +508,39 @@ export default function ValorantRankingsBoard({ data }: Props) {
                   if (isRank1) {
                     rankColorClass = "text-[#dfc776]";
                     rankGlowClass = "drop-shadow-[0_0_15px_rgba(223,199,118,0.4)]";
-                    rowBgClass = "border-[#dfc776]/40 border-t-[#dfc776]/60 bg-gradient-to-b from-[#dfc776]/[0.08] to-transparent shadow-[inset_0_2px_20px_rgba(223,199,118,0.05),0_0_20px_rgba(223,199,118,0.1)] z-10";
+                    // Only inset shadow — no outer glow that bleeds onto adjacent rows
+                    rowBgClass = "border-[#dfc776]/40 border-t-[#dfc776]/60 bg-gradient-to-b from-[#dfc776]/[0.08] to-transparent shadow-[inset_0_2px_20px_rgba(223,199,118,0.07)] z-10";
                   } else if (isRank2) {
                     rankColorClass = "text-[#cbd5e1]";
                     rankGlowClass = "drop-shadow-[0_0_15px_rgba(203,213,225,0.4)]";
-                    rowBgClass = "border-[#cbd5e1]/40 border-t-[#cbd5e1]/60 bg-gradient-to-b from-[#cbd5e1]/[0.06] to-transparent shadow-[inset_0_2px_20px_rgba(203,213,225,0.05),0_0_20px_rgba(203,213,225,0.08)] z-10";
+                    rowBgClass = "border-[#cbd5e1]/40 border-t-[#cbd5e1]/60 bg-gradient-to-b from-[#cbd5e1]/[0.06] to-transparent shadow-[inset_0_2px_20px_rgba(203,213,225,0.06)] z-10";
                   } else if (isRank3) {
                     rankColorClass = "text-[#b48464]";
                     rankGlowClass = "drop-shadow-[0_0_12px_rgba(180,132,100,0.4)]";
-                    rowBgClass = "border-[#b48464]/40 border-t-[#b48464]/60 bg-gradient-to-b from-[#b48464]/[0.06] to-transparent shadow-[inset_0_2px_20px_rgba(180,132,100,0.05),0_0_15px_rgba(180,132,100,0.08)] z-10";
+                    rowBgClass = "border-[#b48464]/40 border-t-[#b48464]/60 bg-gradient-to-b from-[#b48464]/[0.06] to-transparent shadow-[inset_0_2px_20px_rgba(180,132,100,0.06)] z-10";
                   }
 
                   if (isUser) {
                     rankColorClass = "text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.8)]";
                     rowBgClass = isFlashing 
-                      ? "border-white bg-white/20 shadow-[0_0_40px_rgba(255,255,255,0.6)] z-30 scale-[1.02]"
-                      : "border-white/30 bg-gradient-to-r from-white/[0.08] to-transparent shadow-[0_0_20px_rgba(255,255,255,0.15)] z-20";
+                      ? "border-white bg-white/20 shadow-[inset_0_0_30px_rgba(255,255,255,0.15)] z-30 scale-[1.02]"
+                      : "border-white/30 bg-gradient-to-r from-white/[0.08] to-transparent shadow-[inset_0_0_20px_rgba(255,255,255,0.06)] z-20";
                   }
 
                   return (
                     <li
                       id={`row-${e.displayName}`}
                       key={`${e.rank}-${e.riotId ?? e.displayName}`}
-                      className={`group relative flex items-center rounded-xl border ${rowBgClass} px-5 sm:px-6 h-[90px] sm:h-[110px] backdrop-blur-sm transition-all duration-300 ease-out hover:scale-[1.02] hover:-translate-y-1 hover:z-30 hover:border-white/20 hover:bg-white/[0.04] hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)]`}
+                      style={{ isolation: 'isolate' }}
+                      className={`group relative flex items-center rounded-xl border ${rowBgClass} px-5 sm:px-6 h-[90px] sm:h-[110px] backdrop-blur-sm transition-all duration-300 ease-out hover:scale-[1.02] hover:-translate-y-1 hover:z-30 hover:border-white/20 hover:bg-white/[0.04]`}
                     >
-                      {/* Left Edge Tier Highlight */}
-                      <div className={`absolute left-0 top-0 bottom-0 w-2 rounded-l-xl transition-all duration-300 [clip-path:inset(0px_-100px)] ${
-                        isUser ? "bg-white shadow-[0_0_12px_rgba(255,255,255,0.8)]" : edgeColorClass
-                      }`} />
+                      {/* Left Edge Tier Highlight — clip-path clips glow vertically to prevent bleed onto adjacent rows */}
+                      <div
+                        style={{ clipPath: 'inset(0px -200px)' }}
+                        className={`absolute left-0 top-0 bottom-0 w-2 rounded-l-xl transition-all duration-300 ${
+                          isUser ? "bg-white shadow-[0_0_10px_rgba(255,255,255,0.7)]" : edgeColorClass
+                        }`}
+                      />
                       {/* Grid Layout for Row */}
               <div className="flex w-full items-center gap-x-3 sm:grid sm:gap-x-6 z-10" style={{ gridTemplateColumns: "80px 220px 1fr 100px" }}>
                 
