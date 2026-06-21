@@ -39,6 +39,8 @@ export async function linkRiotAccount(
       riotGameName: account.gameName,
       riotTagLine: account.tagLine,
       riotRegion: normalizeHenrikRegion(account.region),
+      riotPlayerCard: account.cardLarge,
+      riotPlayerCardWide: account.cardWide,
     },
   });
 

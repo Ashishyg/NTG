@@ -16,6 +16,7 @@ function mapGame(game: string): GameSlug {
 
 function mapStatus(t: (typeof tournaments)[0]): TournamentStatus {
   if (t.status === "Hosted") return "COMPLETED";
+  if (t.status === "Soon") return "UPCOMING";
   if (t.id === tournamentRegistration.cupId && tournamentRegistration.active) {
     return "REGISTRATION_OPEN";
   }
@@ -181,7 +182,133 @@ async function main() {
     });
   }
 
-  console.log(`Seeded ${tournaments.length} tournaments and gallery.`);
+  // Seed Mock Users and Leaderboard Entries for VALORANT
+  const mockPlayers = [
+    {
+      displayName: "Vachan",
+      riotGameName: "Vachan",
+      riotTagLine: "NTG",
+      riotPlayerCard: "https://media.valorant-api.com/playercards/1711d20d-4b1c-c64a-14be-d4ae58a457c6/largeart.png",
+      riotPlayerCardWide: "https://media.valorant-api.com/playercards/1711d20d-4b1c-c64a-14be-d4ae58a457c6/wideart.png",
+      mmr: 950,
+      rankTier: "Immortal 3",
+      rankTierId: 26,
+    },
+    {
+      displayName: "Shanks",
+      riotGameName: "Shanks",
+      riotTagLine: "NTG",
+      riotPlayerCard: "https://media.valorant-api.com/playercards/c8b2f5fd-4331-b172-f3b7-c8a26f356a1f/largeart.png",
+      riotPlayerCardWide: "https://media.valorant-api.com/playercards/c8b2f5fd-4331-b172-f3b7-c8a26f356a1f/wideart.png",
+      mmr: 820,
+      rankTier: "Immortal 1",
+      rankTierId: 24,
+    },
+    {
+      displayName: "Conor",
+      riotGameName: "Conor",
+      riotTagLine: "NTG",
+      riotPlayerCard: "https://media.valorant-api.com/playercards/eef542d2-4724-bc47-f53f-239f8c9c2623/largeart.png",
+      riotPlayerCardWide: "https://media.valorant-api.com/playercards/eef542d2-4724-bc47-f53f-239f8c9c2623/wideart.png",
+      mmr: 710,
+      rankTier: "Ascendant 3",
+      rankTierId: 23,
+    },
+    {
+      displayName: "Player4",
+      riotGameName: "Player4",
+      riotTagLine: "NTG",
+      riotPlayerCard: "https://media.valorant-api.com/playercards/d32e58b1-4191-7315-ad4a-9da58b3f23dd/largeart.png",
+      riotPlayerCardWide: "https://media.valorant-api.com/playercards/d32e58b1-4191-7315-ad4a-9da58b3f23dd/wideart.png",
+      mmr: 650,
+      rankTier: "Ascendant 2",
+      rankTierId: 22,
+    },
+    {
+      displayName: "Player5",
+      riotGameName: "Player5",
+      riotTagLine: "NTG",
+      riotPlayerCard: "https://media.valorant-api.com/playercards/d2d3caf9-499f-2ac8-9722-54961c3bcbf5/largeart.png",
+      riotPlayerCardWide: "https://media.valorant-api.com/playercards/d2d3caf9-499f-2ac8-9722-54961c3bcbf5/wideart.png",
+      mmr: 580,
+      rankTier: "Ascendant 1",
+      rankTierId: 21,
+    },
+  ];
+
+  for (const p of mockPlayers) {
+    const user = await prisma.user.upsert({
+      where: { email: `${p.displayName.toLowerCase()}@ntgesports.com` },
+      create: {
+        email: `${p.displayName.toLowerCase()}@ntgesports.com`,
+        name: p.displayName,
+        signupCompleted: true,
+        riotPuuid: `puuid_${p.displayName.toLowerCase()}`,
+        riotGameName: p.riotGameName,
+        riotTagLine: p.riotTagLine,
+        riotPlayerCard: p.riotPlayerCard,
+        riotPlayerCardWide: p.riotPlayerCardWide,
+      },
+      update: {
+        signupCompleted: true,
+        riotPuuid: `puuid_${p.displayName.toLowerCase()}`,
+        riotGameName: p.riotGameName,
+        riotTagLine: p.riotTagLine,
+        riotPlayerCard: p.riotPlayerCard,
+        riotPlayerCardWide: p.riotPlayerCardWide,
+      },
+    });
+
+    await prisma.playerProfile.upsert({
+      where: { usernameKey: p.displayName.toLowerCase() },
+      create: {
+        userId: user.id,
+        displayName: p.displayName,
+        usernameKey: p.displayName.toLowerCase(),
+      },
+      update: {
+        userId: user.id,
+        displayName: p.displayName,
+      },
+    });
+
+    const existingEntry = await prisma.leaderboardEntry.findFirst({
+      where: {
+        game: "VALORANT",
+        scope: "TOWN",
+        seasonId: null,
+        userId: user.id,
+      },
+    });
+
+    if (existingEntry) {
+      await prisma.leaderboardEntry.update({
+        where: { id: existingEntry.id },
+        data: {
+          mmr: p.mmr,
+          rankTier: p.rankTier,
+          rankTierId: p.rankTierId,
+          peakMmr: p.mmr,
+          lastSyncedAt: new Date(),
+        },
+      });
+    } else {
+      await prisma.leaderboardEntry.create({
+        data: {
+          game: "VALORANT",
+          scope: "TOWN",
+          userId: user.id,
+          mmr: p.mmr,
+          rankTier: p.rankTier,
+          rankTierId: p.rankTierId,
+          peakMmr: p.mmr,
+          lastSyncedAt: new Date(),
+        },
+      });
+    }
+  }
+
+  console.log(`Seeded ${tournaments.length} tournaments, gallery, and mock rankings.`);
 }
 
 main()

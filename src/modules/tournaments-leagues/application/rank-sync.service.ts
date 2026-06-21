@@ -322,21 +322,46 @@ export async function syncUserRank(
 
   const { snapshot, region: resolvedRegion } = fetched;
 
-  if (snapshot.gameName && snapshot.tagLine) {
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        riotGameName: snapshot.gameName,
-        riotTagLine: snapshot.tagLine,
-        riotRegion: resolvedRegion,
-      },
-    });
-  } else if (resolvedRegion !== user.riotRegion) {
-    await prisma.user.update({
-      where: { id: userId },
-      data: { riotRegion: resolvedRegion },
-    });
+  let cardLarge: string | undefined;
+  let cardWide: string | undefined;
+  if (!user.riotPlayerCard) {
+    try {
+      const name = snapshot.gameName || user.riotGameName;
+      const tag = snapshot.tagLine || user.riotTagLine;
+      const encodedName = encodeURIComponent(name);
+      const encodedTag = encodeURIComponent(tag);
+      const res = await henrikFetch(
+        `https://api.henrikdev.xyz/valorant/v1/account/${encodedName}/${encodedTag}`,
+        { headers: henrikHeaders(), next: { revalidate: 0 } },
+      );
+      if (res.ok) {
+        const accData = (await res.json()) as { data?: { card?: { large?: string; wide?: string } } };
+        cardLarge = accData.data?.card?.large;
+        cardWide = accData.data?.card?.wide;
+      }
+    } catch (e) {
+      console.error("Failed to fetch player card on rank sync:", e);
+    }
   }
+
+  const userUpdateData: Prisma.UserUpdateInput = {
+    riotRegion: resolvedRegion,
+  };
+  if (snapshot.gameName && snapshot.tagLine) {
+    userUpdateData.riotGameName = snapshot.gameName;
+    userUpdateData.riotTagLine = snapshot.tagLine;
+  }
+  if (cardLarge) {
+    userUpdateData.riotPlayerCard = cardLarge;
+  }
+  if (cardWide) {
+    userUpdateData.riotPlayerCardWide = cardWide;
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: userUpdateData,
+  });
 
   const existing = await prisma.leaderboardEntry.findFirst({
     where: {

@@ -63,6 +63,8 @@ export class LeaderboardRepository {
           e.user.riotGameName && e.user.riotTagLine
             ? `${e.user.riotGameName}#${e.user.riotTagLine}`
             : null,
+        riotPlayerCard: e.user.riotPlayerCard,
+        riotPlayerCardWide: e.user.riotPlayerCardWide,
         mmr: e.mmr,
         rankTier: e.rankTier,
         rankTierId: e.rankTierId,

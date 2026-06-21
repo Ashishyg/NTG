@@ -1,4 +1,4 @@
-﻿-- CreateEnum
+-- CreateEnum
 CREATE TYPE "PlayedGame" AS ENUM ('VALORANT', 'CS2');
 
 -- CreateEnum

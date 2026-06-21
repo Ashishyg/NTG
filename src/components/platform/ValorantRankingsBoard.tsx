@@ -12,6 +12,95 @@ import {
 import BrandIcon from "@/components/ui/BrandIcon";
 import { gameMetaFor } from "@/lib/tournament-display";
 
+function PodiumCard({
+  entry,
+  rank,
+  widthClass,
+  borderColor,
+  glowColor,
+  pillBg,
+  ringColor,
+}: {
+  entry: LeaderboardPreviewEntry | undefined;
+  rank: number;
+  widthClass: string;
+  borderColor: string;
+  glowColor: string;
+  pillBg: string;
+  ringColor: string;
+}) {
+  if (!entry) {
+    return (
+      <div className={`${widthClass} aspect-[268/640] rounded-2xl sm:rounded-[2rem] border border-dashed border-white/10 bg-black/40 flex flex-col items-center justify-center`}>
+        <span className="text-white/20 text-xl sm:text-3xl font-black font-display">#{rank}</span>
+        <span className="text-white/20 text-[9px] sm:text-xs mt-1 sm:mt-2 uppercase tracking-widest">Vacant</span>
+      </div>
+    );
+  }
+
+  const icon = rankIconUrl(entry.rankTierId);
+  const cardImg = entry.riotPlayerCard ?? "https://media.valorant-api.com/playercards/1711d20d-4b1c-c64a-14be-d4ae58a457c6/largeart.png";
+
+  return (
+    <div 
+      className={`${widthClass} aspect-[268/640] rounded-2xl sm:rounded-[2rem] border-2 ${borderColor} ${glowColor} relative overflow-hidden flex flex-col justify-end p-2 sm:p-4 shadow-2xl transition-transform duration-500`}
+    >
+      {/* Top Left Rank Badge */}
+      <div className="absolute top-3 left-3 sm:top-5 sm:left-5 z-10 select-none pointer-events-none">
+        {rank === 1 ? (
+          <span className="font-display text-3xl sm:text-5xl font-black text-amber-400 drop-shadow-[0_2px_12px_rgba(245,158,11,0.7)] flex items-center gap-0.5">
+            1<span className="text-xl sm:text-2xl align-top">★</span>
+          </span>
+        ) : rank === 2 ? (
+          <span className="font-display text-3xl sm:text-5xl font-black text-slate-300 drop-shadow-[0_2px_10px_rgba(203,213,225,0.6)]">
+            2
+          </span>
+        ) : (
+          <span className="font-display text-3xl sm:text-5xl font-black text-cyan-400 drop-shadow-[0_2px_12px_rgba(34,211,238,0.7)]">
+            3
+          </span>
+        )}
+      </div>
+
+      {/* Player Card Image Background */}
+      <img
+        src={cardImg}
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover object-top pointer-events-none"
+      />
+      {/* Dark gradient overlay at the bottom */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent pointer-events-none" />
+
+      {/* Content */}
+      <div className="relative z-10 flex flex-col items-center text-center">
+        {/* Rank Icon (No Circle) */}
+        <div className="h-10 w-10 sm:h-16 sm:w-16 flex items-center justify-center mb-2 sm:mb-4">
+          {icon ? (
+            <img src={icon} alt="" className="h-10 w-10 sm:h-16 sm:w-16 object-contain drop-shadow-md" />
+          ) : (
+            <div className="h-10 w-10 sm:h-16 sm:w-16 rounded-xl bg-white/10" />
+          )}
+        </div>
+
+        {/* Username */}
+        <h3 className="font-display text-[10px] sm:text-xl font-black text-white leading-tight drop-shadow-md truncate max-w-full">
+          {entry.displayName}
+        </h3>
+
+        {/* Riot ID */}
+        <p className="text-[7px] sm:text-xs text-white/50 font-medium mt-0.5 sm:mt-1 truncate max-w-full">
+          {entry.riotId ?? "No Riot ID"}
+        </p>
+
+        {/* RR Pill Badge */}
+        <div className={`mt-2 sm:mt-4 rounded-full px-2 sm:px-5 py-0.5 sm:py-1.5 text-[8px] sm:text-xs font-black tracking-widest text-white shadow-md uppercase ${pillBg}`}>
+          {entry.mmr?.toLocaleString() ?? "0"} RR
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const PAGE_SIZE = 10;
 
 function sortByMmr(entries: LeaderboardPreviewEntry[]): LeaderboardPreviewEntry[] {
@@ -63,13 +152,14 @@ export default function ValorantRankingsBoard({ data }: Props) {
   const [mounted, setMounted] = useState(false);
   const [now, setNow] = useState(new Date());
   const [isFlashing, setIsFlashing] = useState(false);
+  const [showRest, setShowRest] = useState(false);
+  const [introComplete, setIntroComplete] = useState(false);
 
   const sorted = useMemo(() => sortByMmr(data.entries), [data.entries]);
 
-  const userEntry = useMemo(() => {
-    if (!session?.user?.name) return null;
-    return sorted.find((e) => e.displayName === session.user.name);
-  }, [sorted, session?.user?.name]);
+  const userEntry = session?.user?.name
+    ? sorted.find((e) => e.displayName === session.user.name)
+    : null;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -99,7 +189,22 @@ export default function ValorantRankingsBoard({ data }: Props) {
   useEffect(() => {
     setMounted(true);
     const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
+
+    // Start fading other components/bg after 2 seconds
+    const fadeTimer = setTimeout(() => {
+      setShowRest(true);
+    }, 2000);
+
+    // Unmount grid overlay after transition completes (2s + 1.2s wave + 0.6s animation)
+    const completeTimer = setTimeout(() => {
+      setIntroComplete(true);
+    }, 4500);
+
+    return () => {
+      clearInterval(timer);
+      clearTimeout(fadeTimer);
+      clearTimeout(completeTimer);
+    };
   }, []);
 
   const goToPage = (newPage: number) => {
@@ -166,18 +271,112 @@ export default function ValorantRankingsBoard({ data }: Props) {
       {/* Immersive Bluish Smoky Background */}
       <div className="fixed inset-0 -z-10 bg-[#0a0f16] overflow-hidden">
         {/* Core highlight light */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[120vw] h-[100vh] bg-[radial-gradient(ellipse_at_top,_rgba(24,50,80,0.6)_0%,_rgba(10,15,22,0)_70%)] pointer-events-none mix-blend-screen" />
+        <div 
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-[120vw] h-[100vh] bg-[radial-gradient(ellipse_at_top,_rgba(24,50,80,0.6)_0%,_rgba(10,15,22,0)_70%)] pointer-events-none mix-blend-screen transition-opacity duration-1000 ease-out"
+          style={{ opacity: showRest ? 1 : 0 }}
+        />
         
         {/* Smoky blue/cyan blurred orbs */}
-        <div className="absolute top-1/4 -left-1/4 w-[80vw] h-[80vh] bg-blue-900/10 blur-[120px] rounded-full pointer-events-none" />
-        <div className="absolute bottom-1/4 -right-1/4 w-[80vw] h-[80vh] bg-cyan-900/5 blur-[120px] rounded-full pointer-events-none" />
+        <div 
+          className="absolute top-1/4 -left-1/4 w-[80vw] h-[80vh] bg-blue-900/10 blur-[120px] rounded-full pointer-events-none transition-opacity duration-1000 ease-out"
+          style={{ opacity: showRest ? 1 : 0 }}
+        />
+        <div 
+          className="absolute bottom-1/4 -right-1/4 w-[80vw] h-[80vh] bg-cyan-900/5 blur-[120px] rounded-full pointer-events-none transition-opacity duration-1000 ease-out"
+          style={{ opacity: showRest ? 1 : 0 }}
+        />
         
         {/* Subtle grid/texture overlay */}
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10 pointer-events-none mix-blend-overlay" />
       </div>
 
+      {/* Grid Overlay for reveal animation */}
+      {!introComplete && (
+        <div 
+          className="fixed inset-0 z-20 pointer-events-none grid"
+          style={{
+            gridTemplateColumns: "repeat(12, 1fr)",
+            gridTemplateRows: "repeat(12, 1fr)",
+          }}
+        >
+          {Array.from({ length: 144 }).map((_, i) => {
+            const r = Math.floor(i / 12);
+            const c = i % 12;
+            // Delay based on distance from bottom-right (r = 11, c = 11)
+            const dist = (11 - r) + (11 - c);
+            const delay = dist * 0.05; // 0s to 1.1s wave delay relative to fade trigger
+            return (
+              <div
+                key={i}
+                className="bg-[#0a0f16] transition-opacity duration-600 ease-in-out"
+                style={{
+                  opacity: showRest ? 0 : 1,
+                  transitionDelay: `${delay}s`,
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {/* Intro Podium Screen */}
+      {!introComplete && (
+        <div 
+          className="fixed inset-0 z-30 flex flex-col items-center justify-center bg-transparent pointer-events-none transition-opacity duration-700 ease-in-out"
+          style={{ opacity: showRest ? 0 : 1 }}
+        >
+          {/* Rankings Header text at the top of intro screen */}
+          <div className="mb-8 sm:mb-12 text-center select-none">
+            <h1 className="font-display text-4xl sm:text-6xl font-black text-transparent bg-gradient-to-b from-white to-white/60 bg-clip-text tracking-wider uppercase drop-shadow-md">
+              TOP 3 PLAYERS
+            </h1>
+            <p className="text-white/40 text-[10px] sm:text-xs font-bold uppercase tracking-[0.25em] mt-2">
+              NTG Competitive Leaderboard
+            </p>
+          </div>
+
+          {/* Podium Row */}
+          <div className="flex items-end justify-center gap-3 sm:gap-6 px-4">
+            {/* 2nd Place */}
+            <PodiumCard
+              entry={sorted[1]}
+              rank={2}
+              widthClass="w-[105px] sm:w-[155px]"
+              borderColor="border-slate-300/40"
+              glowColor="shadow-[0_0_20px_rgba(203,213,225,0.1)]"
+              ringColor="border-[#cbd5e1]"
+              pillBg="bg-rose-600"
+            />
+            {/* 1st Place */}
+            <PodiumCard
+              entry={sorted[0]}
+              rank={1}
+              widthClass="w-[120px] sm:w-[180px]"
+              borderColor="border-amber-500/60"
+              glowColor="shadow-[0_0_30px_rgba(245,158,11,0.25)]"
+              ringColor="border-amber-500"
+              pillBg="bg-amber-500"
+            />
+            {/* 3rd Place */}
+            <PodiumCard
+              entry={sorted[2]}
+              rank={3}
+              widthClass="w-[95px] sm:w-[138px]"
+              borderColor="border-[#b48464]/40"
+              glowColor="shadow-[0_0_20px_rgba(180,132,100,0.1)]"
+              ringColor="border-[#b48464]"
+              pillBg="bg-cyan-600"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Increased max-width to make it "zoomed and big" */}
-      <div className="relative w-full mx-auto max-w-6xl pb-20">
+      <div 
+        className={`relative w-full mx-auto max-w-6xl pb-20 transition-opacity duration-700 ease-in-out ${
+          showRest ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+      >
         
         {/* Premium Header */}
         <div className="relative mb-10 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.04] to-black/40 p-8 sm:p-10 shadow-2xl backdrop-blur-md">
@@ -201,7 +400,7 @@ export default function ValorantRankingsBoard({ data }: Props) {
               WHO RULES MANGALURU?
             </h2>
             <p className="mt-4 max-w-2xl text-sm sm:text-base font-medium text-white/50 leading-relaxed">
-              The official valorant competitive leaderboard for Mangaluru. Link your Riot ID to claim your rank and earn your place among the city's best.
+            The official valorant competitive leaderboard for Mangaluru. Link your Riot ID to claim your rank and earn your place among the city&apos;s best.
             </p>
           </div>
         </div>
@@ -261,7 +460,7 @@ export default function ValorantRankingsBoard({ data }: Props) {
               </div>
             ) : (
               <ul className="flex flex-col gap-3 relative">
-                {pageEntries.map((e, idx) => {
+                {pageEntries.map((e) => {
                   const icon = rankIconUrl(e.rankTierId);
                   const accent = rankAccentClass(e.rankTierId);
                   const label = formatRankLabel(e.rankTierId, e.rankTier);

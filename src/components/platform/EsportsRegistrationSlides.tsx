@@ -62,9 +62,19 @@ export default function EsportsRegistrationSlides({ banners, intervalMs = 7000 }
 
             <div className="relative z-10 flex h-full w-full flex-col justify-between gap-8 sm:flex-row sm:items-end">
               <div className="max-w-xl">
-                <div className="mb-5 inline-flex items-center gap-2 rounded-lg bg-emerald-500/20 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 ring-1 ring-inset ring-emerald-500/30">
-                  Registration Open
-                </div>
+            {banner.status === "IN_PROGRESS" ? (
+              <div className="mb-5 inline-flex items-center gap-2 rounded-lg bg-rose-500/20 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-rose-400 ring-1 ring-inset ring-rose-500/30">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-rose-500" />
+                </span>
+                Tournament Live
+              </div>
+            ) : (
+              <div className="mb-5 inline-flex items-center gap-2 rounded-lg bg-emerald-500/20 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 ring-1 ring-inset ring-emerald-500/30">
+                Registration Open
+              </div>
+            )}
                 <h2 className="font-display text-4xl font-black uppercase tracking-tight text-white drop-shadow-md sm:text-5xl">
                   {banner.title}
                 </h2>
@@ -75,7 +85,7 @@ export default function EsportsRegistrationSlides({ banners, intervalMs = 7000 }
 
               <div className="shrink-0">
                 <span className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-white px-8 text-[12px] font-bold uppercase tracking-[0.2em] text-black shadow-[0_0_15px_rgba(255,255,255,0.2)] transition-all group-hover/card:bg-[var(--color-brand)] group-hover/card:text-black group-hover/card:shadow-[0_0_20px_rgba(34,211,238,0.4)] sm:w-auto">
-                  Register Now
+                  {banner.status === "IN_PROGRESS" ? "View Bracket" : "Register Now"}
                   <svg
                     className="ml-2.5 h-4 w-4 transition-transform group-hover/card:translate-x-1"
                     fill="none"

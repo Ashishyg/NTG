@@ -95,6 +95,7 @@ function toRegistrationBanner(t: RegistrationBannerRow) {
       null,
     hubBannerUrl: t.hubBannerUrl,
     hubCarouselImages: parseCarouselImages(t.hubCarouselImages),
+    status: t.status,
   };
 }
 
@@ -271,6 +272,7 @@ export class TournamentRepository {
         status: { not: "CANCELLED" },
         OR: [
           { status: "REGISTRATION_OPEN" },
+          { status: "IN_PROGRESS", showOnEsportsHub: true },
           {
             autoManageStatus: true,
             registrationOpensAt: { not: null },
@@ -281,7 +283,7 @@ export class TournamentRepository {
       orderBy: [{ showOnEsportsHub: "desc" }, { startsAt: "asc" }, { createdAt: "asc" }],
     });
     return candidates
-      .filter((row) => isTournamentRegistrationLive(row))
+      .filter((row) => isTournamentRegistrationLive(row) || row.status === "IN_PROGRESS")
       .map(toRegistrationBanner);
   }
 
@@ -300,6 +302,7 @@ export class TournamentRepository {
     registrationUrl: string | null;
     season: { label: string } | null;
     bracketUrl: string | null;
+    showOnEsportsHub: boolean;
     placements?: {
       role: string;
       teamLabel: string | null;
@@ -326,6 +329,7 @@ export class TournamentRepository {
       registrationUrl: t.registrationUrl,
       championName,
       bracketUrl: t.bracketUrl,
+      showOnEsportsHub: t.showOnEsportsHub,
     };
   }
 }

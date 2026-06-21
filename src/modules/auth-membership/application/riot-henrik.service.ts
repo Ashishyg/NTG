@@ -7,6 +7,8 @@ export type RiotAccount = {
   gameName: string;
   tagLine: string;
   region?: string;
+  cardLarge?: string;
+  cardWide?: string;
 };
 
 export function parseRiotId(riotId: string): { gameName: string; tagLine: string } | null {
@@ -30,6 +32,9 @@ export async function resolveRiotAccount(
       gameName,
       tagLine,
       region: "ap",
+      cardLarge: "https://media.valorant-api.com/playercards/9a97ca42-49df-5129-f538-4e8979e3dfa0/largeart.png",
+      cardWide: "https://media.valorant-api.com/playercards/9a97ca42-49df-5129-f538-4e8979e3dfa0/wideart.png",
+
     };
   }
 
@@ -47,7 +52,13 @@ export async function resolveRiotAccount(
   }
 
   const data = (await res.json()) as {
-    data?: { puuid?: string; game_name?: string; tag_line?: string; region?: string };
+    data?: {
+      puuid?: string;
+      game_name?: string;
+      tag_line?: string;
+      region?: string;
+      card?: { large?: string; wide?: string };
+    };
   };
 
   const puuid = data.data?.puuid;
@@ -58,5 +69,7 @@ export async function resolveRiotAccount(
     gameName: data.data?.game_name ?? gameName,
     tagLine: data.data?.tag_line ?? tagLine,
     region: normalizeHenrikRegion(data.data?.region),
+    cardLarge: data.data?.card?.large,
+    cardWide: data.data?.card?.wide,
   };
 }

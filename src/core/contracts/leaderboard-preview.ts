@@ -4,6 +4,8 @@ export type LeaderboardPreviewEntry = {
   rank: number;
   displayName: string;
   riotId: string | null;
+  riotPlayerCard?: string | null;
+  riotPlayerCardWide?: string | null;
   mmr: number | null;
   rankTier: string | null;
   rankTierId: number | null;

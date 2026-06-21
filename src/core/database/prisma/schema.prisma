@@ -113,6 +113,8 @@ model User {
   riotGameName     String?
   riotTagLine      String?
   riotRegion       String?
+  riotPlayerCard     String?
+  riotPlayerCardWide String?
   steamId64        String?   @unique
   steamProfileUrl  String?
   steamPersonaName String?
