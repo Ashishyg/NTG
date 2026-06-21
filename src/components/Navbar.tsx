@@ -291,8 +291,34 @@ function NavbarContent() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // Initialize state based on window.location.pathname fallback if pathname isn't fully ready yet on mount
+  const getIsLeaderboard = () => {
+    if (typeof window !== "undefined") {
+      return window.location.pathname === "/esports/leaderboard";
+    }
+    return pathname === "/esports/leaderboard";
+  };
+  const isLeaderboard = getIsLeaderboard();
+  const [hideForIntro, setHideForIntro] = useState(isLeaderboard);
+  const [prevPathname, setPrevPathname] = useState(pathname);
+
+  // Synchronously update transition states during render to avoid layout hydration pop-up/fade glitches
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    setHideForIntro(pathname === "/esports/leaderboard");
+  }
+
   useEffect(() => {
     setMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (pathname === "/esports/leaderboard") {
+      const timer = setTimeout(() => {
+        setHideForIntro(false);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
   }, [pathname]);
 
   useEffect(() => {
@@ -305,7 +331,7 @@ function NavbarContent() {
       .catch(() => setIsAdmin(false));
   }, [status, session?.user?.id]);
 
-  if (isAuthRoute(pathname)) return null;
+  if (pathname && isAuthRoute(pathname)) return null;
 
   const signedIn = status === "authenticated" && session?.user;
   const platform = isPlatformRoute(pathname);
@@ -323,11 +349,15 @@ function NavbarContent() {
         right: 0,
         zIndex: 9999,
         width: "100%",
-        pointerEvents: "none",
+        pointerEvents: hideForIntro ? "none" : "none", // standard layout pointerEvents
+        opacity: hideForIntro ? 0 : 1,
+        transition: "opacity 700ms ease-in-out",
       }}
     >
       <nav
-        className="site-nav-shell glass pointer-events-auto w-full max-w-7xl rounded-2xl px-3 py-2 sm:px-5 sm:py-3"
+        className={`site-nav-shell glass w-full max-w-7xl rounded-2xl px-3 py-2 sm:px-5 sm:py-3 ${
+          hideForIntro ? "pointer-events-none" : "pointer-events-auto"
+        }`}
         style={{ transform: "translateZ(0)" }}
       >
         <div className="flex items-center justify-between gap-2 sm:gap-4">
