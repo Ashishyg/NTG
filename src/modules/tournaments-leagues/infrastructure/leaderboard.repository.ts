@@ -1,5 +1,6 @@
 import { prisma } from "@core/database/client";
 import type { LeaderboardPreview } from "@core/contracts";
+import { sortValorantBoardEntries } from "@/lib/leaderboard-sort";
 import type { GameSlug } from "@prisma/client";
 
 const POINTS_WIN = 3;
@@ -22,11 +23,9 @@ export class LeaderboardRepository {
         game: "VALORANT",
         scope: "TOWN",
         seasonId: null,
-        mmr: { not: null },
         user: {
           signupCompleted: true,
           riotPuuid: { not: null },
-          playerProfile: { isNot: null },
           ...(q
             ? {
                 OR: [
@@ -43,8 +42,6 @@ export class LeaderboardRepository {
             : {}),
         },
       },
-      orderBy: [{ mmr: "desc" }, { peakMmr: "desc" }],
-      take: limit,
       include: {
         user: {
           include: { playerProfile: true },
@@ -52,24 +49,26 @@ export class LeaderboardRepository {
       },
     });
 
+    const mapped = entries.map((e) => ({
+      rank: e.rank ?? 0,
+      displayName:
+        e.user.playerProfile?.displayName ?? e.user.name ?? "Player",
+      riotId:
+        e.user.riotGameName && e.user.riotTagLine
+          ? `${e.user.riotGameName}#${e.user.riotTagLine}`
+          : null,
+      mmr: e.mmr,
+      rankTier: e.rankTier,
+      rankTierId: e.rankTierId,
+      peakMmr: e.peakMmr,
+      lastSyncedAt: e.lastSyncedAt?.toISOString() ?? null,
+      game: e.game,
+    }));
+
     return {
       game: "VALORANT",
       scope: "TOWN",
-      entries: entries.map((e, i) => ({
-        rank: i + 1,
-        displayName:
-          e.user.playerProfile?.displayName ?? e.user.name ?? "Player",
-        riotId:
-          e.user.riotGameName && e.user.riotTagLine
-            ? `${e.user.riotGameName}#${e.user.riotTagLine}`
-            : null,
-        mmr: e.mmr,
-        rankTier: e.rankTier,
-        rankTierId: e.rankTierId,
-        peakMmr: e.peakMmr,
-        lastSyncedAt: e.lastSyncedAt?.toISOString() ?? null,
-        game: e.game,
-      })),
+      entries: sortValorantBoardEntries(mapped).slice(0, limit),
     };
   }
 

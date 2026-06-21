@@ -12,6 +12,7 @@ export {
   syncUserRank,
   syncAllLinkedPlayers,
   runFullLeaderboardSync,
+  snapshotTownBoardRanks,
   getLeaderboardSyncStats,
   listLeaderboardRankAudits,
   RANK_SYNC_BATCH_SIZE,

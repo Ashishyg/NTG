@@ -11,7 +11,8 @@ const RANK_NAMES = [
 
 /** Valorant competitive tier id → local rank badge filename (under /valorant/ranks/). */
 export function rankIconFilename(tierId: number | null | undefined): string | null {
-  if (tierId == null || tierId <= 0) return null;
+  if (tierId == null) return "Unranked_Rank.png";
+  if (tierId <= 0) return "Unranked_Rank.png";
   if (tierId >= 27) return "Radiant_Rank.png";
 
   const index = tierId - 3;
@@ -41,8 +42,9 @@ export function formatRankLabel(
   tierId: number | null | undefined,
   tierName: string | null | undefined,
 ): string {
+  if (tierId != null && tierId <= 0) return "Unranked";
   if (tierName?.trim()) return tierName.trim();
-  if (tierId == null || tierId <= 0) return "Unranked";
+  if (tierId == null) return "Unranked";
   return `Tier ${tierId}`;
 }
 

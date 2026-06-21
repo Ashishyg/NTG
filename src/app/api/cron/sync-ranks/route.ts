@@ -166,6 +166,7 @@ export async function GET(req: Request) {
       fullRefreshBefore: runStartedAt,
       maxBatchSize: RANK_SYNC_BATCH_SIZE,
       tryAllRegions: true,
+      snapshotRanks: !isContinuation,
       context: { source: "cron", runId },
     });
 

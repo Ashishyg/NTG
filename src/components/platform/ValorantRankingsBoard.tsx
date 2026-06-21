@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type { LeaderboardPreview, LeaderboardPreviewEntry } from "@core/contracts";
+import type { LeaderboardPreview } from "@core/contracts";
 import {
   formatRankLabel,
   rankAccentClass,
@@ -11,14 +11,8 @@ import {
 
 const PAGE_SIZE = 10;
 
-function sortByMmr(entries: LeaderboardPreviewEntry[]): LeaderboardPreviewEntry[] {
-  return [...entries]
-    .sort((a, b) => (b.mmr ?? 0) - (a.mmr ?? 0))
-    .map((e, i) => ({ ...e, rank: i + 1 }));
-}
-
 function rowAccentBg(tierId: number | null | undefined): string {
-  if (tierId == null) return "from-white/[0.06]";
+  if (tierId == null || tierId <= 0) return "from-white/[0.06]";
   if (tierId >= 24) return "from-rose-500/[0.12]";
   if (tierId >= 21) return "from-emerald-500/[0.10]";
   if (tierId >= 18) return "from-violet-500/[0.10]";
@@ -57,7 +51,7 @@ export default function ValorantRankingsBoard({ data }: Props) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
 
-  const sorted = useMemo(() => sortByMmr(data.entries), [data.entries]);
+  const sorted = data.entries;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -250,7 +244,7 @@ export default function ValorantRankingsBoard({ data }: Props) {
                         : "text-xl text-white/90 sm:text-2xl"
                     }`}
                   >
-                    {e.mmr?.toLocaleString() ?? "—"}
+                    {e.mmr?.toLocaleString() ?? "-"}
                   </p>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-[#FF4655]/60">
                     RR

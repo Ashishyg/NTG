@@ -67,12 +67,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid runStartedAt." }, { status: 400 });
   }
 
+  const isNewRun = !body.runStartedAt;
+
   try {
     const runId = runStartedAt.toISOString();
     const batch = await syncAllLinkedPlayers({
       fullRefreshBefore: runStartedAt,
       tryAllRegions: true,
       maxBatchSize: RANK_SYNC_BATCH_SIZE,
+      snapshotRanks: isNewRun,
       context: {
         source: "manual",
         runId,
