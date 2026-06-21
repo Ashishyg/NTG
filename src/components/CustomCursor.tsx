@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { motion, useMotionValue } from "framer-motion";
 
@@ -8,10 +8,13 @@ export default function CustomCursor() {
   const [isHovered, setIsHovered] = useState(false);
   const [isInput, setIsInput] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const [isActive, setIsActive] = useState(false);
 
   const pathname = usePathname();
   const cursorX = useMotionValue(-100);
   const cursorY = useMotionValue(-100);
+  const lastPos = useRef({ x: -100, y: -100 });
+  const isVisibleRef = useRef(false);
 
   const excludedPaths = ["/login", "/signup", "/profile", "/admin"];
   const isExcluded = excludedPaths.some((path) => pathname?.startsWith(path));
@@ -19,19 +22,44 @@ export default function CustomCursor() {
   useEffect(() => {
     if (isExcluded) return;
 
-    // Only activate cursor on PC (devices supporting hover, fine pointer, and screen width >= 1024px)
     const mediaQuery = window.matchMedia("(hover: hover) and (pointer: fine) and (min-width: 1024px)");
     if (!mediaQuery.matches) return;
 
-    setIsVisible(true);
+    setIsActive(true);
 
-    const handleMouseMove = (e: MouseEvent) => {
-      cursorX.set(e.clientX);
-      cursorY.set(e.clientY);
+    const syncPosition = (x: number, y: number) => {
+      lastPos.current = { x, y };
+      cursorX.set(x);
+      cursorY.set(y);
     };
 
-    const handleMouseLeave = () => setIsVisible(false);
-    const handleMouseEnter = () => setIsVisible(true);
+    const showCursor = (e?: MouseEvent | PointerEvent) => {
+      if (document.hidden) return;
+      if (e && Number.isFinite(e.clientX) && Number.isFinite(e.clientY)) {
+        syncPosition(e.clientX, e.clientY);
+      } else {
+        syncPosition(lastPos.current.x, lastPos.current.y);
+      }
+      isVisibleRef.current = true;
+      setIsVisible(true);
+    };
+
+    const hideCursor = () => {
+      isVisibleRef.current = false;
+      setIsVisible(false);
+      setIsHovered(false);
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      syncPosition(e.clientX, e.clientY);
+      if (!isVisibleRef.current) showCursor(e);
+    };
+
+    const handlePointerMove = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse") return;
+      syncPosition(e.clientX, e.clientY);
+      if (!isVisibleRef.current) showCursor(e);
+    };
 
     const handleMouseOver = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -56,13 +84,21 @@ export default function CustomCursor() {
       setIsInput(!!isInputField);
     };
 
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseover", handleMouseOver);
-    document.addEventListener("mouseleave", handleMouseLeave);
-    document.addEventListener("mouseenter", handleMouseEnter);
+    const handleVisibilityChange = () => {
+      if (document.hidden) hideCursor();
+    };
 
-    // Create a style element to hide the browser cursor for standard hover elements,
-    // but preserve it for user inputs and text areas for better accessibility.
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    window.addEventListener("pointermove", handlePointerMove, { passive: true });
+    window.addEventListener("mouseover", handleMouseOver);
+    window.addEventListener("blur", hideCursor);
+    window.addEventListener("focus", showCursor);
+    document.addEventListener("mouseleave", hideCursor);
+    document.addEventListener("mouseenter", showCursor);
+    document.addEventListener("pointerleave", hideCursor);
+    document.addEventListener("pointerenter", showCursor);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     const style = document.createElement("style");
     style.innerHTML = `
       * {
@@ -76,16 +112,23 @@ export default function CustomCursor() {
 
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("mouseover", handleMouseOver);
-      document.removeEventListener("mouseleave", handleMouseLeave);
-      document.removeEventListener("mouseenter", handleMouseEnter);
+      window.removeEventListener("blur", hideCursor);
+      window.removeEventListener("focus", showCursor);
+      document.removeEventListener("mouseleave", hideCursor);
+      document.removeEventListener("mouseenter", showCursor);
+      document.removeEventListener("pointerleave", hideCursor);
+      document.removeEventListener("pointerenter", showCursor);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       document.body.style.cursor = "auto";
       style.remove();
+      setIsActive(false);
+      setIsVisible(false);
     };
   }, [cursorX, cursorY, isExcluded]);
 
-  if (isExcluded) return null;
-  if (!isVisible && cursorX.get() === -100) return null; // not yet initialised
+  if (isExcluded || !isActive || !isVisible) return null;
 
   return (
     <motion.div
@@ -107,9 +150,11 @@ export default function CustomCursor() {
       animate={{
         width: isHovered ? 48 : 18,
         height: isHovered ? 48 : 18,
-        opacity: isVisible ? 1 : 0,
       }}
-      transition={{ type: "spring", stiffness: 300, damping: 25 }}
+      transition={{
+        width: { type: "spring", stiffness: 300, damping: 25 },
+        height: { type: "spring", stiffness: 300, damping: 25 },
+      }}
     />
   );
 }
