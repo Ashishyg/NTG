@@ -59,6 +59,12 @@ export function sortTournamentsByHostingOrder<T extends { startsAt: string | nul
   });
 }
 
+export function sortTournamentsByHostingOrderNewestFirst<T extends { startsAt: string | null }>(
+  tournaments: T[],
+): T[] {
+  return sortTournamentsByHostingOrder(tournaments).reverse();
+}
+
 export function toTournamentDisplay(t: TournamentPreview): TournamentDisplay {
   const meta = gameMeta[t.game] ?? gameMeta.OTHER;
 

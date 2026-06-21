@@ -4,8 +4,9 @@ import { getPlayerGameProfile } from "@auth-membership/index";
 import { listActiveRegistrationBanners, listTournamentPreviews, getValorantRankings } from "@tournaments-leagues/index";
 import { prisma } from "@core/database/client";
 import { rankIconUrl } from "@/lib/valorant-rank";
-import { formatMonthYear, sortTournamentsByHostingOrder, toTournamentDisplay } from "@/lib/tournament-display";
+import { formatMonthYear, sortTournamentsByHostingOrder, sortTournamentsByHostingOrderNewestFirst, toTournamentDisplay } from "@/lib/tournament-display";
 import EsportsRegistrationSlides from "@/components/platform/EsportsRegistrationSlides";
+import CompetitiveScheduleScroll from "@/components/platform/CompetitiveScheduleScroll";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,7 @@ export default async function EsportsHubPage() {
     .filter((t) => t.championName)
     .at(-1);
 
-  const scheduleTournaments = sortTournamentsByHostingOrder(
+  const scheduleTournaments = sortTournamentsByHostingOrderNewestFirst(
     tournaments.filter((t) => t.status !== "DRAFT" && t.status !== "CANCELLED"),
   );
 
@@ -331,7 +332,7 @@ export default async function EsportsHubPage() {
             <p className="mt-1 text-sm text-white/40">Keep track of ongoing, upcoming, and completed tournament stages</p>
           </div>
 
-          <div className="relative border-l border-white/10 pl-6 space-y-8 ml-2">
+          <CompetitiveScheduleScroll>
             {scheduleTournaments.map((t) => {
               const display = toTournamentDisplay(t);
               let badgeColor = "text-white/40 bg-white/5 border-white/10";
@@ -389,7 +390,7 @@ export default async function EsportsHubPage() {
                 </div>
               );
             })}
-          </div>
+          </CompetitiveScheduleScroll>
         </div>
       )}
 

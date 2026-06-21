@@ -33,13 +33,16 @@ export default function CustomCursor() {
       cursorY.set(y);
     };
 
-    const showCursor = (e?: MouseEvent | PointerEvent) => {
+    const showCursorAt = (x: number, y: number) => {
       if (document.hidden) return;
-      if (e && Number.isFinite(e.clientX) && Number.isFinite(e.clientY)) {
-        syncPosition(e.clientX, e.clientY);
-      } else {
-        syncPosition(lastPos.current.x, lastPos.current.y);
-      }
+      syncPosition(x, y);
+      isVisibleRef.current = true;
+      setIsVisible(true);
+    };
+
+    const showCursorFromLast = () => {
+      if (document.hidden) return;
+      syncPosition(lastPos.current.x, lastPos.current.y);
       isVisibleRef.current = true;
       setIsVisible(true);
     };
@@ -52,13 +55,13 @@ export default function CustomCursor() {
 
     const handleMouseMove = (e: MouseEvent) => {
       syncPosition(e.clientX, e.clientY);
-      if (!isVisibleRef.current) showCursor(e);
+      if (!isVisibleRef.current) showCursorAt(e.clientX, e.clientY);
     };
 
     const handlePointerMove = (e: PointerEvent) => {
       if (e.pointerType !== "mouse") return;
       syncPosition(e.clientX, e.clientY);
-      if (!isVisibleRef.current) showCursor(e);
+      if (!isVisibleRef.current) showCursorAt(e.clientX, e.clientY);
     };
 
     const handleMouseOver = (e: MouseEvent) => {
@@ -88,15 +91,19 @@ export default function CustomCursor() {
       if (document.hidden) hideCursor();
     };
 
+    const handleWindowFocus = () => showCursorFromLast();
+    const handleDocumentMouseEnter = (e: MouseEvent) => showCursorAt(e.clientX, e.clientY);
+    const handlePointerEnter = (e: PointerEvent) => showCursorAt(e.clientX, e.clientY);
+
     window.addEventListener("mousemove", handleMouseMove, { passive: true });
     window.addEventListener("pointermove", handlePointerMove, { passive: true });
     window.addEventListener("mouseover", handleMouseOver);
     window.addEventListener("blur", hideCursor);
-    window.addEventListener("focus", showCursor);
+    window.addEventListener("focus", handleWindowFocus);
     document.addEventListener("mouseleave", hideCursor);
-    document.addEventListener("mouseenter", showCursor);
+    document.addEventListener("mouseenter", handleDocumentMouseEnter);
     document.addEventListener("pointerleave", hideCursor);
-    document.addEventListener("pointerenter", showCursor);
+    document.addEventListener("pointerenter", handlePointerEnter);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     const style = document.createElement("style");
@@ -115,11 +122,11 @@ export default function CustomCursor() {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("mouseover", handleMouseOver);
       window.removeEventListener("blur", hideCursor);
-      window.removeEventListener("focus", showCursor);
+      window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("mouseleave", hideCursor);
-      document.removeEventListener("mouseenter", showCursor);
+      document.removeEventListener("mouseenter", handleDocumentMouseEnter);
       document.removeEventListener("pointerleave", hideCursor);
-      document.removeEventListener("pointerenter", showCursor);
+      document.removeEventListener("pointerenter", handlePointerEnter);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       document.body.style.cursor = "auto";
       style.remove();
