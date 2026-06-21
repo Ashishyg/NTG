@@ -30,6 +30,9 @@ export default function CustomCursor() {
       cursorY.set(e.clientY);
     };
 
+    const handleMouseLeave = () => setIsVisible(false);
+    const handleMouseEnter = () => setIsVisible(true);
+
     const handleMouseOver = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (!target) return;
@@ -55,6 +58,8 @@ export default function CustomCursor() {
 
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseover", handleMouseOver);
+    document.addEventListener("mouseleave", handleMouseLeave);
+    document.addEventListener("mouseenter", handleMouseEnter);
 
     // Create a style element to hide the browser cursor for standard hover elements,
     // but preserve it for user inputs and text areas for better accessibility.
@@ -72,12 +77,15 @@ export default function CustomCursor() {
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseover", handleMouseOver);
+      document.removeEventListener("mouseleave", handleMouseLeave);
+      document.removeEventListener("mouseenter", handleMouseEnter);
       document.body.style.cursor = "auto";
       style.remove();
     };
   }, [cursorX, cursorY, isExcluded]);
 
-  if (!isVisible || isExcluded) return null;
+  if (isExcluded) return null;
+  if (!isVisible && cursorX.get() === -100) return null; // not yet initialised
 
   return (
     <motion.div
@@ -99,6 +107,7 @@ export default function CustomCursor() {
       animate={{
         width: isHovered ? 48 : 18,
         height: isHovered ? 48 : 18,
+        opacity: isVisible ? 1 : 0,
       }}
       transition={{ type: "spring", stiffness: 300, damping: 25 }}
     />

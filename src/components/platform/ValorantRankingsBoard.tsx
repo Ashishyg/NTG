@@ -52,7 +52,7 @@ function PodiumCard({
             1<span className="text-xl sm:text-2xl align-top">★</span>
           </span>
         ) : rank === 2 ? (
-          <span className="font-display text-3xl sm:text-5xl font-black text-slate-300 drop-shadow-[0_2px_10px_rgba(203,213,225,0.6)]">
+          <span className="font-display text-3xl sm:text-5xl font-black text-rose-500 drop-shadow-[0_2px_12px_rgba(244,63,94,0.7)]">
             2
           </span>
         ) : (
