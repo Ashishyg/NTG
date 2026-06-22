@@ -119,7 +119,6 @@ function applyCupFields(form: TournamentData, fields: CupFields): TournamentData
 
 /** Normalized cup fields compared against the last saved state (matches saveAll payload). */
 function getSavePayload(form: TournamentData) {
-  const poolDefault = form.prizePool ? defaultSplit(Number(form.prizePool)) : [];
   return {
     name: form.name.trim(),
     game: form.game,
@@ -130,7 +129,7 @@ function getSavePayload(form: TournamentData) {
     showOnEsportsHub: form.showOnEsportsHub,
     prizePool: form.prizePool ? Number(form.prizePool) : null,
     prizeNotes: emptyToNull(form.prizeNotes),
-    prizeSplit: prizeSplitForSave(form.prizePool, form.prizeSplit, poolDefault),
+    prizeSplit: prizeSplitForSave(form.prizePool, form.prizeSplit, defaultSplit),
     startsAt: form.startsAt || null,
     endsAt: form.endsAt || null,
     registrationOpensAt: form.registrationOpensAt || null,
