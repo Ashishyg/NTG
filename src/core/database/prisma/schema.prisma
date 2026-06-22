@@ -40,6 +40,11 @@ enum BracketType {
   DOUBLE_ELIMINATION
 }
 
+enum TournamentFormat {
+  AUCTION
+  STANDARD
+}
+
 enum MatchStatus {
   SCHEDULED
   LIVE
@@ -253,6 +258,7 @@ model Tournament {
   season               Season?          @relation(fields: [seasonId], references: [id])
   status               TournamentStatus @default(DRAFT)
   format               BracketType?
+  registrationFormat   TournamentFormat?
   description          String?
   posterUrl            String?
   hubBannerUrl         String?

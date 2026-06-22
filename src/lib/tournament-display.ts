@@ -7,7 +7,7 @@ export type TournamentDisplay = {
   slug: string;
   name: string;
   game: string;
-  season: string;
+  format: string;
   date: string;
   status: "Hosted" | "Soon" | "Live" | "Open" | "Upcoming";
   iconPath: string;
@@ -26,7 +26,7 @@ const gameMeta: Record<
   OTHER: { iconPath: siValorant.path, hex: "#ff4655", label: "Other" },
 };
 
-export function formatMonthYear(iso: string | null): string {
+function formatMonthYear(iso: string | null): string {
   if (!iso) return "TBA";
   const d = new Date(iso);
   return d.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
@@ -48,23 +48,6 @@ function mapDisplayStatus(status: TournamentStatus): TournamentDisplay["status"]
   }
 }
 
-export function sortTournamentsByHostingOrder<T extends { startsAt: string | null }>(
-  tournaments: T[],
-): T[] {
-  return [...tournaments].sort((a, b) => {
-    const timeA = a.startsAt ? new Date(a.startsAt).getTime() : 0;
-    const timeB = b.startsAt ? new Date(b.startsAt).getTime() : 0;
-    if (timeA !== timeB) return timeA - timeB;
-    return tournaments.indexOf(a) - tournaments.indexOf(b);
-  });
-}
-
-export function sortTournamentsByHostingOrderNewestFirst<T extends { startsAt: string | null }>(
-  tournaments: T[],
-): T[] {
-  return sortTournamentsByHostingOrder(tournaments).reverse();
-}
-
 export function toTournamentDisplay(t: TournamentPreview): TournamentDisplay {
   const meta = gameMeta[t.game] ?? gameMeta.OTHER;
 
@@ -74,8 +57,8 @@ export function toTournamentDisplay(t: TournamentPreview): TournamentDisplay {
     id: t.slug,
     slug: t.slug,
     name: t.name,
-    game: t.gameLabel ?? meta.label,
-    season: t.seasonLabel ?? "—",
+    game: meta.label,
+    format: t.registrationFormat === "AUCTION" ? "Auction Draft" : (t.registrationFormat === "STANDARD" ? "Standard (5v5)" : ""),
     date: formatMonthYear(t.startsAt),
     status: mapDisplayStatus(t.status),
     iconPath: meta.iconPath,

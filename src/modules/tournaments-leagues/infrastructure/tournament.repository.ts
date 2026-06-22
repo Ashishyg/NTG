@@ -95,7 +95,6 @@ function toRegistrationBanner(t: RegistrationBannerRow) {
       null,
     hubBannerUrl: t.hubBannerUrl,
     hubCarouselImages: parseCarouselImages(t.hubCarouselImages),
-    status: t.status,
   };
 }
 
@@ -142,7 +141,13 @@ export class TournamentRepository {
         season: true,
         placements: {
           include: {
-            user: { include: { playerProfile: true } },
+            user: {
+              include: {
+                playerProfile: { include: { gameLinks: true } },
+                registrations: { where: { tournament: { slug } } },
+                leaderboard: { orderBy: { updatedAt: "desc" }, take: 1 },
+              },
+            },
           },
         },
         tournamentTeams: {
@@ -222,7 +227,7 @@ export class TournamentRepository {
       name: t.name,
       game: t.game,
       gameLabel: t.gameLabel,
-      seasonLabel: t.season?.label ?? null,
+      registrationFormat: t.registrationFormat,
       status: t.status,
       description: t.description,
       posterUrl: t.posterUrl,
@@ -238,12 +243,27 @@ export class TournamentRepository {
       rulebookUrl: t.rulebookUrl ?? null,
       teams,
       teamDetails,
-      placements: t.placements.map((p) => ({
-        role: p.role,
-        displayName:
-          p.user?.playerProfile?.displayName ?? p.user?.name ?? p.teamLabel ?? "TBD",
-        teamLabel: p.teamLabel,
-      })),
+      placements: t.placements.map((p) => {
+        const reg = p.user?.registrations?.[0];
+        const lb = p.user?.leaderboard?.[0];
+        const riotLink = p.user?.playerProfile?.gameLinks?.find(l => l.game === "VALORANT");
+        const liveRiotId = riotLink ? riotLink.externalId : null;
+        
+        return {
+          role: p.role,
+          displayName:
+            p.user?.playerProfile?.displayName ?? p.user?.name ?? p.teamLabel ?? "TBD",
+          teamLabel: p.teamLabel,
+          user: p.user
+            ? {
+                id: p.user.id,
+                username: p.user.playerProfile?.usernameKey ?? p.user.name ?? "",
+                riotId: liveRiotId ?? reg?.snapshotRiotId ?? null,
+                rankTier: lb?.rankTier ?? reg?.snapshotRankTier ?? null,
+              }
+            : null,
+        };
+      }),
       matches:
         t.bracket?.matches.map((m) => ({
           id: m.id,
@@ -272,7 +292,6 @@ export class TournamentRepository {
         status: { not: "CANCELLED" },
         OR: [
           { status: "REGISTRATION_OPEN" },
-          { status: "IN_PROGRESS", showOnEsportsHub: true },
           {
             autoManageStatus: true,
             registrationOpensAt: { not: null },
@@ -283,7 +302,7 @@ export class TournamentRepository {
       orderBy: [{ showOnEsportsHub: "desc" }, { startsAt: "asc" }, { createdAt: "asc" }],
     });
     return candidates
-      .filter((row) => isTournamentRegistrationLive(row) || row.status === "IN_PROGRESS")
+      .filter((row) => isTournamentRegistrationLive(row))
       .map(toRegistrationBanner);
   }
 
@@ -300,9 +319,8 @@ export class TournamentRepository {
     status: TournamentStatus;
     startsAt: Date | null;
     registrationUrl: string | null;
-    season: { label: string } | null;
+    format: string | null;
     bracketUrl: string | null;
-    showOnEsportsHub: boolean;
     placements?: {
       role: string;
       teamLabel: string | null;
@@ -323,13 +341,12 @@ export class TournamentRepository {
       name: t.name,
       game: t.game,
       gameLabel: t.gameLabel,
-      seasonLabel: t.season?.label ?? null,
+      registrationFormat: t.registrationFormat,
       status: t.status,
       startsAt: t.startsAt?.toISOString() ?? null,
       registrationUrl: t.registrationUrl,
       championName,
       bracketUrl: t.bracketUrl,
-      showOnEsportsHub: t.showOnEsportsHub,
     };
   }
 }
