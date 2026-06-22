@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatAuditOperation } from "@/lib/admin-audit-format";
 
 type AuditRow = {
   id: string;
@@ -87,29 +88,33 @@ export default function AdminAuditLogPanel() {
               <th className="px-3 py-2.5 font-semibold">When (IST)</th>
               <th className="px-3 py-2.5 font-semibold">Admin</th>
               <th className="px-3 py-2.5 font-semibold">Action</th>
+              <th className="px-3 py-2.5 font-semibold">Operation</th>
               <th className="px-3 py-2.5 font-semibold">Target</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/[0.04] text-white/75">
             {loading ? (
               <tr>
-                <td colSpan={4} className="px-3 py-6 text-center text-white/35">Loading audit log…</td>
+                <td colSpan={5} className="px-3 py-6 text-center text-white/35">Loading audit log…</td>
               </tr>
             ) : error ? (
               <tr>
-                <td colSpan={4} className="px-3 py-6 text-center text-red-300/70">{error}</td>
+                <td colSpan={5} className="px-3 py-6 text-center text-red-300/70">{error}</td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-3 py-6 text-center text-white/35">No admin actions recorded yet.</td>
+                <td colSpan={5} className="px-3 py-6 text-center text-white/35">No admin actions recorded yet.</td>
               </tr>
             ) : (
               rows.map((row) => (
                 <tr key={row.id} className="hover:bg-white/[0.02] transition-colors">
                   <td className="whitespace-nowrap px-3 py-2.5 text-white/45">{formatWhen(row.createdAt)}</td>
                   <td className="px-3 py-2.5 font-medium text-white/80">{row.adminName}</td>
-                  <td className={`px-3 py-2.5 font-semibold ${actionColor(row.action)}`}>{row.action}</td>
-                  <td className="px-3 py-2.5 text-white/50 max-w-[180px] truncate">{row.target ?? "—"}</td>
+                  <td className={`px-3 py-2.5 font-semibold whitespace-nowrap ${actionColor(row.action)}`}>{row.action}</td>
+                  <td className="px-3 py-2.5 text-white/55 max-w-[240px]">
+                    {formatAuditOperation(row.action, row.metadata)}
+                  </td>
+                  <td className="px-3 py-2.5 text-white/50 max-w-[140px] truncate">{row.target ?? "—"}</td>
                 </tr>
               ))
             )}
