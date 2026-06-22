@@ -33,9 +33,12 @@ export const metadata: Metadata = {
   },
   description: SITE_DESCRIPTION,
   icons: {
-    icon: [{ url: "/ntg-logo.png", type: "image/png", sizes: "512x512" }],
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/ntg-logo.png", type: "image/png", sizes: "512x512" },
+    ],
     apple: [{ url: "/apple-icon.png", type: "image/png" }],
-    shortcut: "/ntg-logo.png",
+    shortcut: "/favicon.ico",
   },
   openGraph: {
     type: "website",
