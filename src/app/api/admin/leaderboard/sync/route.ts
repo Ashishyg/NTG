@@ -11,7 +11,8 @@ import {
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+/** 1 player × ~4.2s Henrik (v2+v3) — fits Vercel Hobby 10s; client loops batches. */
+export const maxDuration = 60;
 
 type SyncBatchBody = {
   runStartedAt?: string;
@@ -112,7 +113,8 @@ export async function POST(req: Request) {
     const runId = runStartedAt.toISOString();
     const batch = await syncAllLinkedPlayers({
       fullRefreshBefore: runStartedAt,
-      tryAllRegions: true,
+      tryAllRegions: false,
+      skipPlayerCard: true,
       maxBatchSize: RANK_SYNC_BATCH_SIZE,
       snapshotRanks: isNewRun,
       context: {

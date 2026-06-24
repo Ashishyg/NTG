@@ -14,8 +14,8 @@ import {
 import { after, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-/** Up to 10 Henrik calls × ~2.1s ≈ 21s per batch; chain via follow-up HTTP calls. */
-export const maxDuration = 120;
+/** 1 player per batch (~4.2s Henrik); chain via follow-up HTTP calls. */
+export const maxDuration = 60;
 
 type RunTotals = {
   synced: number;
@@ -165,7 +165,8 @@ export async function GET(req: Request) {
     const result = await syncAllLinkedPlayers({
       fullRefreshBefore: runStartedAt,
       maxBatchSize: RANK_SYNC_BATCH_SIZE,
-      tryAllRegions: true,
+      tryAllRegions: false,
+      skipPlayerCard: true,
       snapshotRanks: !isContinuation,
       context: { source: "cron", runId },
     });

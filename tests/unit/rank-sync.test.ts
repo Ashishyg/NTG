@@ -5,8 +5,8 @@ import {
 } from "@tournaments-leagues/application/rank-sync.service";
 
 describe("rank-sync batch config", () => {
-  it("caps nightly cron batches to stay under serverless timeout", () => {
-    expect(RANK_SYNC_MAX_BATCH_SIZE).toBe(10);
+  it("keeps batches small enough for Vercel Hobby 10s function limit", () => {
+    expect(RANK_SYNC_MAX_BATCH_SIZE).toBe(1);
   });
 
   it("admin batch size does not exceed max batch size", () => {

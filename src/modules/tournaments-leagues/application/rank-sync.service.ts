@@ -15,8 +15,8 @@ import { GameSlug, LeaderboardScope, LeaderboardSyncSource, Prisma } from "@pris
 export const UNRANKED_TIER_ID = 0;
 export const UNRANKED_TIER_NAME = "Unranked";
 const PLATFORM = "pc";
-/** Henrik spacing (~2.1s/call) — 10 players/batch keeps cron + manual under serverless timeout. */
-export const RANK_SYNC_BATCH_SIZE = 10;
+/** Henrik spacing (~2.1s/call) — 1 player/batch fits Vercel Hobby 10s (v2+v3, no card). */
+export const RANK_SYNC_BATCH_SIZE = 1;
 /** @deprecated use RANK_SYNC_BATCH_SIZE */
 export const RANK_SYNC_MAX_BATCH_SIZE = RANK_SYNC_BATCH_SIZE;
 export const RANK_SYNC_ADMIN_BATCH_SIZE = RANK_SYNC_BATCH_SIZE;
@@ -409,7 +409,11 @@ export async function fetchCompetitiveMmr(
 
 export async function syncUserRank(
   userId: string,
-  options?: { tryAllRegions?: boolean; context?: RankSyncContext },
+  options?: {
+    tryAllRegions?: boolean;
+    skipPlayerCard?: boolean;
+    context?: RankSyncContext;
+  },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -460,7 +464,7 @@ export async function syncUserRank(
       syncName,
       syncTag,
       user.riotPuuid,
-      { tryAllRegions: options?.tryAllRegions ?? true },
+      { tryAllRegions: options?.tryAllRegions ?? false },
     );
   } catch {
     return fail("Could not fetch rank from Riot.");
@@ -511,22 +515,24 @@ export async function syncUserRank(
 
   let cardLarge: string | undefined;
   let cardWide: string | undefined;
-  try {
-    const name = resolvedGameName || user.riotGameName;
-    const tag = resolvedTagLine || user.riotTagLine;
-    const encodedName = encodeURIComponent(name);
-    const encodedTag = encodeURIComponent(tag);
-    const res = await henrikFetch(
-      `https://api.henrikdev.xyz/valorant/v1/account/${encodedName}/${encodedTag}`,
-      { headers: henrikHeaders(), next: { revalidate: 0 } },
-    );
-    if (res.ok) {
-      const accData = (await res.json()) as { data?: { card?: { large?: string; wide?: string } } };
-      cardLarge = accData.data?.card?.large;
-      cardWide = accData.data?.card?.wide;
+  if (!options?.skipPlayerCard) {
+    try {
+      const name = resolvedGameName || user.riotGameName;
+      const tag = resolvedTagLine || user.riotTagLine;
+      const encodedName = encodeURIComponent(name);
+      const encodedTag = encodeURIComponent(tag);
+      const res = await henrikFetch(
+        `https://api.henrikdev.xyz/valorant/v1/account/${encodedName}/${encodedTag}`,
+        { headers: henrikHeaders(), next: { revalidate: 0 } },
+      );
+      if (res.ok) {
+        const accData = (await res.json()) as { data?: { card?: { large?: string; wide?: string } } };
+        cardLarge = accData.data?.card?.large;
+        cardWide = accData.data?.card?.wide;
+      }
+    } catch (e) {
+      console.error("Failed to fetch player card on rank sync:", e);
     }
-  } catch (e) {
-    console.error("Failed to fetch player card on rank sync:", e);
   }
 
   const userUpdateData: Prisma.UserUpdateInput = {};
@@ -669,7 +675,11 @@ const NON_RETRYABLE_ERRORS = new Set([
 
 async function syncUserRankWithRetry(
   userId: string,
-  options?: { tryAllRegions?: boolean; context?: RankSyncContext },
+  options?: {
+    tryAllRegions?: boolean;
+    skipPlayerCard?: boolean;
+    context?: RankSyncContext;
+  },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   let last: { ok: false; error: string } = { ok: false, error: "Sync failed." };
 
@@ -824,8 +834,10 @@ export async function syncAllLinkedPlayers(options?: {
   /** When set, only players not synced since this timestamp (daily full refresh). */
   fullRefreshBefore?: Date;
   maxBatchSize?: number;
-  /** Try all Henrik regions per player (admin manual refresh). */
+  /** Try all Henrik regions per player (single-player sync only — too slow for batches). */
   tryAllRegions?: boolean;
+  /** Skip player-card fetch during bulk refresh (saves ~2s Henrik call per player). */
+  skipPlayerCard?: boolean;
   /** Snapshot current board order before syncing (act reset / full refresh). */
   snapshotRanks?: boolean;
   context?: RankSyncContext;
@@ -857,6 +869,7 @@ export async function syncAllLinkedPlayers(options?: {
   for (const user of users) {
     const result = await syncUserRankWithRetry(user.id, {
       tryAllRegions: options?.tryAllRegions ?? false,
+      skipPlayerCard: options?.skipPlayerCard ?? true,
       context: options?.context,
     });
     if (result.ok) synced += 1;

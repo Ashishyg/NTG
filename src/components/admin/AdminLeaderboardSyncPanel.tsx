@@ -210,7 +210,7 @@ export default function AdminLeaderboardSyncPanel() {
           <h2 className="mt-1 font-display text-xl font-bold text-white">Rank sync</h2>
           <p className="mt-1 max-w-lg text-sm text-white/45">
             Ranks sync when members link Riot on profile or register for a cup. Automatic refresh runs{" "}
-            {stats?.cronScheduleIst ?? "daily at 12:00 AM IST"} in batches of 10 (Henrik rate limit).
+            {stats?.cronScheduleIst ?? "daily at 12:00 AM IST"} one player per batch (Henrik rate limit).
             There is no rank wipe — each sync updates current competitive rank from Riot.
           </p>
         </div>
