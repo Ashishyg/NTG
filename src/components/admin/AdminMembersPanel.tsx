@@ -35,6 +35,7 @@ export default function AdminMembersPanel({ initialMembers }: { initialMembers: 
   const [steamUrl, setSteamUrl] = useState("");
   const [createForm, setCreateForm] = useState({ email: "", password: "", displayName: "" });
   const [message, setMessage] = useState<string | null>(null);
+  const [syncingRank, setSyncingRank] = useState(false);
 
   const filtered = initialMembers.filter((m) => {
     const q = search.toLowerCase();
@@ -422,23 +423,41 @@ export default function AdminMembersPanel({ initialMembers }: { initialMembers: 
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
-                    <p className="text-xs text-white/70 truncate flex items-center gap-1.5">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                      {selected.riotId}
-                    </p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                      <p className="text-xs text-white/70 truncate flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                        {selected.riotId}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const ok = await patchMember(selected.id, { action: "unlinkRiot" });
+                          if (ok) {
+                            setRiotId("");
+                            setMessage("Riot ID unlinked.");
+                          }
+                        }}
+                        className="shrink-0 rounded-lg bg-rose-500/10 px-3 py-1.5 text-[10px] font-semibold text-rose-300"
+                      >
+                        Unlink
+                      </button>
+                    </div>
                     <button
                       type="button"
+                      disabled={syncingRank}
                       onClick={async () => {
-                        const ok = await patchMember(selected.id, { action: "unlinkRiot" });
+                        setSyncingRank(true);
+                        setMessage(null);
+                        const ok = await patchMember(selected.id, { action: "syncRank" });
+                        setSyncingRank(false);
                         if (ok) {
-                          setRiotId("");
-                          setMessage("Riot ID unlinked.");
+                          setMessage("Rank, MMR, and player card refreshed from Riot.");
                         }
                       }}
-                      className="shrink-0 rounded-lg bg-rose-500/10 px-3 py-1.5 text-[10px] font-semibold text-rose-300"
+                      className="w-full rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-2.5 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
                     >
-                      Unlink
+                      {syncingRank ? "Refreshing from Riot…" : "Refresh rank, MMR & player card"}
                     </button>
                   </div>
                 )}

@@ -14,7 +14,7 @@ import {
 import { after, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-/** 1 player per batch (~4.2s Henrik); chain via follow-up HTTP calls. */
+/** 1 player per batch (~6.3s Henrik: v2+v3+card); chain via follow-up HTTP calls. */
 export const maxDuration = 60;
 
 type RunTotals = {
@@ -140,7 +140,11 @@ export async function GET(req: Request) {
     try {
       const result = await syncUserRank(userId, {
         tryAllRegions: true,
-        context: { source: "cron" },
+        skipPlayerCard: false,
+        context: {
+          source: "cron",
+          currentActOverride: serverEnv.valorantCurrentAct?.trim() || null,
+        },
       });
       return NextResponse.json({
         ok: result.ok,
@@ -162,13 +166,14 @@ export async function GET(req: Request) {
 
   try {
     const runId = runStartedAt.toISOString();
+    const cronAct = serverEnv.valorantCurrentAct?.trim() || null;
     const result = await syncAllLinkedPlayers({
       fullRefreshBefore: runStartedAt,
       maxBatchSize: RANK_SYNC_BATCH_SIZE,
       tryAllRegions: false,
-      skipPlayerCard: true,
+      skipPlayerCard: false,
       snapshotRanks: !isContinuation,
-      context: { source: "cron", runId },
+      context: { source: "cron", runId, currentActOverride: cronAct },
     });
 
     const totals = accumulate(priorTotals, result);

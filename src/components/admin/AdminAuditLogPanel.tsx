@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatAuditOperation } from "@/lib/admin-audit-format";
+import { formatAuditCategory, formatAuditOperation } from "@/lib/admin-audit-format";
 
 type AuditRow = {
   id: string;
   action: string;
   target: string | null;
+  targetLabel: string;
   createdAt: string;
   adminName: string;
   metadata: unknown;
@@ -23,11 +24,19 @@ function formatWhen(iso: string) {
   });
 }
 
-function actionColor(action: string) {
-  if (action.includes("DELETE") || action.includes("REMOVE")) return "text-rose-300";
-  if (action.includes("CREATE") || action.includes("ADD")) return "text-emerald-300";
-  if (action.includes("UPDATE") || action.includes("SAVE") || action.includes("PATCH")) return "text-amber-300";
-  return "text-white/60";
+function categoryTone(category: string) {
+  switch (category) {
+    case "Tournament":
+      return "text-violet-300";
+    case "Member":
+      return "text-amber-300";
+    case "Leaderboard":
+      return "text-cyan-300";
+    case "Media":
+      return "text-emerald-300";
+    default:
+      return "text-white/60";
+  }
 }
 
 export default function AdminAuditLogPanel() {
@@ -61,14 +70,14 @@ export default function AdminAuditLogPanel() {
     <section className="rounded-2xl border border-white/[0.06] bg-[#0c1424]/40 p-6 shadow-xl backdrop-blur-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-white/[0.06] pb-4">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-violet-400/90">Admin Audit</p>
-          <h2 className="mt-1 font-display text-lg font-bold text-white">Action Log</h2>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-violet-400/90">Admin activity</p>
+          <h2 className="mt-1 font-display text-lg font-bold text-white">What happened</h2>
           <p className="mt-0.5 text-xs text-white/40">
             {loading
-              ? "Loading all admin actions…"
+              ? "Loading admin activity…"
               : rows.length > 0
-                ? `${rows.length} admin action${rows.length === 1 ? "" : "s"} recorded.`
-                : "All admin actions performed on the platform."}
+                ? `${rows.length} recorded action${rows.length === 1 ? "" : "s"}.`
+                : "A plain-language log of changes made in the admin panel."}
           </p>
         </div>
         <button
@@ -86,16 +95,16 @@ export default function AdminAuditLogPanel() {
           <thead className="sticky top-0 bg-[#0c1424] text-[10px] uppercase tracking-wider text-white/40 border-b border-white/[0.06]">
             <tr>
               <th className="px-3 py-2.5 font-semibold">When (IST)</th>
-              <th className="px-3 py-2.5 font-semibold">Admin</th>
-              <th className="px-3 py-2.5 font-semibold">Action</th>
-              <th className="px-3 py-2.5 font-semibold">Operation</th>
-              <th className="px-3 py-2.5 font-semibold">Target</th>
+              <th className="px-3 py-2.5 font-semibold">Who</th>
+              <th className="px-3 py-2.5 font-semibold">Area</th>
+              <th className="px-3 py-2.5 font-semibold">What happened</th>
+              <th className="px-3 py-2.5 font-semibold">Affected</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/[0.04] text-white/75">
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-white/35">Loading audit log…</td>
+                <td colSpan={5} className="px-3 py-6 text-center text-white/35">Loading activity log…</td>
               </tr>
             ) : error ? (
               <tr>
@@ -106,17 +115,24 @@ export default function AdminAuditLogPanel() {
                 <td colSpan={5} className="px-3 py-6 text-center text-white/35">No admin actions recorded yet.</td>
               </tr>
             ) : (
-              rows.map((row) => (
-                <tr key={row.id} className="hover:bg-white/[0.02] transition-colors">
-                  <td className="whitespace-nowrap px-3 py-2.5 text-white/45">{formatWhen(row.createdAt)}</td>
-                  <td className="px-3 py-2.5 font-medium text-white/80">{row.adminName}</td>
-                  <td className={`px-3 py-2.5 font-semibold whitespace-nowrap ${actionColor(row.action)}`}>{row.action}</td>
-                  <td className="px-3 py-2.5 text-white/55 max-w-[240px]">
-                    {formatAuditOperation(row.action, row.metadata)}
-                  </td>
-                  <td className="px-3 py-2.5 text-white/50 max-w-[140px] truncate">{row.target ?? "—"}</td>
-                </tr>
-              ))
+              rows.map((row) => {
+                const category = formatAuditCategory(row.action);
+                return (
+                  <tr key={row.id} className="hover:bg-white/[0.02] transition-colors">
+                    <td className="whitespace-nowrap px-3 py-2.5 text-white/45">{formatWhen(row.createdAt)}</td>
+                    <td className="px-3 py-2.5 font-medium text-white/80">{row.adminName}</td>
+                    <td className={`px-3 py-2.5 font-semibold whitespace-nowrap ${categoryTone(category)}`}>
+                      {category}
+                    </td>
+                    <td className="px-3 py-2.5 text-white/70 max-w-[280px]">
+                      {formatAuditOperation(row.action, row.metadata)}
+                    </td>
+                    <td className="px-3 py-2.5 text-white/55 max-w-[160px] truncate" title={row.targetLabel}>
+                      {row.targetLabel}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

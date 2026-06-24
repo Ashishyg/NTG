@@ -15,7 +15,7 @@ import { GameSlug, LeaderboardScope, LeaderboardSyncSource, Prisma } from "@pris
 export const UNRANKED_TIER_ID = 0;
 export const UNRANKED_TIER_NAME = "Unranked";
 const PLATFORM = "pc";
-/** Henrik spacing (~2.1s/call) — 1 player/batch fits Vercel Hobby 10s (v2+v3, no card). */
+/** Henrik spacing (~2.1s/call) — 1 player/batch (~6.3s for v2+v3+card). */
 export const RANK_SYNC_BATCH_SIZE = 1;
 /** @deprecated use RANK_SYNC_BATCH_SIZE */
 export const RANK_SYNC_MAX_BATCH_SIZE = RANK_SYNC_BATCH_SIZE;
@@ -869,7 +869,7 @@ export async function syncAllLinkedPlayers(options?: {
   for (const user of users) {
     const result = await syncUserRankWithRetry(user.id, {
       tryAllRegions: options?.tryAllRegions ?? false,
-      skipPlayerCard: options?.skipPlayerCard ?? true,
+      skipPlayerCard: options?.skipPlayerCard ?? false,
       context: options?.context,
     });
     if (result.ok) synced += 1;

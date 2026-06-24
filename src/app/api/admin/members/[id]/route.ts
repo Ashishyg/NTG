@@ -12,11 +12,13 @@ import {
   linkMemberSteamAdmin,
 } from "@auth-membership/application/admin-member.service";
 import { syncUserRank } from "@tournaments-leagues/application/rank-sync.service";
+import { parseValorantActSeasonKey } from "@/lib/valorant-act";
 import type { UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { after } from "next/server";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -63,13 +65,60 @@ export async function PATCH(req: Request, { params }: Props) {
   if (body.action === "linkRiot") {
     const result = await linkMemberRiotAdmin(id, String(body.riotId ?? ""));
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
+    const actOverride =
+      parseValorantActSeasonKey(String(body.currentAct ?? "")) ??
+      serverEnv.valorantCurrentAct?.trim() ??
+      null;
     after(() => {
       syncUserRank(id, {
         tryAllRegions: true,
-        context: { source: "admin_member", adminId: auth.userId },
+        skipPlayerCard: false,
+        context: {
+          source: "admin_member",
+          adminId: auth.userId,
+          currentActOverride: actOverride,
+        },
       }).catch(console.error);
     });
-    await logAdminAction(auth.userId, "member.linkRiot", id);
+    await logAdminAction(auth.userId, "member.linkRiot", id, {
+      riotId: String(body.riotId ?? "").trim(),
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === "syncRank") {
+    const member = await getMemberAdmin(id);
+    if (!member) {
+      return NextResponse.json({ error: "User not found." }, { status: 404 });
+    }
+    if (!member.riotId) {
+      return NextResponse.json({ error: "Link a Riot ID before refreshing rank." }, { status: 400 });
+    }
+
+    const actOverride =
+      parseValorantActSeasonKey(String(body.currentAct ?? "")) ??
+      serverEnv.valorantCurrentAct?.trim() ??
+      null;
+
+    const result = await syncUserRank(id, {
+      tryAllRegions: true,
+      skipPlayerCard: false,
+      context: {
+        source: "admin_member",
+        adminId: auth.userId,
+        currentActOverride: actOverride,
+      },
+    });
+
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    await logAdminAction(auth.userId, "member.syncRank", id, {
+      displayName: member.displayName ?? member.name ?? member.email,
+      riotId: member.riotId,
+    });
+
     return NextResponse.json({ ok: true });
   }
 

@@ -57,8 +57,7 @@ function buildEmailHtml(payload: LeaderboardSyncNotifyPayload, siteUrl: string):
         <tr><td style="padding:6px 0;color:#666">Started (UTC)</td><td style="padding:6px 0">${payload.runStartedAt.toISOString()}</td></tr>
         <tr><td style="padding:6px 0;color:#666">Finished (UTC)</td><td style="padding:6px 0">${payload.finishedAt.toISOString()}</td></tr>
         <tr><td style="padding:6px 0;color:#666">Duration</td><td style="padding:6px 0">${duration}</td></tr>
-        <tr><td style="padding:6px 0;color:#666">Batches</td><td style="padding:6px 0">${payload.batches}</td></tr>
-        <tr><td style="padding:6px 0;color:#666">Synced</td><td style="padding:6px 0">${payload.synced}</td></tr>
+        <tr><td style="padding:6px 0;color:#666">Users refreshed</td><td style="padding:6px 0">${payload.synced}</td></tr>
         <tr><td style="padding:6px 0;color:#666">Skipped</td><td style="padding:6px 0">${payload.skipped}</td></tr>
         <tr><td style="padding:6px 0;color:#666">Failed</td><td style="padding:6px 0">${payload.failed}</td></tr>
         <tr><td style="padding:6px 0;color:#666">Still pending</td><td style="padding:6px 0">${payload.pending}</td></tr>

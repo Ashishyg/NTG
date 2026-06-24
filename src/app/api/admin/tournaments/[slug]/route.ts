@@ -90,6 +90,7 @@ export async function PATCH(req: Request, { params }: Props) {
 
   await logAdminAction(auth.userId, "tournament.update", slug, {
     fields: Object.keys(body),
+    tournamentName: result.tournament.name,
   });
 
   return NextResponse.json({ ok: true, tournament: result.tournament });

@@ -60,7 +60,7 @@ function sourceLabel(source: string): string {
     case "REGISTRATION":
       return "Registration";
     case "ADMIN_MEMBER":
-      return "Admin link";
+      return "Admin refresh";
     default:
       return source;
   }
@@ -167,7 +167,7 @@ export default function AdminLeaderboardSyncPanel() {
         }
         const data = parsed.data;
         if (!res.ok) {
-          throw new Error(String(data.error ?? "Sync batch failed."));
+          throw new Error(String(data.error ?? "Sync failed."));
         }
 
         startedAt = String(data.runStartedAt);
@@ -209,9 +209,9 @@ export default function AdminLeaderboardSyncPanel() {
           </p>
           <h2 className="mt-1 font-display text-xl font-bold text-white">Rank sync</h2>
           <p className="mt-1 max-w-lg text-sm text-white/45">
-            Ranks sync when members link Riot on profile or register for a cup. Automatic refresh runs{" "}
-            {stats?.cronScheduleIst ?? "daily at 12:00 AM IST"} one player per batch (Henrik rate limit).
-            There is no rank wipe — each sync updates current competitive rank from Riot.
+            Ranks sync when members link Riot on profile or register for a cup. The automatic midnight
+            refresh updates rank, MMR, and player cards for every linked player (one at a time due to
+            Henrik rate limits). There is no rank wipe — each sync pulls the latest data from Riot.
           </p>
         </div>
         <Link
@@ -240,7 +240,7 @@ export default function AdminLeaderboardSyncPanel() {
       {phase === "running" ? (
         <div className="mt-5 space-y-2">
           <div className="flex justify-between text-xs text-white/50">
-            <span>Syncing batch {totals?.batches ?? 0}…</span>
+            <span>Refreshing users…</span>
             <span>
               {progressDone} / {progressTotal} processed
               {pending > 0 ? ` · ${pending} remaining` : ""}
@@ -259,8 +259,9 @@ export default function AdminLeaderboardSyncPanel() {
         <div className="mt-5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
           <p className="font-semibold">Leaderboard refresh complete</p>
           <p className="mt-1 text-emerald-200/80">
-            {totals.synced} updated · {totals.skipped} skipped (no comp rank) · {totals.failed} failed ·{" "}
-            {totals.batches} batches
+            {totals.synced} user{totals.synced === 1 ? "" : "s"} refreshed successfully
+            {totals.skipped > 0 ? ` · ${totals.skipped} skipped (no comp rank)` : ""}
+            {totals.failed > 0 ? ` · ${totals.failed} could not be updated` : ""}
             {runCurrentAct ? ` · act ${runCurrentAct}` : ""}
             {runStartedAt ? ` · started ${formatWhen(runStartedAt)}` : ""}
           </p>
@@ -279,7 +280,9 @@ export default function AdminLeaderboardSyncPanel() {
         </label>
         <p className="mt-1 text-xs text-white/45">
           Current rank only — which act we judge ranked vs unranked (e.g. e11a3). Players without
-          rank in this act show as Unranked with RR --.
+          rank in this act show as Unranked with RR --. Set the same value as{" "}
+          <code className="text-white/50">VALORANT_CURRENT_ACT</code> in production so midnight cron
+          matches manual refresh.
         </p>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
           <input
@@ -307,7 +310,7 @@ export default function AdminLeaderboardSyncPanel() {
           disabled={phase === "running"}
           className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {phase === "running" ? "Refreshing…" : "Refresh all ranks now"}
+          {phase === "running" ? "Refreshing all…" : "Refresh all ranks & cards"}
         </button>
         <button
           type="button"

@@ -11,7 +11,7 @@ import {
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-/** 1 player × ~4.2s Henrik (v2+v3) — fits Vercel Hobby 10s; client loops batches. */
+/** 1 player × ~6.3s Henrik (v2+v3+card); client loops until all users refreshed. */
 export const maxDuration = 60;
 
 type SyncBatchBody = {
@@ -114,7 +114,7 @@ export async function POST(req: Request) {
     const batch = await syncAllLinkedPlayers({
       fullRefreshBefore: runStartedAt,
       tryAllRegions: false,
-      skipPlayerCard: true,
+      skipPlayerCard: false,
       maxBatchSize: RANK_SYNC_BATCH_SIZE,
       snapshotRanks: isNewRun,
       context: {
@@ -136,9 +136,11 @@ export async function POST(req: Request) {
     const stats = await getLeaderboardSyncStats();
 
     if (complete) {
+      const usersRefreshed = totals.synced;
       await logAdminAction(auth.userId, "leaderboard.sync", undefined, {
         runStartedAt: runStartedAt.toISOString(),
         currentAct: currentActOverride ?? undefined,
+        usersRefreshed,
         ...totals,
       });
     }
@@ -159,8 +161,8 @@ export async function POST(req: Request) {
       {
         error:
           message.includes("timeout") || message.includes("Timeout")
-            ? "Sync batch timed out. Try again — progress is saved between batches."
-            : "Sync batch failed. Try again in a moment.",
+            ? "Sync timed out. Try again — progress is saved between users."
+            : "Sync failed. Try again in a moment.",
       },
       { status: 500 },
     );
