@@ -1,29 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { parseApiJson } from "@/lib/parse-api-json";
-import { formatValorantActLabel, parseActKeyParts } from "@/lib/valorant-act";
+import { formatValorantActLabel } from "@/lib/valorant-act";
 
 type SyncStats = {
   linkedPlayers: number;
   rankedOnLeaderboard: number;
   lastSyncedAt: string | null;
   cronScheduleIst: string;
-};
-
-type ActSettingView = {
-  actKey: string;
-  actLabel: string;
-  updatedAt: string;
-  updatedById: string | null;
-  updatedByName: string | null;
-};
-
-type ActSettingResponse = {
-  saved: ActSettingView | null;
-  envSuggestion: string | null;
-  envSuggestionLabel: string | null;
 };
 
 type SyncTotals = {
@@ -62,7 +48,7 @@ function formatWhen(iso: string | null): string {
 function sourceLabel(source: string): string {
   switch (source) {
     case "CRON":
-      return "Midnight cron";
+      return "Daily cron";
     case "MANUAL":
       return "Manual refresh";
     case "PROFILE":
@@ -78,25 +64,11 @@ function sourceLabel(source: string): string {
   }
 }
 
-function initialActParts(saved: ActSettingView | null, envSuggestion: string | null) {
-  const key = saved?.actKey ?? envSuggestion;
-  const parts = key ? parseActKeyParts(key) : null;
-  return {
-    prefix: parts?.prefix ?? ("e" as const),
-    episode: parts?.episode ? String(parts.episode) : "",
-    act: parts?.act ? String(parts.act) : "1",
-  };
-}
-
 export default function AdminLeaderboardSyncPanel() {
   const [stats, setStats] = useState<SyncStats | null>(null);
-  const [actConfig, setActConfig] = useState<ActSettingResponse | null>(null);
-  const [canEditAct, setCanEditAct] = useState(false);
-  const [prefix, setPrefix] = useState<"e" | "s">("e");
-  const [episode, setEpisode] = useState("");
-  const [actNumber, setActNumber] = useState("1");
-  const [savingAct, setSavingAct] = useState(false);
-  const [actMessage, setActMessage] = useState<string | null>(null);
+  const [currentAct, setCurrentAct] = useState<string | null>(null);
+  const [currentActLabel, setCurrentActLabel] = useState<string | null>(null);
+  const [envConfigured, setEnvConfigured] = useState(false);
   const [phase, setPhase] = useState<SyncPhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [totals, setTotals] = useState<SyncTotals | null>(null);
@@ -106,16 +78,6 @@ export default function AdminLeaderboardSyncPanel() {
   const [auditRows, setAuditRows] = useState<AuditRow[]>([]);
   const [auditChangedOnly, setAuditChangedOnly] = useState(true);
   const [auditLoading, setAuditLoading] = useState(false);
-
-  const savedAct = actConfig?.saved ?? null;
-  const hasSavedAct = Boolean(savedAct?.actKey);
-
-  const draftActLabel = useMemo(() => {
-    const ep = Number.parseInt(episode, 10);
-    const act = Number.parseInt(actNumber, 10);
-    if (!Number.isInteger(ep) || ep < 1 || !Number.isInteger(act) || act < 1) return null;
-    return formatValorantActLabel(`${prefix}${ep}a${act}`);
-  }, [prefix, episode, actNumber]);
 
   const loadStats = useCallback(async () => {
     const res = await fetch("/api/admin/leaderboard/sync");
@@ -128,14 +90,9 @@ export default function AdminLeaderboardSyncPanel() {
 
     const data = parsed.data;
     setStats(data.stats as SyncStats);
-    setCanEditAct(Boolean(data.canEditAct));
-    const act = data.act as ActSettingResponse;
-    setActConfig(act);
-
-    const parts = initialActParts(act.saved, act.envSuggestion);
-    setPrefix(parts.prefix);
-    setEpisode(parts.episode);
-    setActNumber(parts.act);
+    setCurrentAct((data.currentAct as string | null) ?? null);
+    setCurrentActLabel((data.currentActLabel as string | null) ?? null);
+    setEnvConfigured(Boolean(data.envConfigured));
   }, []);
 
   const loadAudit = useCallback(async () => {
@@ -162,49 +119,11 @@ export default function AdminLeaderboardSyncPanel() {
     loadAudit();
   }, [loadAudit]);
 
-  async function saveActSetting() {
-    const ep = Number.parseInt(episode, 10);
-    const act = Number.parseInt(actNumber, 10);
-    if (!Number.isInteger(ep) || ep < 1) {
-      setActMessage("Enter a valid episode number.");
-      return;
-    }
-    if (!Number.isInteger(act) || act < 1 || act > 9) {
-      setActMessage("Act must be between 1 and 9.");
-      return;
-    }
-
-    setSavingAct(true);
-    setActMessage(null);
-    try {
-      const res = await fetch("/api/admin/leaderboard/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ episode: ep, act, prefix }),
-      });
-      const parsed = await parseApiJson(res);
-      if (!parsed.ok) {
-        throw new Error(parsed.message);
-      }
-      const data = parsed.data;
-      if (!res.ok) {
-        throw new Error(String(data.error ?? "Could not save act."));
-      }
-
-      setActMessage("Current act saved. Midnight cron and manual refresh will use this.");
-      await loadStats();
-    } catch (err) {
-      setActMessage(err instanceof Error ? err.message : "Could not save act.");
-    } finally {
-      setSavingAct(false);
-    }
-  }
-
   async function runFullSync() {
-    if (!hasSavedAct) {
+    if (!envConfigured || !currentAct) {
       setPhase("error");
       setError(
-        "No current Valorant act is saved. A superadmin must set Episode and Act before refreshing.",
+        "VALORANT_CURRENT_ACT is not set on the server. Add it in Vercel env (e.g. e11a3) and redeploy.",
       );
       return;
     }
@@ -213,7 +132,7 @@ export default function AdminLeaderboardSyncPanel() {
     setError(null);
     setTotals(null);
     setPending(0);
-    setRunCurrentAct(savedAct?.actKey ?? null);
+    setRunCurrentAct(currentAct);
 
     let startedAt: string | undefined;
     let accumulated: SyncTotals | undefined;
@@ -277,9 +196,10 @@ export default function AdminLeaderboardSyncPanel() {
           </p>
           <h2 className="mt-1 font-display text-xl font-bold text-white">Rank sync</h2>
           <p className="mt-1 max-w-lg text-sm text-white/45">
-            Ranks sync when members link Riot on profile or register for a cup. The automatic midnight
-            refresh updates rank, MMR, and player cards for every linked player. The current episode and
-            act are saved once here — cron and manual refresh both use that setting.
+            Ranks sync when members link Riot on profile or register for a cup. The automatic daily
+            refresh ({stats?.cronScheduleIst ?? "2:50 AM IST"}) updates rank, MMR, and player cards
+            for every linked player — same as manual refresh below. Episode and act come from{" "}
+            <code className="text-white/60">VALORANT_CURRENT_ACT</code> on Vercel.
           </p>
         </div>
         <Link
@@ -347,105 +267,32 @@ export default function AdminLeaderboardSyncPanel() {
           Current Valorant act
         </p>
         <p className="mt-1 text-xs text-white/45">
-          Used for ranked vs unranked on the town leaderboard. Saved once — midnight cron and manual
-          refresh both read from here.
+          Used for ranked vs unranked on the town leaderboard. Cron and manual refresh both read{" "}
+          <code className="text-white/55">VALORANT_CURRENT_ACT</code> from Vercel env.
         </p>
 
-        {hasSavedAct ? (
+        {envConfigured && currentAct ? (
           <div className="mt-3 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2.5">
-            <p className="text-sm font-semibold text-cyan-100">{savedAct?.actLabel}</p>
+            <p className="text-sm font-semibold text-cyan-100">
+              {currentActLabel ?? formatValorantActLabel(currentAct) ?? currentAct}
+            </p>
             <p className="mt-1 text-xs text-white/45">
-              Last updated by {savedAct?.updatedByName ?? "superadmin"} on{" "}
-              {formatWhen(savedAct?.updatedAt ?? null)}
+              Env key: <span className="font-mono text-white/60">{currentAct}</span>
             </p>
           </div>
         ) : (
           <div className="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-100">
-            No act saved yet.
-            {actConfig?.envSuggestionLabel
-              ? ` Suggested from env: ${actConfig.envSuggestionLabel} — superadmin should save it below.`
-              : " A superadmin must set episode and act before any refresh can run."}
+            VALORANT_CURRENT_ACT is not set. Add it in Vercel project settings (e.g. e11a3) and
+            redeploy before cron or manual refresh can run.
           </div>
         )}
-
-        {canEditAct ? (
-          <div className="mt-4 space-y-3">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-white/40">
-                  Season prefix
-                </label>
-                <select
-                  value={prefix}
-                  onChange={(e) => setPrefix(e.target.value === "s" ? "s" : "e")}
-                  disabled={phase === "running" || savingAct}
-                  className="mt-1 w-full rounded-lg border border-white/10 bg-[#070b19]/60 px-3 py-2 text-sm text-white focus:border-cyan-500/50 focus:outline-none disabled:opacity-50"
-                >
-                  <option value="e" className="bg-[#070b19]">Episode (e)</option>
-                  <option value="s" className="bg-[#070b19]">Season (s)</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-white/40">
-                  Episode
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={99}
-                  value={episode}
-                  onChange={(e) => setEpisode(e.target.value)}
-                  disabled={phase === "running" || savingAct}
-                  placeholder="11"
-                  className="mt-1 w-full rounded-lg border border-white/10 bg-[#070b19]/60 px-3 py-2 text-sm text-white placeholder:text-white/25 focus:border-cyan-500/50 focus:outline-none disabled:opacity-50"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-white/40">
-                  Act
-                </label>
-                <select
-                  value={actNumber}
-                  onChange={(e) => setActNumber(e.target.value)}
-                  disabled={phase === "running" || savingAct}
-                  className="mt-1 w-full rounded-lg border border-white/10 bg-[#070b19]/60 px-3 py-2 text-sm text-white focus:border-cyan-500/50 focus:outline-none disabled:opacity-50"
-                >
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-                    <option key={n} value={String(n)} className="bg-[#070b19]">
-                      Act {n}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            {draftActLabel ? (
-              <p className="text-xs text-cyan-300/80">Preview: {draftActLabel}</p>
-            ) : null}
-            <button
-              type="button"
-              onClick={saveActSetting}
-              disabled={phase === "running" || savingAct}
-              className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-2 text-xs font-bold uppercase tracking-wider text-violet-200 hover:bg-violet-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {savingAct ? "Saving…" : "Save current act"}
-            </button>
-          </div>
-        ) : (
-          <p className="mt-3 text-xs text-white/40">
-            Only the superadmin can change episode and act. Ask them to update when a new act starts.
-          </p>
-        )}
-
-        {actMessage ? (
-          <p className="mt-3 text-xs text-white/60">{actMessage}</p>
-        ) : null}
       </div>
 
       <div className="mt-5 flex flex-wrap gap-3">
         <button
           type="button"
           onClick={runFullSync}
-          disabled={phase === "running" || !hasSavedAct}
+          disabled={phase === "running" || !envConfigured}
           className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {phase === "running" ? "Refreshing all…" : "Refresh all ranks & cards"}
@@ -465,7 +312,7 @@ export default function AdminLeaderboardSyncPanel() {
           <div>
             <h3 className="text-sm font-bold text-white">Rank change audit</h3>
             <p className="mt-0.5 text-xs text-white/40">
-              Who changed rank, from → to, and whether it was midnight cron or manual refresh.
+              Who changed rank, from → to, and whether it was daily cron or manual refresh.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">

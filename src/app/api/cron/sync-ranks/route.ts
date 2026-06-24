@@ -5,9 +5,9 @@ import {
   notifyLeaderboardSyncComplete,
 } from "@/lib/leaderboard-sync-notify";
 import {
-  getSavedValorantActKeyForSync,
+  getEnvValorantActKey,
   SYNC_ACT_NOT_CONFIGURED,
-} from "@/lib/valorant-act-settings";
+} from "@/lib/valorant-sync-act";
 import { serverEnv } from "@core/config/env.server";
 import {
   RANK_SYNC_BATCH_SIZE,
@@ -138,8 +138,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Database not configured." }, { status: 503 });
   }
 
-  const savedAct = await getSavedValorantActKeyForSync();
-  if (!savedAct) {
+  const envAct = getEnvValorantActKey();
+  if (!envAct) {
     if (!req.url.includes("runStartedAt=")) {
       await notifyLeaderboardSyncComplete({
         runStartedAt: new Date(),
@@ -166,7 +166,7 @@ export async function GET(req: Request) {
         skipPlayerCard: false,
         context: {
           source: "cron",
-          currentActOverride: savedAct,
+          currentActOverride: envAct,
         },
       });
       return NextResponse.json({
@@ -195,7 +195,7 @@ export async function GET(req: Request) {
       tryAllRegions: false,
       skipPlayerCard: false,
       snapshotRanks: !isContinuation,
-      context: { source: "cron", runId, currentActOverride: savedAct },
+      context: { source: "cron", runId, currentActOverride: envAct },
     });
 
     const totals = accumulate(priorTotals, result);
@@ -212,7 +212,7 @@ export async function GET(req: Request) {
         notifyEmail: getLeaderboardSyncNotifyEmail(),
         notifySent: false,
         notifyReason: "continuing_via_http",
-        currentAct: savedAct,
+        currentAct: envAct,
         ...result,
       });
     }
@@ -238,7 +238,7 @@ export async function GET(req: Request) {
       notifyEmail: getLeaderboardSyncNotifyEmail(),
       notifySent: notify.sent,
       notifyReason: notify.reason,
-      currentAct: savedAct,
+      currentAct: envAct,
       ...result,
       hasMore: false,
       pending: 0,

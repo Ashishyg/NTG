@@ -1,11 +1,12 @@
 import { guardResponse, isAuthedAdmin, requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/admin-audit";
-import { isSuperAdminEmail } from "@/lib/superadmin";
+import { formatValorantActLabel, parseValorantActSeasonKey } from "@/lib/valorant-act";
 import {
-  getValorantActSettingResponse,
-  requireSavedValorantActKey,
+  getEnvValorantActKey,
+  requireEnvValorantActKey,
   SYNC_ACT_NOT_CONFIGURED,
-} from "@/lib/valorant-act-settings";
+} from "@/lib/valorant-sync-act";
+import { serverEnv } from "@core/config/env.server";
 import {
   getLeaderboardSyncStats,
   RANK_SYNC_BATCH_SIZE,
@@ -21,7 +22,22 @@ export const maxDuration = 60;
 type SyncBatchBody = {
   runStartedAt?: string;
   totals?: SyncRunTotals;
+  /** Optional override; defaults to VALORANT_CURRENT_ACT env. */
+  currentAct?: string;
 };
+
+function parseCurrentActInput(raw: string | undefined): string | null {
+  if (raw == null) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  return parseValorantActSeasonKey(trimmed);
+}
+
+function resolveSyncAct(bodyAct: string | undefined): string | null {
+  const fromBody = parseCurrentActInput(bodyAct);
+  if (fromBody) return fromBody;
+  return getEnvValorantActKey();
+}
 
 function accumulateTotals(prev: SyncRunTotals | undefined, batch: SyncRunTotals): SyncRunTotals {
   return {
@@ -37,14 +53,13 @@ export async function GET() {
   if (!isAuthedAdmin(auth)) return guardResponse(auth)!;
 
   try {
-    const [stats, act] = await Promise.all([
-      getLeaderboardSyncStats(),
-      getValorantActSettingResponse(),
-    ]);
+    const stats = await getLeaderboardSyncStats();
+    const envAct = getEnvValorantActKey();
     return NextResponse.json({
       stats,
-      act,
-      canEditAct: isSuperAdminEmail(auth.session.user.email),
+      currentAct: envAct,
+      currentActLabel: formatValorantActLabel(envAct),
+      envConfigured: Boolean(serverEnv.valorantCurrentAct?.trim()),
     });
   } catch (err) {
     console.error("[admin/leaderboard/sync GET]", err);
@@ -74,9 +89,16 @@ export async function POST(req: Request) {
 
   const isNewRun = !body.runStartedAt;
 
-  let currentActOverride: string;
+  let currentActOverride: string | null = null;
   try {
-    currentActOverride = await requireSavedValorantActKey();
+    if (isNewRun) {
+      currentActOverride = resolveSyncAct(body.currentAct);
+      if (!currentActOverride) {
+        return NextResponse.json({ error: SYNC_ACT_NOT_CONFIGURED }, { status: 400 });
+      }
+    } else {
+      currentActOverride = requireEnvValorantActKey();
+    }
   } catch {
     return NextResponse.json({ error: SYNC_ACT_NOT_CONFIGURED }, { status: 400 });
   }
@@ -111,7 +133,7 @@ export async function POST(req: Request) {
       const usersRefreshed = totals.synced;
       await logAdminAction(auth.userId, "leaderboard.sync", undefined, {
         runStartedAt: runStartedAt.toISOString(),
-        currentAct: currentActOverride,
+        currentAct: currentActOverride ?? undefined,
         usersRefreshed,
         ...totals,
       });

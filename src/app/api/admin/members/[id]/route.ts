@@ -1,10 +1,10 @@
 import { guardResponse, isAuthedAdmin, requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/admin-audit";
 import {
-  getSavedValorantActKeyForSync,
-  requireSavedValorantActKey,
+  getEnvValorantActKey,
+  requireEnvValorantActKey,
   SYNC_ACT_NOT_CONFIGURED,
-} from "@/lib/valorant-act-settings";
+} from "@/lib/valorant-sync-act";
 import { isSuperAdminEmail } from "@/lib/superadmin";
 import { serverEnv } from "@core/config/env.server";
 import {
@@ -70,8 +70,8 @@ export async function PATCH(req: Request, { params }: Props) {
   if (body.action === "linkRiot") {
     const result = await linkMemberRiotAdmin(id, String(body.riotId ?? ""));
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
-    const savedAct = await getSavedValorantActKeyForSync();
-    if (savedAct) {
+    const envAct = getEnvValorantActKey();
+    if (envAct) {
       after(() => {
         syncUserRank(id, {
           tryAllRegions: true,
@@ -79,7 +79,7 @@ export async function PATCH(req: Request, { params }: Props) {
           context: {
             source: "admin_member",
             adminId: auth.userId,
-            currentActOverride: savedAct,
+            currentActOverride: envAct,
           },
         }).catch(console.error);
       });
@@ -101,7 +101,7 @@ export async function PATCH(req: Request, { params }: Props) {
 
     let currentActOverride: string;
     try {
-      currentActOverride = await requireSavedValorantActKey();
+      currentActOverride = requireEnvValorantActKey();
     } catch {
       return NextResponse.json({ error: SYNC_ACT_NOT_CONFIGURED }, { status: 400 });
     }

@@ -790,7 +790,7 @@ export async function getLeaderboardSyncStats(): Promise<LeaderboardSyncStats> {
     linkedPlayers,
     rankedOnLeaderboard,
     lastSyncedAt: lastEntry._max.lastSyncedAt?.toISOString() ?? null,
-    cronScheduleIst: "Daily 12:00 AM IST (18:30 UTC)",
+    cronScheduleIst: "Daily 2:50 AM IST (21:20 UTC)",
   };
 }
 
