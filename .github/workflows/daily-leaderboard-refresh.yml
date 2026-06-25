@@ -1,9 +1,7 @@
 name: Daily leaderboard refresh
 
 on:
-  schedule:
-    # 18:30 UTC = 12:00 AM IST (midnight)
-    - cron: "30 18 * * *"
+  # Scheduled via Vercel cron → /api/cron/trigger-daily-leaderboard (workflow_dispatch).
   workflow_dispatch:
 
 concurrency:

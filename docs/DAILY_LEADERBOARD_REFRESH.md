@@ -1,13 +1,16 @@
 # Daily leaderboard refresh (production)
 
 Nightly full refresh of all linked Valorant players (rank, MMR, player cards).  
-**Driver:** GitHub Actions (not Vercel cron).  
-**API:** `GET /api/cron/sync-ranks?mode=start|continue`
+**Schedule:** Vercel cron at **1:30 AM IST** → dispatches GitHub Actions.  
+**Sync API:** `GET /api/cron/sync-ranks?mode=start|continue`
 
-## Why GitHub Actions
+## Why Vercel cron + GitHub Actions
 
 Vercel Hobby limits each function to **60 seconds**. A full refresh takes **~6–10 minutes** for ~45 players (Henrik rate limit).  
-Vercel `after()` and self-HTTP continuation are unreliable. GHA loops `mode=continue` until `complete: true`.
+GHA loops `mode=continue` until `complete: true`.
+
+**GitHub’s native `schedule` trigger is unreliable** (first run often skipped, delays at peak).  
+We use **Vercel cron** (`0 20 * * *` UTC = 1:30 AM IST) to call `/api/cron/trigger-daily-leaderboard`, which dispatches the GHA workflow via the GitHub API.
 
 ## Before first deploy
 
@@ -32,6 +35,7 @@ Requires migrations through `20250626120000_leaderboard_refresh_run_kind` (adds 
 | `LEADERBOARD_SYNC_NOTIFY` | Optional | `1` for start/finish emails |
 | `LEADERBOARD_SYNC_NOTIFY_EMAIL` | Optional | Your ops email |
 | `RESEND_API_KEY` + `EMAIL_FROM` | If notify on | Resend |
+| `GITHUB_ACTIONS_DISPATCH_TOKEN` | Yes | Fine-grained PAT, Actions: Read and write on this repo |
 
 **Do not** enable `LEADERBOARD_HOURLY_REFRESH_ENABLED` on production unless testing hourly staging.
 
@@ -46,18 +50,26 @@ Repo → **Settings → Secrets and variables → Actions → New repository sec
 
 ### 4. Deploy branch to Vercel production
 
-Push `feature/hourly-leaderboard-refresh` (or merge to `main`) and deploy.
+Push to `main` and deploy.
 
-`vercel.json` **no longer** schedules `/api/cron/sync-ranks` — only GHA triggers it.
+`vercel.json` schedules `/api/cron/trigger-daily-leaderboard` at **1:30 AM IST** (`0 20 * * *` UTC).  
+That route dispatches the GHA workflow; GHA calls `/api/cron/sync-ranks` in a loop.
 
-### 5. Enable GitHub Actions schedule
+### 5. Create GitHub PAT for Vercel
 
-Workflow: `.github/workflows/daily-leaderboard-refresh.yml`  
-Default schedule: **12:00 AM IST (midnight)** (`30 18 * * *` UTC).
+GitHub → **Settings → Developer settings → Fine-grained tokens → Generate**
 
-**Manual test:** Actions → Daily leaderboard refresh → **Run workflow**.
+- Repository: **NTG**
+- Permission: **Actions → Read and write**
 
-### 6. Verify
+Add token to Vercel production as `GITHUB_ACTIONS_DISPATCH_TOKEN`.
+
+### 6. Manual test
+
+1. **Actions → Daily leaderboard refresh → Run workflow** (full end-to-end), or  
+2. After deploy, call `GET /api/cron/trigger-daily-leaderboard` with `Authorization: Bearer <CRON_SECRET>` and confirm a new GHA run starts.
+
+### 7. Verify
 
 1. Workflow run succeeds (~6–10 min).
 2. Vercel logs show `[daily-refresh] started` / `complete`.
