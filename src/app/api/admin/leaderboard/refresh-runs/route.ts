@@ -16,9 +16,12 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const limit = Number(searchParams.get("limit") ?? "20");
+  const kindParam = searchParams.get("kind");
+  const kind =
+    kindParam === "daily" || kindParam === "hourly" ? kindParam : undefined;
 
   const [runs, lastCompletedRefreshAt] = await Promise.all([
-    listLeaderboardRefreshRuns(limit),
+    listLeaderboardRefreshRuns(limit, kind),
     getLeaderboardLastCompletedRefresh(),
   ]);
 

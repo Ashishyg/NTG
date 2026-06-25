@@ -1,5 +1,11 @@
-import { LeaderboardRefreshRunStatus } from "@prisma/client";
+import { LeaderboardRefreshRunKind, LeaderboardRefreshRunStatus } from "@prisma/client";
 
+import {
+  markLeaderboardCronComplete,
+  markLeaderboardCronError,
+  markLeaderboardCronProgress,
+  markLeaderboardCronStarted,
+} from "@/lib/leaderboard-cron-status";
 import {
   getHenrikRequestCount,
   resetHenrikRequestCount,
@@ -10,9 +16,15 @@ import {
   getLeaderboardRefreshLock,
   heartbeatLeaderboardRefreshLock,
   isLockFresh,
-  LEADERBOARD_REFRESH_LOCK_KEY,
+  LEADERBOARD_DAILY_REFRESH_LOCK_KEY,
+  LEADERBOARD_HOURLY_REFRESH_LOCK_KEY,
+  type LeaderboardRefreshLockKey,
 } from "@/lib/leaderboard-refresh-lock";
 import { setLeaderboardLastCompletedRefresh } from "@/lib/leaderboard-last-refresh";
+import {
+  notifyLeaderboardSyncComplete,
+  notifyLeaderboardSyncStarted,
+} from "@/lib/leaderboard-sync-notify";
 import { getEnvValorantActKey } from "@/lib/valorant-sync-act";
 import { prisma } from "@core/database/client";
 
@@ -21,12 +33,15 @@ import {
   snapshotTownBoardRanks,
   syncUserRankWithRetryForHourly,
   type RankSyncContext,
+  type RankSyncSource,
 } from "./rank-sync.service";
 
 /** Stay under Vercel maxDuration while processing players sequentially. */
 const RUN_TIME_BUDGET_MS = 52_000;
 
-export type HourlyRefreshResult = {
+export type LeaderboardRefreshKind = "daily" | "hourly";
+
+export type LeaderboardRefreshResult = {
   status: "started" | "continued" | "complete" | "skipped" | "error";
   runId?: string;
   reason?: string;
@@ -40,6 +55,27 @@ export type HourlyRefreshResult = {
   errorMessage?: string;
 };
 
+/** @deprecated use LeaderboardRefreshResult */
+export type HourlyRefreshResult = LeaderboardRefreshResult;
+
+function prismaKind(kind: LeaderboardRefreshKind): LeaderboardRefreshRunKind {
+  return kind === "daily" ? LeaderboardRefreshRunKind.DAILY : LeaderboardRefreshRunKind.HOURLY;
+}
+
+function lockKeyForKind(kind: LeaderboardRefreshKind): LeaderboardRefreshLockKey {
+  return kind === "daily"
+    ? LEADERBOARD_DAILY_REFRESH_LOCK_KEY
+    : LEADERBOARD_HOURLY_REFRESH_LOCK_KEY;
+}
+
+function syncSourceForKind(kind: LeaderboardRefreshKind): RankSyncSource {
+  return kind === "daily" ? "cron" : "hourly_cron";
+}
+
+function logPrefix(kind: LeaderboardRefreshKind): string {
+  return kind === "daily" ? "[daily-refresh]" : "[hourly-refresh]";
+}
+
 export function playersAfterCursor(allIds: string[], cursorUserId: string | null): string[] {
   if (!cursorUserId) return allIds;
   const index = allIds.indexOf(cursorUserId);
@@ -47,7 +83,11 @@ export function playersAfterCursor(allIds: string[], cursorUserId: string | null
   return allIds.slice(index + 1);
 }
 
-async function failStaleRun(runId: string, message: string): Promise<void> {
+async function failStaleRun(
+  runId: string,
+  kind: LeaderboardRefreshKind,
+  message: string,
+): Promise<void> {
   await prisma.leaderboardRefreshRun.updateMany({
     where: { id: runId, status: LeaderboardRefreshRunStatus.RUNNING },
     data: {
@@ -56,33 +96,30 @@ async function failStaleRun(runId: string, message: string): Promise<void> {
       errorMessage: message,
     },
   });
-  const lock = await getLeaderboardRefreshLock();
+  const lockKey = lockKeyForKind(kind);
+  const lock = await getLeaderboardRefreshLock(lockKey);
   if (lock?.runId === runId) {
-    await clearLeaderboardRefreshLock();
+    await clearLeaderboardRefreshLock(lockKey);
   }
 }
 
-async function getRunningRun(): Promise<{
-  id: string;
-  cursorUserId: string | null;
-  totalPlayers: number;
-  successCount: number;
-  failedCount: number;
-  henrikRequestCount: number;
-  startedAt: Date;
-} | null> {
-  const run = await prisma.leaderboardRefreshRun.findFirst({
-    where: { status: LeaderboardRefreshRunStatus.RUNNING },
+async function getRunningRun(kind: LeaderboardRefreshKind) {
+  return prisma.leaderboardRefreshRun.findFirst({
+    where: {
+      kind: prismaKind(kind),
+      status: LeaderboardRefreshRunStatus.RUNNING,
+    },
     orderBy: { startedAt: "desc" },
   });
-  if (!run) return null;
-  return run;
 }
 
 async function processRunSegment(
+  kind: LeaderboardRefreshKind,
   runId: string,
   currentAct: string,
-): Promise<HourlyRefreshResult> {
+): Promise<LeaderboardRefreshResult> {
+  const prefix = logPrefix(kind);
+  const lockKey = lockKeyForKind(kind);
   const run = await prisma.leaderboardRefreshRun.findUnique({ where: { id: runId } });
   if (!run || run.status !== LeaderboardRefreshRunStatus.RUNNING) {
     return {
@@ -110,7 +147,7 @@ async function processRunSegment(
   let processedThisSegment = 0;
 
   const context: RankSyncContext = {
-    source: "hourly_cron",
+    source: syncSourceForKind(kind),
     runId,
     currentActOverride: currentAct,
   };
@@ -124,13 +161,13 @@ async function processRunSegment(
     } else {
       failedCount += 1;
       console.warn(
-        `[hourly-refresh] player failed runId=${runId} userId=${userId} error=${result.error}`,
+        `${prefix} player failed runId=${runId} userId=${userId} error=${result.error}`,
       );
     }
 
     lastCursor = userId;
     processedThisSegment += 1;
-    await heartbeatLeaderboardRefreshLock(runId);
+    await heartbeatLeaderboardRefreshLock(runId, lockKey);
   }
 
   const henrikRequestCount =
@@ -139,6 +176,18 @@ async function processRunSegment(
   const processed = successCount + failedCount;
   const pending = Math.max(0, totalPlayers - processed);
   const complete = pending === 0;
+
+  if (kind === "daily") {
+    await markLeaderboardCronProgress({
+      runStartedAt: run.startedAt,
+      currentAct,
+      synced: successCount,
+      failed: failedCount,
+      skipped: 0,
+      pending,
+      totalPlayers,
+    }).catch(() => {});
+  }
 
   if (complete) {
     await snapshotTownBoardRanks();
@@ -160,9 +209,30 @@ async function processRunSegment(
     });
 
     await setLeaderboardLastCompletedRefresh(finishedAt);
-    await clearLeaderboardRefreshLock();
+    await clearLeaderboardRefreshLock(lockKey);
 
-    console.info("[hourly-refresh] complete", {
+    if (kind === "daily") {
+      await markLeaderboardCronComplete({
+        runStartedAt: run.startedAt,
+        currentAct,
+        synced: successCount,
+        failed: failedCount,
+        skipped: 0,
+        totalPlayers,
+      }).catch(() => {});
+      await notifyLeaderboardSyncComplete({
+        runStartedAt: run.startedAt,
+        finishedAt,
+        synced: successCount,
+        failed: failedCount,
+        skipped: 0,
+        batches: processedThisSegment,
+        pending: 0,
+        status: "ok",
+      }).catch(() => {});
+    }
+
+    console.info(`${prefix} complete`, {
       runId,
       totalPlayers,
       successCount,
@@ -208,9 +278,12 @@ async function processRunSegment(
   };
 }
 
-export async function runHourlyLeaderboardRefresh(
+export async function runLeaderboardRefresh(
+  kind: LeaderboardRefreshKind,
   mode: "start" | "continue",
-): Promise<HourlyRefreshResult> {
+): Promise<LeaderboardRefreshResult> {
+  const prefix = logPrefix(kind);
+  const lockKey = lockKeyForKind(kind);
   const currentAct = getEnvValorantActKey();
   if (!currentAct) {
     return {
@@ -229,7 +302,7 @@ export async function runHourlyLeaderboardRefresh(
   resetHenrikRequestCount();
 
   if (mode === "continue") {
-    const running = await getRunningRun();
+    const running = await getRunningRun(kind);
     if (!running) {
       return {
         status: "skipped",
@@ -244,15 +317,31 @@ export async function runHourlyLeaderboardRefresh(
       };
     }
 
-    const lock = await getLeaderboardRefreshLock();
+    const lock = await getLeaderboardRefreshLock(lockKey);
     if (!lock || lock.runId !== running.id) {
       const rawLock = await prisma.platformSetting.findUnique({
-        where: { key: LEADERBOARD_REFRESH_LOCK_KEY },
+        where: { key: lockKey },
         select: { value: true },
       });
-      const parsed = rawLock?.value ? (JSON.parse(rawLock.value) as { runId: string; heartbeatAt: string }) : null;
+      const parsed = rawLock?.value
+        ? (JSON.parse(rawLock.value) as { runId: string; heartbeatAt: string })
+        : null;
       if (parsed && !isLockFresh(parsed)) {
-        await failStaleRun(running.id, "Refresh lock expired.");
+        await failStaleRun(running.id, kind, "Refresh lock expired.");
+        if (kind === "daily") {
+          await markLeaderboardCronError({
+            runStartedAt: running.startedAt,
+            currentAct,
+            synced: running.successCount,
+            failed: running.failedCount,
+            pending: Math.max(
+              0,
+              running.totalPlayers - running.successCount - running.failedCount,
+            ),
+            totalPlayers: running.totalPlayers,
+            errorMessage: "Refresh lock expired.",
+          }).catch(() => {});
+        }
       }
       return {
         status: "skipped",
@@ -262,18 +351,21 @@ export async function runHourlyLeaderboardRefresh(
         processed: running.successCount + running.failedCount,
         successCount: running.successCount,
         failedCount: running.failedCount,
-        pending: Math.max(0, running.totalPlayers - running.successCount - running.failedCount),
+        pending: Math.max(
+          0,
+          running.totalPlayers - running.successCount - running.failedCount,
+        ),
         henrikRequestCount: running.henrikRequestCount,
         complete: false,
       };
     }
 
-    return processRunSegment(running.id, currentAct);
+    return processRunSegment(kind, running.id, currentAct);
   }
 
-  const existingLock = await getLeaderboardRefreshLock();
+  const existingLock = await getLeaderboardRefreshLock(lockKey);
   if (existingLock) {
-    const running = await getRunningRun();
+    const running = await getRunningRun(kind);
     return {
       status: "skipped",
       reason: "already_running",
@@ -290,14 +382,15 @@ export async function runHourlyLeaderboardRefresh(
     };
   }
 
-  const staleRun = await getRunningRun();
+  const staleRun = await getRunningRun(kind);
   if (staleRun) {
-    await failStaleRun(staleRun.id, "Superseded by new hourly refresh.");
+    await failStaleRun(staleRun.id, kind, `Superseded by new ${kind} refresh.`);
   }
 
   const allIds = await listLinkedValorantPlayerIds();
   const run = await prisma.leaderboardRefreshRun.create({
     data: {
+      kind: prismaKind(kind),
       status: LeaderboardRefreshRunStatus.RUNNING,
       totalPlayers: allIds.length,
       successCount: 0,
@@ -306,7 +399,7 @@ export async function runHourlyLeaderboardRefresh(
     },
   });
 
-  const acquired = await acquireLeaderboardRefreshLock(run.id);
+  const acquired = await acquireLeaderboardRefreshLock(run.id, lockKey);
   if (!acquired.ok) {
     await prisma.leaderboardRefreshRun.update({
       where: { id: run.id },
@@ -332,23 +425,53 @@ export async function runHourlyLeaderboardRefresh(
 
   await snapshotTownBoardRanks();
 
-  console.info("[hourly-refresh] started", {
+  if (kind === "daily") {
+    await markLeaderboardCronStarted({
+      runStartedAt: run.startedAt,
+      currentAct,
+      totalPlayers: allIds.length,
+    }).catch(() => {});
+    await notifyLeaderboardSyncStarted({
+      runStartedAt: run.startedAt,
+      totalPlayers: allIds.length,
+      currentAct,
+    }).catch(() => {});
+  }
+
+  console.info(`${prefix} started`, {
     runId: run.id,
     totalPlayers: allIds.length,
     currentAct,
   });
 
-  const segment = await processRunSegment(run.id, currentAct);
+  const segment = await processRunSegment(kind, run.id, currentAct);
   return { ...segment, status: segment.complete ? "complete" : "started" };
 }
 
-export async function listLeaderboardRefreshRuns(limit = 20) {
+export async function runHourlyLeaderboardRefresh(
+  mode: "start" | "continue",
+): Promise<LeaderboardRefreshResult> {
+  return runLeaderboardRefresh("hourly", mode);
+}
+
+export async function runDailyLeaderboardRefresh(
+  mode: "start" | "continue",
+): Promise<LeaderboardRefreshResult> {
+  return runLeaderboardRefresh("daily", mode);
+}
+
+export async function listLeaderboardRefreshRuns(
+  limit = 20,
+  kind?: LeaderboardRefreshKind,
+) {
   const rows = await prisma.leaderboardRefreshRun.findMany({
+    where: kind ? { kind: prismaKind(kind) } : undefined,
     orderBy: { startedAt: "desc" },
     take: Math.min(limit, 100),
   });
   return rows.map((r) => ({
     id: r.id,
+    kind: r.kind,
     status: r.status,
     startedAt: r.startedAt.toISOString(),
     finishedAt: r.finishedAt?.toISOString() ?? null,

@@ -471,9 +471,15 @@ enum LeaderboardRefreshRunStatus {
   SKIPPED
 }
 
-/** Hourly full leaderboard refresh job (cron-job.org). */
+enum LeaderboardRefreshRunKind {
+  DAILY
+  HOURLY
+}
+
+/** Cursor-based full leaderboard refresh (daily GHA or hourly staging). */
 model LeaderboardRefreshRun {
   id                 String                      @id @default(cuid())
+  kind               LeaderboardRefreshRunKind   @default(HOURLY)
   status             LeaderboardRefreshRunStatus @default(RUNNING)
   startedAt          DateTime                    @default(now())
   finishedAt         DateTime?
@@ -488,6 +494,7 @@ model LeaderboardRefreshRun {
   updatedAt          DateTime                    @updatedAt
 
   @@index([status, startedAt])
+  @@index([kind, status, startedAt])
 }
 
 /** Rank change history from Henrik sync (cron, manual refresh, profile, etc.). */

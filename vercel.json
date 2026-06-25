@@ -12,10 +12,6 @@
   },
   "crons": [
     {
-      "path": "/api/cron/sync-ranks",
-      "schedule": "0 12 * * *"
-    },
-    {
       "path": "/api/cron/sync-tournament-status",
       "schedule": "0 19 * * *"
     }

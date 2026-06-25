@@ -30,9 +30,13 @@ export {
 } from "./application/rank-sync.service";
 export {
   runHourlyLeaderboardRefresh,
+  runDailyLeaderboardRefresh,
+  runLeaderboardRefresh,
   listLeaderboardRefreshRuns,
   playersAfterCursor,
   type HourlyRefreshResult,
+  type LeaderboardRefreshResult,
+  type LeaderboardRefreshKind,
 } from "./application/leaderboard-hourly-refresh.service";
 export {
   registerForTournament,
