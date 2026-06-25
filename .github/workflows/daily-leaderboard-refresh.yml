@@ -27,7 +27,19 @@ jobs:
             exit 1
           fi
 
+          # Strip whitespace, CR/LF, and accidental wrapping quotes from secret values.
+          SITE_URL="$(printf '%s' "$SITE_URL" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")"
+          CRON_SECRET="$(printf '%s' "$CRON_SECRET" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")"
+
+          if ! printf '%s' "$SITE_URL" | grep -qE '^https?://[^[:space:]]+$'; then
+            echo "SITE_URL secret is malformed."
+            echo "Set it to: https://www.ntgesports.com"
+            echo "No quotes, no trailing slash, no spaces or newlines."
+            exit 1
+          fi
+
           BASE="${SITE_URL%/}/api/cron/sync-ranks"
+          echo "Calling ${BASE}?mode=start (SITE_URL length: ${#SITE_URL})"
           ATTEMPTS=0
           MAX_ATTEMPTS=50
           MODE="start"
