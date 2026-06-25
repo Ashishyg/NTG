@@ -53,7 +53,7 @@ Push `feature/hourly-leaderboard-refresh` (or merge to `main`) and deploy.
 ### 5. Enable GitHub Actions schedule
 
 Workflow: `.github/workflows/daily-leaderboard-refresh.yml`  
-Default schedule: **3:30 AM IST** (`0 22 * * *` UTC).
+Default schedule: **10:00 PM IST** (`30 16 * * *` UTC).
 
 **Manual test:** Actions → Daily leaderboard refresh → **Run workflow**.
 
