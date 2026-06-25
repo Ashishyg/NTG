@@ -1,8 +1,8 @@
 # Daily leaderboard refresh (production)
 
 Nightly full refresh of all linked Valorant players (rank, MMR, player cards).  
-**Schedule:** Vercel cron at **2:30 AM IST** (+ backup at 3:00 AM IST) → dispatches GitHub Actions.  
-GHA native schedule backup at **2:35 AM IST**.  
+**Schedule:** Vercel cron at **2:30 AM IST** → dispatches GitHub Actions.  
+GHA schedule backups at **2:35 AM** and **3:00 AM IST** (Vercel Hobby allows only 2 crons).  
 **Sync API:** `GET /api/cron/sync-ranks?mode=start|continue`
 
 ## Why Vercel cron + GitHub Actions

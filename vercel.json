@@ -21,10 +21,6 @@
     {
       "path": "/api/cron/trigger-daily-leaderboard",
       "schedule": "0 21 * * *"
-    },
-    {
-      "path": "/api/cron/trigger-daily-leaderboard?backup=1",
-      "schedule": "30 21 * * *"
     }
   ]
 }
