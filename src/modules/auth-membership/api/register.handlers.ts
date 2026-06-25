@@ -1,8 +1,11 @@
 import { NextResponse, after } from "next/server";
 
+import { authValidationErrorResponse } from "@/lib/auth-validation";
 import {
 
   signupStep1Schema,
+
+  loginSchema,
 
   otpVerifySchema,
 
@@ -110,13 +113,7 @@ export async function handleRegisterStep1(req: Request) {
 
     if (!parsed.success) {
 
-      return NextResponse.json(
-
-        { error: parsed.error.issues[0]?.message ?? "Invalid input." },
-
-        { status: 400 },
-
-      );
+      return authValidationErrorResponse("register:step-1", parsed.error);
 
     }
 
@@ -880,19 +877,17 @@ export async function handleLoginCheck(req: Request) {
 
   try {
 
-    const { email, password } = (await req.json()) as {
+    const body = await req.json();
 
-      email?: string;
+    const parsed = loginSchema.safeParse(body);
 
-      password?: string;
+    if (!parsed.success) {
 
-    };
-
-    if (!email || !password) {
-
-      return NextResponse.json({ error: "Email and password required." }, { status: 400 });
+      return authValidationErrorResponse("auth:login-check", parsed.error);
 
     }
+
+    const { email, password } = parsed.data;
 
     const block = await getLoginBlockReason(email, password);
 

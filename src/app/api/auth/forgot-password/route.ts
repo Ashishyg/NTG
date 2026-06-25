@@ -1,93 +1,129 @@
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
-import { prisma } from "@core/database/client";
+import { z } from "zod";
+
+import { clearLoginFailures } from "@/lib/login-lockout";
 import { sendEmailOtp } from "@/modules/auth-membership/application/email-otp.service";
+import {
+  AUTH_PASSWORD_RESET_REQUEST_MESSAGE,
+  AUTH_RESET_CODE_EXPIRED,
+  AUTH_RESET_CODE_INVALID,
+  AUTH_RESET_FAILED,
+  AUTH_RESET_TOO_MANY_ATTEMPTS,
+} from "@/modules/auth-membership/domain/auth-messages";
+import { loginSchema } from "@/modules/auth-membership/domain/schemas";
+import { authValidationErrorResponse, logAuthValidationFailure } from "@/lib/auth-validation";
+import { hashPassword, verifyPassword } from "@/lib/password-hash";
+import { AUTH_RATE_LIMITS, enforceRateLimit } from "@/lib/rate-limit";
+import { prisma } from "@core/database/client";
+
+const resetSchema = z.object({
+  action: z.literal("reset"),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Enter a valid email address.")
+    .max(254),
+  code: z.string().regex(/^\d{6}$/, "Enter the 6-digit code."),
+  newPassword: z
+    .string()
+    .min(8, "Password must be at least 8 characters.")
+    .max(128, "Password is too long."),
+});
 
 export async function POST(request: Request) {
+  const limited = await enforceRateLimit(request, AUTH_RATE_LIMITS.login);
+  if (limited) return limited;
+
   try {
     const body = await request.json();
-    const { action, email, code, newPassword } = body;
-
-    if (!email) {
-      return NextResponse.json({ error: "Email is required." }, { status: 400 });
-    }
-    const normalizedEmail = email.trim().toLowerCase();
-
-    // Find the user by email
-    const user = await prisma.user.findUnique({
-      where: { email: normalizedEmail },
-    });
+    const action = body?.action as string | undefined;
 
     if (action === "request") {
-      if (!user) {
-        return NextResponse.json({ error: "No account found with this email." }, { status: 404 });
+      const parsed = loginSchema.pick({ email: true }).safeParse(body);
+      if (!parsed.success) {
+        return authValidationErrorResponse("forgot-password:request", parsed.error);
       }
 
-      const otp = await sendEmailOtp(normalizedEmail, user.id);
-      if (!otp.ok) {
-        return NextResponse.json({ error: otp.error }, { status: 400 });
+      const normalizedEmail = parsed.data.email;
+      const user = await prisma.user.findUnique({
+        where: { email: normalizedEmail },
+      });
+
+      if (user) {
+        const otp = await sendEmailOtp(normalizedEmail, user.id);
+        if (!otp.ok && !otp.cooldown) {
+          logAuthValidationFailure("forgot-password:request", `otp-send-failed email=${normalizedEmail}`);
+        }
+
+        return NextResponse.json({
+          ok: true,
+          message: AUTH_PASSWORD_RESET_REQUEST_MESSAGE,
+          ...(otp.ok && otp.devOtp ? { devOtp: otp.devOtp, devOtpHint: otp.devOtpHint } : {}),
+        });
       }
 
       return NextResponse.json({
         ok: true,
-        devOtp: otp.devOtp,
-        devOtpHint: otp.devOtpHint,
+        message: AUTH_PASSWORD_RESET_REQUEST_MESSAGE,
       });
     }
 
     if (action === "reset") {
+      const parsed = resetSchema.safeParse(body);
+      if (!parsed.success) {
+        return authValidationErrorResponse("forgot-password:reset", parsed.error);
+      }
+
+      const { email: normalizedEmail, code, newPassword } = parsed.data;
+      const user = await prisma.user.findUnique({
+        where: { email: normalizedEmail },
+      });
+
       if (!user) {
-        return NextResponse.json({ error: "No account found with this email." }, { status: 404 });
+        logAuthValidationFailure("forgot-password:reset", "unknown-email");
+        return NextResponse.json({ error: AUTH_RESET_FAILED }, { status: 400 });
       }
 
-      if (!code || !newPassword) {
-        return NextResponse.json({ error: "Verification code and new password are required." }, { status: 400 });
-      }
-
-      if (newPassword.length < 8) {
-        return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
-      }
-
-      // Verify OTP
       const otp = await prisma.emailOtp.findFirst({
         where: { email: normalizedEmail, userId: user.id },
         orderBy: { createdAt: "desc" },
       });
 
       if (!otp) {
-        return NextResponse.json({ error: "No verification code found. Request a new one." }, { status: 400 });
+        return NextResponse.json({ error: AUTH_RESET_FAILED }, { status: 400 });
       }
 
       if (otp.expiresAt < new Date()) {
-        return NextResponse.json({ error: "Code expired. Request a new one." }, { status: 400 });
+        return NextResponse.json({ error: AUTH_RESET_CODE_EXPIRED }, { status: 400 });
       }
 
       if (otp.attempts >= 5) {
-        return NextResponse.json({ error: "Too many attempts. Request a new code." }, { status: 400 });
+        return NextResponse.json({ error: AUTH_RESET_TOO_MANY_ATTEMPTS }, { status: 400 });
       }
 
-      // Check code
-      const valid = await bcrypt.compare(code, otp.codeHash);
+      const valid = await verifyPassword(code, otp.codeHash);
       await prisma.emailOtp.update({
         where: { id: otp.id },
         data: { attempts: otp.attempts + 1 },
       });
 
       if (!valid) {
-        return NextResponse.json({ error: "Incorrect verification code." }, { status: 400 });
+        return NextResponse.json({ error: AUTH_RESET_CODE_INVALID }, { status: 400 });
       }
 
-      // Update user password
-      const passwordHash = await bcrypt.hash(newPassword, 12);
+      const passwordHash = await hashPassword(newPassword);
       await prisma.user.update({
         where: { id: user.id },
         data: { passwordHash },
       });
 
+      await clearLoginFailures(normalizedEmail);
+
       return NextResponse.json({ ok: true });
     }
 
-    return NextResponse.json({ error: "Invalid action." }, { status: 400 });
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   } catch (error) {
     console.error("[forgot-password-api] error:", error);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });

@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "@core/database/client";
+import { AUTH_SIGNUP_DETAILS_CONFLICT } from "../domain/auth-messages";
 import type { SignupStep1Input } from "../domain/schemas";
 import { normalizePhone } from "../domain/schemas";
 import {
@@ -176,7 +177,7 @@ export async function finalizePendingSignup(
   });
   if (stillTaken?.signupCompleted) {
     await prisma.pendingSignup.delete({ where: { id: pendingId } }).catch(() => {});
-    return { ok: false, error: "This email or phone is already registered." };
+    return { ok: false, error: AUTH_SIGNUP_DETAILS_CONFLICT };
   }
   if (stillTaken) {
     await prisma.user.delete({ where: { id: stillTaken.id } });

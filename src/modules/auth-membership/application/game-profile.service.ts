@@ -1,5 +1,6 @@
 import { prisma } from "@core/database/client";
 import type { PlayedGame, ValorantRole } from "@prisma/client";
+import { AUTH_SIGNUP_DETAILS_CONFLICT } from "../domain/auth-messages";
 import {
   isOlympusIdTaken,
   isUsernameTaken,
@@ -171,7 +172,7 @@ export async function updateAccountInfo(
     const trimmed = input.olympusId.trim();
     if (!trimmed) return { ok: false, error: "Olympus ID cannot be empty." };
     if (await isOlympusIdTaken(trimmed, userId)) {
-      return { ok: false, error: "That Olympus ID is already registered to another account." };
+      return { ok: false, error: AUTH_SIGNUP_DETAILS_CONFLICT };
     }
     data.olympusId = trimmed;
     data.olympusIdKey = olympusIdKeyFromValue(trimmed, userId);

@@ -3,6 +3,8 @@ import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@core/database/client";
 import { serverEnv } from "@core/config/env.server";
+import { logAuthValidationFailure } from "@/lib/auth-validation";
+import { loginSchema } from "../domain/schemas";
 import { verifyCredentials } from "../application/register.service";
 
 function isStaleSessionError(error: unknown): boolean {
@@ -49,10 +51,15 @@ function createAuthInstance() {
           password: { label: "Password", type: "password" },
         },
         async authorize(credentials) {
-          const email = credentials?.email as string | undefined;
-          const password = credentials?.password as string | undefined;
-          if (!email || !password) return null;
-          return verifyCredentials(email, password);
+          const parsed = loginSchema.safeParse({
+            email: credentials?.email,
+            password: credentials?.password,
+          });
+          if (!parsed.success) {
+            logAuthValidationFailure("nextauth:authorize", "invalid-credentials-shape");
+            return null;
+          }
+          return verifyCredentials(parsed.data.email, parsed.data.password);
         },
       }),
     ],

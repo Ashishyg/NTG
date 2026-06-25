@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { signupStep1Schema } from "@auth-membership/domain/schemas";
 
 type Step = 1 | 2;
 
@@ -275,17 +276,23 @@ export default function SignupWizard() {
     setError("");
     setLoading(true);
     try {
+      const parsed = signupStep1Schema.safeParse({
+        displayName,
+        email,
+        phone,
+        password,
+        dateOfBirth,
+        olympusId,
+      });
+      if (!parsed.success) {
+        setError(parsed.error.issues[0]?.message ?? "Check your details and try again.");
+        return;
+      }
+
       const res = await fetch("/api/auth/register/step-1", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          displayName,
-          email,
-          phone,
-          password,
-          dateOfBirth,
-          olympusId,
-        }),
+        body: JSON.stringify(parsed.data),
       });
       const data = await res.json();
       if (!res.ok) {

@@ -6,6 +6,12 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { useState } from "react";
+import {
+  AUTH_COMPLETE_SIGNUP_MESSAGE,
+  AUTH_GENERIC_LOGIN_ERROR,
+  AUTH_PASSWORD_RESET_REQUEST_MESSAGE,
+} from "@auth-membership/domain/auth-messages";
+import { loginSchema } from "@auth-membership/domain/schemas";
 
 type Props = {
   mode: "login";
@@ -40,9 +46,16 @@ export default function AuthForm({ mode }: Props) {
     setLoading(true);
 
     try {
+      const parsed = loginSchema.safeParse({ email, password });
+      if (!parsed.success) {
+        setError(parsed.error.issues[0]?.message ?? AUTH_GENERIC_LOGIN_ERROR);
+        setLoading(false);
+        return;
+      }
+
       const result = await signIn("credentials", {
-        email,
-        password,
+        email: parsed.data.email,
+        password: parsed.data.password,
         redirect: false,
       });
 
@@ -55,10 +68,7 @@ export default function AuthForm({ mode }: Props) {
         const checkData = await check.json();
         if (checkData.blocked && checkData.resumeStep) {
           setLoading(false);
-          setError(
-            checkData.reason ??
-              "Finish email verification before logging in.",
-          );
+          setError(checkData.reason ?? AUTH_COMPLETE_SIGNUP_MESSAGE);
           if (checkData.devOtp) {
             setDevOtp(checkData.devOtp);
             setResumeStep(checkData.resumeStep);
@@ -67,11 +77,7 @@ export default function AuthForm({ mode }: Props) {
           router.push(`/signup?step=${checkData.resumeStep}`);
           return;
         }
-        if (checkData.blocked && checkData.reason) {
-          setError(checkData.reason);
-        } else {
-          setError("Invalid email or password.");
-        }
+        setError(AUTH_GENERIC_LOGIN_ERROR);
         setLoading(false);
         return;
       }
@@ -99,11 +105,11 @@ export default function AuthForm({ mode }: Props) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Could not send verification code.");
+        setError(data.error ?? AUTH_GENERIC_LOGIN_ERROR);
         setLoading(false);
         return;
       }
-      setSuccessMessage("Verification code has been sent to your email.");
+      setSuccessMessage(data.message ?? AUTH_PASSWORD_RESET_REQUEST_MESSAGE);
       if (data.devOtp) {
         setForgotDevOtp(data.devOtp);
       }

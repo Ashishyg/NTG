@@ -63,6 +63,21 @@ describe("signupStep1Schema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("strips script tags from display names", () => {
+    const result = signupStep1Schema.safeParse({
+      displayName: '<script>alert(1)</script>Player',
+      email: "player@example.com",
+      phone: "+919876543210",
+      password: "password123",
+      dateOfBirth: "2000-01-15",
+      olympusId: "OLY123",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.displayName).toBe("Player");
+    }
+  });
 });
 
 describe("fifaRegisterSchema", () => {

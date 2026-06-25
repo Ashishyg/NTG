@@ -1,6 +1,8 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "@core/database/client";
 import { computeAgeFromDateOfBirth } from "@/lib/date-age";
+import { hashPassword } from "@/lib/password-hash";
+import { AUTH_SIGNUP_DETAILS_CONFLICT } from "../domain/auth-messages";
 import {
   isUsernameTaken,
   usernameKeyFromDisplayName,
@@ -110,12 +112,12 @@ export async function createMemberAdmin(input: {
   }
 
   const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) return { ok: false, error: "Email already registered." };
+  if (existing) return { ok: false, error: AUTH_SIGNUP_DETAILS_CONFLICT };
 
-  const passwordHash = await bcrypt.hash(input.password, 12);
+  const passwordHash = await hashPassword(input.password);
   const displayName = input.displayName?.trim() || input.name?.trim() || email.split("@")[0];
   if (await isUsernameTaken(displayName)) {
-    return { ok: false, error: "That username is already taken." };
+    return { ok: false, error: AUTH_SIGNUP_DETAILS_CONFLICT };
   }
 
   const user = await prisma.user.create({
@@ -204,7 +206,7 @@ export async function resetMemberPasswordAdmin(
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return { ok: false, error: "User not found." };
 
-  const passwordHash = await bcrypt.hash(newPassword, 12);
+  const passwordHash = await hashPassword(newPassword);
   await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
   return { ok: true };
 }

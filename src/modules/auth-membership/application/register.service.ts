@@ -1,6 +1,22 @@
 import bcrypt from "bcryptjs";
 import { AUTH_RATE_LIMITS, checkRateLimit } from "@/lib/rate-limit";
+import {
+  clearLoginFailures,
+  getProgressiveDelayMs,
+  isLoginLocked,
+  recordLoginFailure,
+  sleep,
+} from "@/lib/login-lockout";
+import {
+  hashPassword,
+  needsPasswordRehash,
+  verifyPassword,
+} from "@/lib/password-hash";
 import { prisma } from "@core/database/client";
+import {
+  AUTH_COMPLETE_SIGNUP_MESSAGE,
+  AUTH_SIGNUP_DETAILS_CONFLICT,
+} from "../domain/auth-messages";
 import type { SignupStep1Input } from "../domain/schemas";
 import {
   setSignupSession,
@@ -19,8 +35,7 @@ import {
 
 const MIN_PASSWORD = 8;
 
-const SIGNUP_CONFLICT_ERROR =
-  "Unable to register with these details. If you already have an account, sign in instead.";
+export { AUTH_SIGNUP_DETAILS_CONFLICT as SIGNUP_CONFLICT_ERROR };
 
 export type RegisterResult =
   | { ok: true; resumeStep?: 2; devOtp?: string; devOtpHint?: string }
@@ -47,7 +62,7 @@ export async function registerStep1(
     return { ok: false, error: `Password must be at least ${MIN_PASSWORD} characters.` };
   }
 
-  const passwordHash = await bcrypt.hash(input.password, 12);
+  const passwordHash = await hashPassword(input.password);
   const saved = await savePendingSignup(input, passwordHash);
   if (!saved.ok) return saved;
 
@@ -165,14 +180,35 @@ export async function verifyCredentials(
   const limited = await checkRateLimit(normalized, AUTH_RATE_LIMITS.loginEmail);
   if (!limited.ok) return null;
 
+  if (await isLoginLocked(normalized)) return null;
+
+  const delayMs = await getProgressiveDelayMs(normalized);
+  if (delayMs > 0) await sleep(delayMs);
+
   const user = await prisma.user.findUnique({
     where: { email: normalized },
     include: { playerProfile: true },
   });
-  if (!user?.passwordHash) return null;
+  if (!user?.passwordHash) {
+    await recordLoginFailure(normalized, { userExists: false });
+    return null;
+  }
 
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) return null;
+  const valid = await verifyPassword(password, user.passwordHash);
+  if (!valid) {
+    await recordLoginFailure(normalized, { userExists: true });
+    return null;
+  }
+
+  await clearLoginFailures(normalized);
+
+  if (needsPasswordRehash(user.passwordHash)) {
+    const upgraded = await hashPassword(password);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: upgraded },
+    });
+  }
 
   if (!user.phone) {
     return { id: user.id, email: user.email!, name: user.name };
@@ -201,7 +237,7 @@ export async function getLoginBlockReason(
       await setSignupSession(pending.id);
       const otp = await sendEmailOtp(pending.email);
       return {
-        reason: "Finish email verification to create your account.",
+        reason: AUTH_COMPLETE_SIGNUP_MESSAGE,
         resumeStep: 2,
         devOtp: otp.ok ? otp.devOtp : undefined,
         devOtpHint: otp.ok ? otp.devOtpHint : undefined,

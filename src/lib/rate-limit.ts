@@ -94,7 +94,7 @@ export async function checkRateLimit(
 }
 
 export const AUTH_RATE_LIMITS = {
-  login: { prefix: "auth:login", limit: 10, windowMs: 15 * 60 * 1000 },
+  login: { prefix: "auth:login", limit: 10, windowMs: 60 * 1000 },
   loginEmail: { prefix: "auth:login-email", limit: 8, windowMs: 15 * 60 * 1000 },
   register: { prefix: "auth:register", limit: 5, windowMs: 60 * 60 * 1000 },
   otpSend: { prefix: "auth:otp-send", limit: 3, windowMs: 10 * 60 * 1000 },

@@ -1,4 +1,5 @@
 import { prisma } from "@core/database/client";
+import { AUTH_SIGNUP_DETAILS_CONFLICT } from "./auth-messages";
 
 /** Lowercase key used for case-insensitive identity uniqueness. */
 export function normalizeIdentityKey(value: string): string {
@@ -130,34 +131,25 @@ export async function validateSignupIdentityFields(
   input: SignupIdentityInput,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (await isEmailRegistered(input.email)) {
-    return {
-      ok: false,
-      error: "Unable to register with these details. If you already have an account, sign in instead.",
-    };
+    return { ok: false, error: AUTH_SIGNUP_DETAILS_CONFLICT };
   }
   if (await isPhoneRegistered(input.phone)) {
-    return {
-      ok: false,
-      error: "Unable to register with these details. If you already have an account, sign in instead.",
-    };
+    return { ok: false, error: AUTH_SIGNUP_DETAILS_CONFLICT };
   }
   if (await isPhoneReservedByPendingSignup(input.phone, input.excludePendingEmail)) {
-    return {
-      ok: false,
-      error: "Unable to register with these details. If you already have an account, sign in instead.",
-    };
+    return { ok: false, error: AUTH_SIGNUP_DETAILS_CONFLICT };
   }
   if (await isUsernameTaken(input.displayName)) {
-    return { ok: false, error: "That username is already taken. Choose another." };
+    return { ok: false, error: AUTH_SIGNUP_DETAILS_CONFLICT };
   }
   if (await isUsernameReservedByPendingSignup(input.displayName, input.excludePendingEmail)) {
-    return { ok: false, error: "That username is already taken. Choose another." };
+    return { ok: false, error: AUTH_SIGNUP_DETAILS_CONFLICT };
   }
   if (await isOlympusIdTaken(input.olympusId)) {
-    return { ok: false, error: "That Olympus ID is already registered. Use your own Olympus ID." };
+    return { ok: false, error: AUTH_SIGNUP_DETAILS_CONFLICT };
   }
   if (await isOlympusIdReservedByPendingSignup(input.olympusId, input.excludePendingEmail)) {
-    return { ok: false, error: "That Olympus ID is already in use. Choose another." };
+    return { ok: false, error: AUTH_SIGNUP_DETAILS_CONFLICT };
   }
   return { ok: true };
 }

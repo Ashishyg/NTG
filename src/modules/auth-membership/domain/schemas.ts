@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+import { sanitizeTextInput } from "@/lib/input-sanitize";
+
+const sanitizedString = z.string().transform(sanitizeTextInput);
+
 export function normalizePhone(raw: string): string {
   const digits = raw.replace(/\D/g, "");
   if (digits.length === 10) return `+91${digits}`;
@@ -8,21 +12,47 @@ export function normalizePhone(raw: string): string {
   throw new Error("Invalid phone number. Use a 10-digit Indian mobile number.");
 }
 
-export const usernameSchema = z
-  .string()
-  .trim()
-  .min(2, "Username must be at least 2 characters.")
-  .max(32, "Username must be at most 32 characters.")
-  .regex(
-    /^[a-zA-Z0-9_-]+$/,
-    "Username can only use letters, numbers, underscores, and hyphens.",
+export const usernameSchema = sanitizedString
+  .pipe(
+    z
+      .string()
+      .min(2, "Username must be at least 2 characters.")
+      .max(32, "Username must be at most 32 characters.")
+      .regex(
+        /^[a-zA-Z0-9_-]+$/,
+        "Username can only use letters, numbers, underscores, and hyphens.",
+      ),
   );
+
+export const loginSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Enter a valid email address.")
+    .max(254),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters.")
+    .max(128, "Password is too long."),
+});
 
 export const signupStep1Schema = z.object({
   displayName: usernameSchema,
-  email: z.string().trim().toLowerCase().email(),
-  phone: z.string().trim().min(10).max(16),
-  password: z.string().min(8).max(128),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Enter a valid email address."),
+  phone: z
+    .string()
+    .trim()
+    .min(10, "Enter a valid phone number.")
+    .max(16, "Enter a valid phone number."),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters.")
+    .max(128, "Password is too long."),
   dateOfBirth: z
     .string()
     .trim()
@@ -36,7 +66,7 @@ export const signupStep1Schema = z.object({
       if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age -= 1;
       return age >= 10 && age <= 100;
     }, "Age must be between 10 and 100."),
-  olympusId: z.string().trim().min(1).max(64),
+  olympusId: sanitizedString.pipe(z.string().min(1).max(64)),
 });
 
 export const otpVerifySchema = z.object({
@@ -83,7 +113,7 @@ const registrationTermsField = {
 };
 
 export const fifaRegisterSchema = z.object({
-  teamName: z.string().trim().min(2).max(48),
+  teamName: sanitizedString.pipe(z.string().min(2).max(48)),
   partnerUsername: usernameSchema,
   ...registrationTermsField,
 });
@@ -94,7 +124,7 @@ export const profileAccountPatchSchema = z.object({
     .trim()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid date (YYYY-MM-DD).")
     .optional(),
-  olympusId: z.string().trim().min(1).max(64).optional(),
+  olympusId: sanitizedString.pipe(z.string().min(1).max(64)).optional(),
 });
 
 export const tournamentRegisterSchema = z.discriminatedUnion("participantRole", [
