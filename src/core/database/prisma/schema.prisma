@@ -100,6 +100,18 @@ enum MomentsDisplayMode {
   CAROUSEL
 }
 
+enum UserActivityAction {
+  SIGNUP
+  LEAVE
+  PROFILE_UPDATE
+  RIOT_LINK
+  RIOT_UNLINK
+  STEAM_LINK
+  STEAM_UNLINK
+  TOURNAMENT_REGISTER
+  TOURNAMENT_UNREGISTER
+}
+
 // ─── @auth-membership ────────────────────────────────────────────────────────
 
 model User {
@@ -144,6 +156,7 @@ model User {
   captainedTeams          TournamentTeam[]          @relation("TeamCaptain")
   teamPlayers             TournamentTeamPlayer[]
   adminAuditLogs          AdminAuditLog[]
+  userActivityLogs        UserActivityLog[]
   platformSettingsUpdated PlatformSetting[]         @relation("PlatformSettingUpdatedBy")
 }
 
@@ -610,8 +623,25 @@ model AdminAuditLog {
 }
 
 /**
- * Platform-wide settings (e.g. current Valorant act for rank sync).
+ * Player/member activity trail (signup, links, tournament register, etc.).
  */
+model UserActivityLog {
+  id        String             @id @default(cuid())
+  userId    String?
+  user      User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email     String?
+  name      String?
+  action    UserActivityAction
+  target    String?
+  details   String?
+  metadata  Json?
+  createdAt DateTime           @default(now())
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([createdAt])
+}
+
 /**
  * Platform-wide settings (e.g. current Valorant act for rank sync).
  */

@@ -1,10 +1,11 @@
+import type { UserActivityAction } from "@prisma/client";
 import { prisma } from "@core/database/client";
 
 export type UserActivityParams = {
   userId?: string | null;
   email?: string | null;
   name?: string | null;
-  action: "SIGNUP" | "LEAVE" | "PROFILE_UPDATE" | "RIOT_LINK" | "RIOT_UNLINK" | "STEAM_LINK" | "STEAM_UNLINK" | "TOURNAMENT_REGISTER" | "TOURNAMENT_UNREGISTER";
+  action: UserActivityAction;
   target?: string | null;
   details?: string | null;
   metadata?: Record<string, any> | null;
