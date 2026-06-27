@@ -8,6 +8,8 @@ import { serverEnv } from "@core/config/env.server";
 
 export const metadata = { title: "Admin Dashboard" };
 
+export const dynamic = "force-dynamic";
+
 const quickLinks = [
   {
     href: "/admin/tournaments",
@@ -71,7 +73,9 @@ export default async function AdminDashboardPage() {
   const session = await getSession();
   const isSuperAdmin = isSuperAdminEmail(session?.user?.email);
   const tournaments = serverEnv.databaseUrl ? await listTournamentsAdmin() : [];
-  const memberCount = serverEnv.databaseUrl ? await prisma.user.count() : 0;
+  const memberCount = serverEnv.databaseUrl
+    ? await prisma.user.count({ where: { signupCompleted: true } })
+    : 0;
   const openCup = tournaments.find((t) => t.status === "REGISTRATION_OPEN");
 
   return (

@@ -115,7 +115,7 @@ export default function PlansAndHostClient({ data }: { data: LoungeCommerceHomeD
                 <div>
                   <div className="flex items-baseline gap-1">
                     <span className="text-xl font-bold text-white/80">₹70</span>
-                    <span className="text-[11px] text-white/45 font-medium">/ hr</span>
+                    <span className="text-[11px] text-white/45 font-medium">/ hr · per person</span>
                   </div>
                   <p className="mt-1 text-[11px] font-medium tracking-wide text-white/35">Group · 2–4 players</p>
                 </div>

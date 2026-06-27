@@ -266,7 +266,7 @@ export default function ValorantRankingsBoard({ data }: Props) {
 
     const lastSyncDate = lastSyncStr ? new Date(lastSyncStr) : null;
 
-    const timeUntilNext = msUntilNextRefresh(!!data.hourlyRefreshEnabled, now);
+    const timeUntilNext = msUntilNextRefresh(false, now);
 
     const h = Math.floor(timeUntilNext / (1000 * 60 * 60));
     const m = Math.floor((timeUntilNext / 1000 / 60) % 60);
@@ -459,7 +459,10 @@ export default function ValorantRankingsBoard({ data }: Props) {
             <div className="text-[10px] font-bold text-white/30 uppercase tracking-widest flex flex-wrap items-center gap-2">
               <span>Last Refreshed: {lastRefreshedStr}</span>
               <span className="text-white/10 hidden sm:inline">|</span>
-              <span className="text-white/60">Next Refresh in: {timeLeftStr}</span>
+              <span className="text-white/60">
+                Next refresh in {timeLeftStr}
+                <span className="text-white/35"> · 2:30 AM IST</span>
+              </span>
             </div>
           </div>
         </div>
