@@ -44,7 +44,7 @@ export default function VisitLounge() {
         className="mb-10 text-center"
       >
         <span className="text-[10px] font-medium uppercase tracking-[0.4em] text-[var(--color-brand)]/80">
-          05 · Visit
+          07 · Visit
         </span>
         <h2 className="mt-3 font-display text-4xl font-semibold tracking-[-0.02em] text-white sm:text-5xl">
           Step{" "}
@@ -66,8 +66,7 @@ export default function VisitLounge() {
               {brand.name}.
             </h3>
             <p className="mt-3 max-w-sm text-white/55">
-              {brand.tagline}. Drop by, plug up, play your sharpest. DM us on
-              WhatsApp to inquire about slots, tournament nights and private vaults.
+              {brand.tagline}. Drop by, plug up, play your sharpest. Just crash the lounge, gather your squad, and get playing.
             </p>
 
             <div className="mt-7 space-y-3">
@@ -87,19 +86,6 @@ export default function VisitLounge() {
             </div>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <a
-                href={whatsappInquiryUrl(
-                  "Hi NTG Lounge, I'd like to inquire about a slot at the lounge.",
-                )}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="cta inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold uppercase tracking-[0.18em] transition-all hover:scale-[1.03] hover:brightness-110"
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
-                  <path d="M12.04 2C6.6 2 2.16 6.43 2.16 11.86c0 1.91.5 3.78 1.45 5.42L2 22l4.86-1.57a9.86 9.86 0 005.18 1.41c5.43 0 9.87-4.43 9.87-9.86A9.83 9.83 0 0012.04 2zm0 17.94a8.07 8.07 0 01-4.34-1.27l-.31-.19-2.89.94.95-2.81-.2-.32a8.05 8.05 0 1114.86-4.43 8.07 8.07 0 01-8.07 8.08zm4.65-6.09c-.25-.13-1.5-.74-1.74-.83-.23-.08-.4-.13-.57.13-.17.25-.66.83-.81 1-.15.17-.3.19-.55.06-.25-.13-1.07-.4-2.04-1.27-.75-.67-1.26-1.5-1.41-1.75-.15-.25-.02-.39.11-.51.11-.11.25-.3.38-.45.13-.15.17-.25.25-.42.08-.17.04-.31-.02-.45-.06-.13-.57-1.37-.78-1.87-.21-.5-.42-.43-.57-.43h-.49c-.17 0-.45.06-.69.31-.23.25-.9.88-.9 2.15 0 1.27.92 2.5 1.05 2.67.13.17 1.81 2.77 4.4 3.88.62.27 1.1.43 1.47.55.62.2 1.18.17 1.62.1.5-.07 1.5-.61 1.71-1.2.21-.59.21-1.1.15-1.2-.06-.1-.23-.17-.48-.29z" />
-                </svg>
-                Inquire on WhatsApp
-              </a>
               <div className="flex items-center gap-2">
                 {socials.map((s) => (
                   <a

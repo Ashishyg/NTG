@@ -9,6 +9,9 @@ import {
   buildLeaderboardView,
   type LeaderboardViewEntry,
 } from "@/lib/leaderboard-view";
+import {
+  msUntilNextRefresh,
+} from "@/lib/leaderboard-schedule";
 import BrandIcon from "@/components/ui/BrandIcon";
 import LeaderboardPlayerCardBackdrop from "@/components/platform/LeaderboardPlayerCardBackdrop";
 import { gameMetaFor } from "@/lib/tournament-display";
@@ -263,18 +266,7 @@ export default function ValorantRankingsBoard({ data }: Props) {
 
     const lastSyncDate = lastSyncStr ? new Date(lastSyncStr) : null;
 
-    const nextSyncDate = new Date(now);
-    if (data.hourlyRefreshEnabled) {
-      nextSyncDate.setMinutes(50, 0, 0);
-      if (nextSyncDate.getTime() <= now.getTime()) {
-        nextSyncDate.setHours(nextSyncDate.getHours() + 1);
-      }
-    } else {
-      nextSyncDate.setHours(24, 0, 0, 0);
-    }
-
-    let timeUntilNext = nextSyncDate.getTime() - now.getTime();
-    if (timeUntilNext < 0) timeUntilNext = 0;
+    const timeUntilNext = msUntilNextRefresh(!!data.hourlyRefreshEnabled, now);
 
     const h = Math.floor(timeUntilNext / (1000 * 60 * 60));
     const m = Math.floor((timeUntilNext / 1000 / 60) % 60);

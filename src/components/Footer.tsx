@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import BrandIcon from "./ui/BrandIcon";
 import { brand, socials } from "@/lib/data";
+import { showPlansSection } from "@/lib/env";
 
 export default function Footer() {
   const year = new Date().getFullYear();
@@ -74,6 +75,8 @@ export default function Footer() {
         </div>
 
         <div className="mt-8 h-px w-full bg-gradient-to-r from-[var(--color-brand)]/20 via-[var(--color-iris)]/30 to-[var(--color-brand)]/20" />
+
+
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-4 text-[10px] uppercase tracking-[0.22em] text-white/40">
           <p>

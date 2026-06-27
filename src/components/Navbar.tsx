@@ -38,9 +38,24 @@ function NavLink({
   active?: boolean;
   external?: boolean;
 }) {
+  const pathname = usePathname();
   const isEsports = label.toLowerCase() === "esports";
   const isLounge = label.toLowerCase() === "lounge";
   
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (href.startsWith("/#") || href.startsWith("#")) {
+      const hash = href.split("#")[1];
+      if (pathname === "/") {
+        e.preventDefault();
+        const element = document.getElementById(hash);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth" });
+          history.pushState(null, "", href);
+        }
+      }
+    }
+  };
+
   let textColorClass = active ? "text-white" : "text-white/60 hover:text-white";
   let textSpanClass = "";
   let containerSpanClass = "relative z-10 flex items-center justify-center gap-1.5";
@@ -73,7 +88,7 @@ function NavLink({
 
   if (external) {
     return (
-      <a href={href} className={className}>
+      <a href={href} className={className} onClick={handleClick}>
         <span className={containerSpanClass}>
           {loungeIcon}
           <span className={textSpanClass || undefined}>{label}</span>
@@ -84,7 +99,7 @@ function NavLink({
   }
 
   return (
-    <Link href={href} className={className}>
+    <Link href={href} className={className} onClick={handleClick}>
       <span className={containerSpanClass}>
         {loungeIcon}
         <span className={textSpanClass || undefined}>{label}</span>
@@ -289,17 +304,30 @@ function MobileMenu({
               </>
             );
 
+            const handleMobileClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+              onClose();
+              if (href.startsWith("/#") || href.startsWith("#")) {
+                const hash = href.split("#")[1];
+                if (pathname === "/") {
+                  e.preventDefault();
+                  const element = document.getElementById(hash);
+                  if (element) {
+                    element.scrollIntoView({ behavior: "smooth" });
+                    history.pushState(null, "", href);
+                  }
+                }
+              }
+            };
+
             return (
               <li key={link.href}>
-                {!platform && link.href.startsWith("#") ? (
-                  <a href={link.href} className={rowClass} onClick={onClose}>
-                    {content}
-                  </a>
-                ) : (
-                  <Link href={link.href} className={rowClass} onClick={onClose}>
-                    {content}
-                  </Link>
-                )}
+                <Link
+                  href={link.href}
+                  className={rowClass}
+                  onClick={(e) => handleMobileClick(e, link.href)}
+                >
+                  {content}
+                </Link>
               </li>
             );
           })}
@@ -335,6 +363,21 @@ function NavbarContent() {
 
   useEffect(() => {
     setMenuOpen(false);
+  }, [pathname]);
+
+  // Manually handle page routing with hash anchors (e.g. /esports -> /#games)
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash) {
+      const targetId = hash.replace("#", "");
+      const timer = setTimeout(() => {
+        const element = document.getElementById(targetId);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 200);
+      return () => clearTimeout(timer);
+    }
   }, [pathname]);
 
   useEffect(() => {

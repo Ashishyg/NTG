@@ -20,6 +20,7 @@
     "db:migrate": "dotenv -e .env.local -- prisma migrate dev --schema=src/core/database/prisma/schema.prisma && prisma generate --schema=src/core/database/prisma/schema.prisma",
     "db:migrate:deploy": "dotenv -e .env.local -- prisma migrate deploy --schema=src/core/database/prisma/schema.prisma && prisma generate --schema=src/core/database/prisma/schema.prisma",
     "db:seed": "dotenv -e .env.local -- tsx src/core/database/seed.ts",
+    "db:seed:dev": "dotenv -e .env.local -v SEED_DEV_MOCK_DATA=1 -- tsx src/core/database/seed.ts",
     "db:migrate-static": "dotenv -e .env.local -- tsx scripts/migrate-static-to-db.ts",
     "import:moments": "node scripts/import-moments-photos.mjs",
     "sync:reel-covers": "dotenv -e .env.local -- node scripts/sync-reel-covers.mjs"

@@ -112,6 +112,17 @@ enum UserActivityAction {
   TOURNAMENT_UNREGISTER
 }
 
+enum GamepassCategory {
+  PLAYSTATION
+  PC
+}
+
+enum HostOfferingType {
+  SPONSORSHIP
+  BIRTHDAY
+  PRIVATE_EVENT
+}
+
 // ─── @auth-membership ────────────────────────────────────────────────────────
 
 model User {
@@ -653,4 +664,54 @@ model PlatformSetting {
   updatedBy   User?    @relation("PlatformSettingUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   @@index([updatedAt])
+}
+
+// ─── @lounge-commerce (passes, host offerings) ───────────────────────────────
+
+model GamepassPlan {
+  id              String           @id @default(cuid())
+  slug            String           @unique
+  category        GamepassCategory
+  title           String
+  subtitle        String?
+  description     String?
+  priceDay        Int?
+  priceNight      Int?
+  priceSingle     Int?
+  priceController Int?
+  validityText    String?
+  timeWindowText  String?
+  badge           String?
+  featuredOnHome  Boolean          @default(false)
+  inquiryOnly     Boolean          @default(false)
+  sortOrder       Int              @default(0)
+  active          Boolean          @default(true)
+  whatsappMessage String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([category, active, sortOrder])
+  @@index([featuredOnHome, category])
+}
+
+model HostOffering {
+  id         String           @id @default(cuid())
+  type       HostOfferingType @unique
+  title      String
+  summary    String
+  body       String?
+  highlights Json?
+  active     Boolean          @default(true)
+  updatedAt  DateTime         @updatedAt
+}
+
+model SponsorLogo {
+  id         String  @id @default(cuid())
+  name       String
+  logoUrl    String
+  websiteUrl String?
+  sortOrder  Int     @default(0)
+  active     Boolean @default(true)
+
+  @@index([active, sortOrder])
 }

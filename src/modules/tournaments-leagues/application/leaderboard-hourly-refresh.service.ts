@@ -88,18 +88,46 @@ async function failStaleRun(
   kind: LeaderboardRefreshKind,
   message: string,
 ): Promise<void> {
-  await prisma.leaderboardRefreshRun.updateMany({
-    where: { id: runId, status: LeaderboardRefreshRunStatus.RUNNING },
+  const run = await prisma.leaderboardRefreshRun.findUnique({ where: { id: runId } });
+  if (!run || run.status !== LeaderboardRefreshRunStatus.RUNNING) return;
+
+  const finishedAt = new Date();
+  await prisma.leaderboardRefreshRun.update({
+    where: { id: runId },
     data: {
       status: LeaderboardRefreshRunStatus.ERROR,
-      finishedAt: new Date(),
+      finishedAt,
       errorMessage: message,
     },
   });
+
   const lockKey = lockKeyForKind(kind);
   const lock = await getLeaderboardRefreshLock(lockKey);
   if (lock?.runId === runId) {
     await clearLeaderboardRefreshLock(lockKey);
+  }
+
+  if (kind === "daily") {
+    await markLeaderboardCronError({
+      runStartedAt: run.startedAt,
+      currentAct: getEnvValorantActKey(),
+      synced: run.successCount,
+      failed: run.failedCount,
+      pending: Math.max(0, run.totalPlayers - run.successCount - run.failedCount),
+      totalPlayers: run.totalPlayers,
+      errorMessage: message,
+    }).catch(() => {});
+    void notifyLeaderboardSyncComplete({
+      runStartedAt: run.startedAt,
+      finishedAt,
+      synced: run.successCount,
+      failed: run.failedCount,
+      skipped: 0,
+      batches: 0,
+      pending: Math.max(0, run.totalPlayers - run.successCount - run.failedCount),
+      status: "error",
+      errorMessage: message,
+    }).catch(() => {});
   }
 }
 
@@ -328,20 +356,6 @@ export async function runLeaderboardRefresh(
         : null;
       if (parsed && !isLockFresh(parsed)) {
         await failStaleRun(running.id, kind, "Refresh lock expired.");
-        if (kind === "daily") {
-          await markLeaderboardCronError({
-            runStartedAt: running.startedAt,
-            currentAct,
-            synced: running.successCount,
-            failed: running.failedCount,
-            pending: Math.max(
-              0,
-              running.totalPlayers - running.successCount - running.failedCount,
-            ),
-            totalPlayers: running.totalPlayers,
-            errorMessage: "Refresh lock expired.",
-          }).catch(() => {});
-        }
       }
       return {
         status: "skipped",
@@ -384,6 +398,23 @@ export async function runLeaderboardRefresh(
 
   const staleRun = await getRunningRun(kind);
   if (staleRun) {
+    if (kind === "daily") {
+      return {
+        status: "skipped",
+        reason: "already_running",
+        runId: staleRun.id,
+        totalPlayers: staleRun.totalPlayers,
+        processed: staleRun.successCount + staleRun.failedCount,
+        successCount: staleRun.successCount,
+        failedCount: staleRun.failedCount,
+        pending: Math.max(
+          0,
+          staleRun.totalPlayers - staleRun.successCount - staleRun.failedCount,
+        ),
+        henrikRequestCount: staleRun.henrikRequestCount,
+        complete: false,
+      };
+    }
     await failStaleRun(staleRun.id, kind, `Superseded by new ${kind} refresh.`);
   }
 

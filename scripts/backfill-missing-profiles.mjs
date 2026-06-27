@@ -1,5 +1,4 @@
-feat(leaderboard): top 3 podium intro animation, rank badges, shadow fixes & UX polish
-#21/**
+/**
  * Backfill PlayerProfile rows for completed users missing one.
  * Run: npx dotenv -e .env.local -- node scripts/backfill-missing-profiles.mjs
  */

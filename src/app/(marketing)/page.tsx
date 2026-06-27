@@ -5,6 +5,8 @@ import Arsenal from "@/components/Arsenal";
 import TournamentVaultSection from "@/components/tournaments/TournamentVaultSection";
 import NtgStandard from "@/components/NtgStandard";
 import VisitLounge from "@/components/VisitLounge";
+import PlansAndHostSection from "@/components/passes/PlansAndHostSection";
+import BirthdaySection from "@/components/BirthdaySection";
 import CtaBanner from "@/components/CtaBanner";
 import Footer from "@/components/Footer";
 import LocalBusinessJsonLd from "@/components/seo/LocalBusinessJsonLd";
@@ -27,6 +29,8 @@ export default function MarketingHome() {
       <Arsenal />
       <TournamentVaultSection />
       <NtgStandard />
+      <PlansAndHostSection />
+      <BirthdaySection />
       <VisitLounge />
       <CtaBanner />
       <Footer />

@@ -24,6 +24,12 @@ export const mapsLink = process.env.NEXT_PUBLIC_GOOGLE_MAPS_LINK || "";
 export const allowPastTournamentClicks =
   process.env.NEXT_PUBLIC_ALLOW_PAST_TOURNAMENT_CLICKS === "1";
 
+/** Gate homepage Plans & Host section until client approves copy (Phase 1 DEV). */
+export const showPlansSection = process.env.NEXT_PUBLIC_SHOW_PLANS_SECTION === "1";
+
+export const sponsorEmail = process.env.NEXT_PUBLIC_SPONSOR_EMAIL || "sponsor@ntgesports.com";
+
+
 export function whatsappInquiryUrl(
   message = "Hi NTG Lounge, I'd like to inquire about a slot.",
 ) {

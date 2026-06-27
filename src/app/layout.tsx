@@ -69,6 +69,7 @@ export default async function RootLayout({
     <html
       lang="en"
       className={`${spaceGrotesk.variable} ${inter.variable} antialiased`}
+      data-scroll-behavior="smooth"
     >
       <body>
         <a
