@@ -236,8 +236,11 @@ export default function AdminTournamentEditor({
     SUPPORTS_FORMAT.includes(form.game) && form.registrationFormat === "STANDARD";
 
   const prizeSplitDisplay =
-    form.prizeSplit ??
-    (form.prizePool ? defaultSplit(Number(form.prizePool)) : []);
+    form.prizeSplit != null
+      ? form.prizeSplit
+      : form.prizePool
+        ? defaultSplit(Number(form.prizePool))
+        : [];
 
   const cupUrl = `/esports/tournaments/${form.slug}`;
   const hubUrl = "/esports";
@@ -605,14 +608,40 @@ export default function AdminTournamentEditor({
     }
   }
 
+  function currentSplitRows(): PrizeSplitRow[] {
+    if (form.prizeSplit != null) return [...form.prizeSplit];
+    if (form.prizePool) return defaultSplit(Number(form.prizePool));
+    return [];
+  }
+
   function updateSplit(i: number, field: keyof PrizeSplitRow, value: string) {
-    const next = [...prizeSplitDisplay];
+    const next = currentSplitRows();
     const row = { ...next[i] };
     if (field === "amount") row.amount = Number(value) || 0;
     else if (field === "place") row.place = Number(value) || 1;
     else row.label = value;
     next[i] = row;
     setForm((f) => ({ ...f, prizeSplit: next }));
+  }
+
+  function addSplitRow() {
+    const current = currentSplitRows();
+    const nextPlace =
+      current.length > 0 ? Math.max(...current.map((r) => r.place)) + 1 : 1;
+    setForm((f) => ({
+      ...f,
+      prizeSplit: [
+        ...current,
+        { place: nextPlace, label: `Place ${nextPlace}`, amount: 0 },
+      ],
+    }));
+  }
+
+  function removeSplitRow(index: number) {
+    const next = currentSplitRows();
+    next.splice(index, 1);
+    const renumbered = next.map((row, i) => ({ ...row, place: i + 1 }));
+    setForm((f) => ({ ...f, prizeSplit: renumbered }));
   }
 
   const editorTabs = [
@@ -1124,9 +1153,25 @@ export default function AdminTournamentEditor({
                           />
                         </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => removeSplitRow(i)}
+                        className="shrink-0 rounded-lg border border-rose-500/20 px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-rose-300 hover:bg-rose-500/10"
+                        aria-label={`Remove place ${row.place}`}
+                      >
+                        Remove
+                      </button>
                     </div>
                   ))}
                 </div>
+
+                <button
+                  type="button"
+                  onClick={addSplitRow}
+                  className="rounded-xl border border-dashed border-white/15 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-white/55 hover:border-white/30 hover:text-white/80"
+                >
+                  + Add place
+                </button>
               </div>
             </AdminSection>
           </div>
