@@ -509,10 +509,14 @@ export async function deleteTournamentTeam(
   const team = await prisma.tournamentTeam.findUnique({ where: { id: teamId } });
   if (!team) return { ok: false, error: "Team not found." };
 
-  await prisma.tournamentTeam.delete({ where: { id: teamId } });
-  await prisma.tournament.update({
-    where: { id: team.tournamentId },
-    data: { updatedAt: new Date() },
+  await prisma.$transaction(async (tx) => {
+    await tx.tournamentTeamPlayer.deleteMany({ where: { teamId } });
+    await tx.tournamentRegistration.deleteMany({ where: { teamId } });
+    await tx.tournamentTeam.delete({ where: { id: teamId } });
+    await tx.tournament.update({
+      where: { id: team.tournamentId },
+      data: { updatedAt: new Date() },
+    });
   });
   return { ok: true };
 }
@@ -629,10 +633,18 @@ export async function deleteTeamPlayer(
   });
   if (!player) return { ok: false, error: "Player not found." };
 
-  await prisma.tournamentTeamPlayer.delete({ where: { id: playerId } });
-  await prisma.tournament.update({
-    where: { id: player.team.tournamentId },
-    data: { updatedAt: new Date() },
+  await prisma.$transaction(async (tx) => {
+    if (player.registrationId) {
+      await tx.tournamentRegistration.update({
+        where: { id: player.registrationId },
+        data: { teamId: null },
+      });
+    }
+    await tx.tournamentTeamPlayer.delete({ where: { id: playerId } });
+    await tx.tournament.update({
+      where: { id: player.team.tournamentId },
+      data: { updatedAt: new Date() },
+    });
   });
   return { ok: true };
 }
@@ -835,6 +847,29 @@ export function buildRegistrationsCsv(
   }
 
   return `\uFEFF${lines.join("\r\n")}`;
+}
+
+const TEAM_ROLE_ORDER: Record<string, number> = {
+  CAPTAIN: 0,
+  CO_CAPTAIN: 1,
+  PLAYER: 2,
+};
+
+export function buildTeamsCsv(
+  game: import("@prisma/client").GameSlug,
+  rows: AdminRegistrationRow[],
+): string {
+  const teamRows = rows
+    .filter((r) => r.teamId != null)
+    .sort((a, b) => {
+      const byTeam = (a.teamName ?? "").localeCompare(b.teamName ?? "");
+      if (byTeam !== 0) return byTeam;
+      const roleA = TEAM_ROLE_ORDER[a.participantRole] ?? 99;
+      const roleB = TEAM_ROLE_ORDER[b.participantRole] ?? 99;
+      if (roleA !== roleB) return roleA - roleB;
+      return (a.displayName ?? "").localeCompare(b.displayName ?? "");
+    });
+  return buildRegistrationsCsv(game, teamRows);
 }
 
 export { parsePrizeSplit, defaultPrizeSplit };

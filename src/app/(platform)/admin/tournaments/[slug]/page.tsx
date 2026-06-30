@@ -63,6 +63,7 @@ export default async function AdminTournamentEditPage({ params }: Props) {
         displayName: p.displayName,
         riotGameName: p.riotGameName,
         riotTagLine: p.riotTagLine,
+        registrationId: p.registrationId,
       })),
     })),
     registrations: t.registrations.map((r) => ({

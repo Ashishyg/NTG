@@ -20,6 +20,7 @@ type Team = {
     displayName: string;
     riotGameName: string | null;
     riotTagLine: string | null;
+    registrationId: string | null;
   }[];
 };
 
@@ -526,7 +527,8 @@ export default function AdminTournamentEditor({
   function requestRemoveTeam(teamId: string, teamName: string) {
     openDeleteConfirm({
       title: `Delete team "${teamName}"?`,
-      description: "All players on this team will be removed from the cup page.",
+      description:
+        "This team and all linked cup registrations (captain, co-captain, and players) will be permanently removed.",
       confirmLabel: "Delete team",
       onConfirm: async () => {
         await fetch(`/api/admin/tournaments/${form.slug}/teams/${teamId}`, { method: "DELETE" });
@@ -538,7 +540,9 @@ export default function AdminTournamentEditor({
   function requestRemovePlayer(teamId: string, playerId: string, playerName: string) {
     openDeleteConfirm({
       title: `Remove ${playerName}?`,
-      description: "This player will be removed from the team on the cup page.",
+      description: isAuctionFormat
+        ? "This player will be removed from the team and returned to the unassigned player pool."
+        : "This player will be removed from the team on the cup page.",
       confirmLabel: "Remove player",
       onConfirm: async () => {
         await fetch(
@@ -546,6 +550,38 @@ export default function AdminTournamentEditor({
           { method: "DELETE" },
         );
         refreshLists();
+      },
+    });
+  }
+
+  function requestRemoveRosterMember(team: Team, reg: RegistrationRow) {
+    if (reg.participantRole === "CAPTAIN" || reg.participantRole === "CO_CAPTAIN") {
+      requestRemoveRegistration(reg);
+      return;
+    }
+
+    const draftedPlayer = team.players.find((p) => p.registrationId === reg.id);
+    if (isAuctionFormat && draftedPlayer) {
+      requestRemovePlayer(team.id, draftedPlayer.id, reg.displayName ?? "Player");
+      return;
+    }
+
+    openDeleteConfirm({
+      title: `Remove ${reg.displayName ?? "this player"}?`,
+      description: "This player will be removed from the team and their cup registration will be deleted.",
+      confirmLabel: "Remove",
+      onConfirm: async () => {
+        const res = await fetch(
+          `/api/admin/tournaments/${form.slug}/registrations/${reg.id}`,
+          { method: "DELETE" },
+        );
+        if (res.ok) {
+          setMessage("Player removed.");
+          refreshLists();
+        } else {
+          const data = await res.json();
+          setMessage(data.error ?? "Remove failed.");
+        }
       },
     });
   }
@@ -1496,6 +1532,19 @@ export default function AdminTournamentEditor({
               showsOn="Registered rosters displaying inside teams overlays"
               viewHref={cupUrl}
             >
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <p className="text-sm text-white/45">
+                  {tournamentTeams.length} team{tournamentTeams.length === 1 ? "" : "s"}
+                </p>
+                {tournamentTeams.length > 0 ? (
+                  <a
+                    href={`/api/admin/tournaments/${form.slug}/teams/export`}
+                    className="rounded-xl border border-white/15 bg-white/[0.03] px-4 py-2 text-xs font-semibold text-white/65 hover:bg-white/[0.06] hover:text-white transition-colors"
+                  >
+                    Export CSV
+                  </a>
+                ) : null}
+              </div>
               <div className="space-y-6">
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
                   <p className="text-xs text-white/50">
@@ -1559,7 +1608,10 @@ export default function AdminTournamentEditor({
                               ["CAPTAIN", "CO_CAPTAIN"].includes(r.participantRole),
                             );
                             const rosterPlayers = matchingRegs.filter((r) => r.participantRole === "PLAYER");
-                            const drafted = team.players;
+                            const rosterRegistrationIds = new Set(matchingRegs.map((r) => r.id));
+                            const drafted = team.players.filter(
+                              (p) => !p.registrationId || !rosterRegistrationIds.has(p.registrationId),
+                            );
 
                             if (leadership.length === 0 && rosterPlayers.length === 0 && drafted.length === 0) {
                               return (
@@ -1584,6 +1636,13 @@ export default function AdminTournamentEditor({
                                         {formatParticipantRole(r.participantRole)}
                                       </span>
                                     </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => requestRemoveRosterMember(team, r)}
+                                      className="text-[10px] text-rose-300 hover:text-rose-200"
+                                    >
+                                      Remove
+                                    </button>
                                   </li>
                                 ))}
                                 {rosterPlayers.map((r) => (
@@ -1595,6 +1654,13 @@ export default function AdminTournamentEditor({
                                       <span className="font-medium">{r.displayName}</span>
                                       <span className="ml-2 text-white/40 text-[10px] uppercase">Player</span>
                                     </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => requestRemoveRosterMember(team, r)}
+                                      className="text-[10px] text-rose-300 hover:text-rose-200"
+                                    >
+                                      Remove
+                                    </button>
                                   </li>
                                 ))}
                                 {drafted.map((p) => (

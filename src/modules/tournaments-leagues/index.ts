@@ -65,6 +65,7 @@ export {
   listUnassignedPlayerRegistrations,
   listSeasonsAdmin,
   buildRegistrationsCsv,
+  buildTeamsCsv,
   parsePrizeSplit,
   defaultPrizeSplit,
   syncRegistrationStatus,
