@@ -65,11 +65,14 @@ function ProfilePreview({
       {game === "CS2" && preview.steamPersonaName ? (
         <p className="text-white/45">{preview.steamPersonaName}</p>
       ) : null}
-      {game === "CS2" && preview.cs2FaceitRank ? (
-        <p className="text-white/45">Faceit: {preview.cs2FaceitRank}</p>
-      ) : null}
-      {game === "CS2" && preview.cs2PeakPremierRank ? (
-        <p className="text-white/45">Peak premier: {preview.cs2PeakPremierRank}</p>
+      {game === "CS2" ? (
+        <>
+          <p className="text-white/45">Faceit: {preview.cs2FaceitRank ?? "NA"}</p>
+          <p className="text-white/45">Peak premier: {preview.cs2PeakPremierRank ?? "NA"}</p>
+          <Link href="/profile" className="inline-block text-[10px] font-semibold uppercase tracking-wider text-[var(--color-brand)]/80 hover:text-[var(--color-brand)]">
+            Edit CS ranks on profile →
+          </Link>
+        </>
       ) : null}
     </div>
   );
