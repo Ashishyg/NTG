@@ -13,6 +13,23 @@ export function resolveLeaderboardCardArtUrl(
   return large;
 }
 
+/** Portrait player card art for roster tiles and profile displays. */
+export function resolvePortraitCardArtUrl(
+  large?: string | null,
+  wide?: string | null,
+): string | null {
+  const normalizeToLarge = (url: string) => {
+    if (url.includes("/wideart")) return url.replace("/wideart", "/largeart");
+    if (url.includes("/smallart")) return url.replace("/smallart", "/largeart");
+    return url;
+  };
+
+  if (large) return normalizeToLarge(large);
+  if (!wide) return null;
+
+  return normalizeToLarge(wide);
+}
+
 /** Persist wide + large together when Henrik omits wide. */
 export function normalizeRiotPlayerCardUrls(
   large?: string | null,

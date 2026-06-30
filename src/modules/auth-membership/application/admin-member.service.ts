@@ -31,6 +31,8 @@ export async function listMembersAdmin(opts?: { search?: string; limit?: number;
             { olympusId: { contains: search, mode: "insensitive" as const } },
             { playerProfile: { displayName: { contains: search, mode: "insensitive" as const } } },
             { riotGameName: { contains: search, mode: "insensitive" as const } },
+            { riotTagLine: { contains: search, mode: "insensitive" as const } },
+            { steamPersonaName: { contains: search, mode: "insensitive" as const } },
           ],
         }
       : {}),
@@ -42,30 +44,46 @@ export async function listMembersAdmin(opts?: { search?: string; limit?: number;
       orderBy: { createdAt: "desc" },
       take: limit,
       skip: offset,
-      include: { playerProfile: true },
+      include: {
+        playerProfile: true,
+        leaderboard: {
+          where: { scope: "TOWN", game: { in: ["VALORANT", "CS2"] } },
+        },
+      },
     }),
     prisma.user.count({ where }),
   ]);
 
   return {
-    users: users.map((u) => ({
-      id: u.id,
-      email: u.email,
-      name: u.name,
-      phone: u.phone,
-      dateOfBirth: u.dateOfBirth?.toISOString().slice(0, 10) ?? null,
-      age: computeAgeFromDateOfBirth(u.dateOfBirth),
-      olympusId: u.olympusId,
-      role: u.role,
-      signupCompleted: u.signupCompleted,
-      emailVerified: Boolean(u.emailVerified),
-      riotId:
-        u.riotGameName && u.riotTagLine ? `${u.riotGameName}#${u.riotTagLine}` : null,
-      steamId64: u.steamId64,
-      steamPersonaName: u.steamPersonaName,
-      displayName: u.playerProfile?.displayName ?? null,
-      createdAt: u.createdAt.toISOString(),
-    })),
+    users: users.map((u) => {
+      const valorantRank = u.leaderboard.find((row) => row.game === "VALORANT");
+      const cs2Rank = u.leaderboard.find((row) => row.game === "CS2");
+      return {
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        phone: u.phone,
+        dateOfBirth: u.dateOfBirth?.toISOString().slice(0, 10) ?? null,
+        age: computeAgeFromDateOfBirth(u.dateOfBirth),
+        olympusId: u.olympusId,
+        role: u.role,
+        signupCompleted: u.signupCompleted,
+        emailVerified: Boolean(u.emailVerified),
+        riotId:
+          u.riotGameName && u.riotTagLine ? `${u.riotGameName}#${u.riotTagLine}` : null,
+        steamId64: u.steamId64,
+        steamPersonaName: u.steamPersonaName,
+        displayName: u.playerProfile?.displayName ?? null,
+        valorantRoles: u.playerProfile?.valorantRoles ?? [],
+        cs2FaceitRank: u.playerProfile?.cs2FaceitRank ?? null,
+        cs2PeakPremierRank: u.playerProfile?.cs2PeakPremierRank ?? null,
+        valorantRankTier: valorantRank?.rankTier ?? null,
+        valorantRankTierId: valorantRank?.rankTierId ?? null,
+        cs2RankTier: cs2Rank?.rankTier ?? null,
+        cs2RankTierId: cs2Rank?.rankTierId ?? null,
+        createdAt: u.createdAt.toISOString(),
+      };
+    }),
     total,
   };
 }

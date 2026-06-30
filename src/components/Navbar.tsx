@@ -17,13 +17,14 @@ const marketingLinks = [
 
 const platformLinks = [
   { label: "Lounge", href: "/" },
+  { label: "Roster", href: "/esports/roster" },
   { label: "Cups", href: "/esports/tournaments" },
   { label: "Leaderboards", href: "/esports/leaderboard" },
   { label: "Moments", href: "/gallery" },
 ];
 
 function isPlatformRoute(path: string) {
-  const roots = ["/esports", "/gallery", "/profile", "/admin"];
+  const roots = ["/esports", "/gallery", "/profile", "/admin", "/listings"];
   return roots.some((r) => path === r || path.startsWith(`${r}/`));
 }
 

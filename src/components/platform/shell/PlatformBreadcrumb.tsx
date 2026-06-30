@@ -8,12 +8,14 @@ export type Crumb = { label: string; href?: string };
 const SEGMENT_LABELS: Record<string, string> = {
   esports: "Esports",
   tournaments: "Cups",
+  roster: "Roster",
   leaderboard: "Rankings",
   gallery: "Moments",
   profile: "Profile",
   login: "Login",
   signup: "Join",
   admin: "Admin",
+  listings: "Listings",
 };
 
 function titleFromSlug(slug: string) {
@@ -31,8 +33,18 @@ export function crumbsFromPath(pathname: string): Crumb[] {
     return [{ label: "Esports", href: "/esports" }, { label: SEGMENT_LABELS[pathname.slice(1)] ?? "Account" }];
   }
 
+  if (pathname === "/listings") {
+    return [{ label: "Listings" }];
+  }
+
   const parts = pathname.split("/").filter(Boolean);
   const crumbs: Crumb[] = [];
+
+  if (parts[0] === "listings" && parts[1]) {
+    crumbs.push({ label: "Listings", href: "/listings" });
+    crumbs.push({ label: titleFromSlug(parts[1]) });
+    return crumbs;
+  }
 
   if (parts[0] === "esports") {
     crumbs.push({ label: "Esports", href: "/esports" });
@@ -41,6 +53,8 @@ export function crumbsFromPath(pathname: string): Crumb[] {
       if (parts[2]) crumbs.push({ label: titleFromSlug(parts[2]) });
     } else if (parts[1] === "leaderboard") {
       crumbs.push({ label: "Rankings" });
+    } else if (parts[1] === "roster") {
+      crumbs.push({ label: "Roster" });
     }
   }
 

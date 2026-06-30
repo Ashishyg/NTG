@@ -76,11 +76,50 @@ const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_BYTES = 5 * 1024 * 1024;
 const TEAM_LOGO_MAX_BYTES = 10 * 1024 * 1024;
 const RULEBOOK_MAX_BYTES = 15 * 1024 * 1024;
+export const APPLICATION_FILE_MAX_BYTES = RULEBOOK_MAX_BYTES;
+
 const RULEBOOK_TYPES = new Set([
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
+
+const APPLICATION_DOCUMENT_TYPES = new Set([
+  ...RULEBOOK_TYPES,
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+]);
+
+const APPLICATION_FILE_EXTENSIONS = new Set([
+  "pdf",
+  "doc",
+  "docx",
+  "xls",
+  "xlsx",
+  "jpg",
+  "jpeg",
+  "png",
+  "webp",
+  "gif",
+  "bmp",
+  "tif",
+  "tiff",
+  "ico",
+  "avif",
+  "heif",
+  "heic",
+]);
+
+function applicationFileExtension(fileName: string): string {
+  return fileName.split(".").pop()?.toLowerCase() ?? "";
+}
+
+function isAllowedApplicationMime(type: string): boolean {
+  if (!type) return false;
+  if (type === "image/svg+xml") return false;
+  if (type.startsWith("image/")) return true;
+  return APPLICATION_DOCUMENT_TYPES.has(type);
+}
 
 export function validateImageUpload(
   file: File,
@@ -143,7 +182,7 @@ export function validateDocumentBuffer(
   buffer: Buffer,
   fileName: string,
 ): { ok: true; contentType: string } | { ok: false; error: string } {
-  const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+  const ext = applicationFileExtension(fileName);
   if (buffer.length >= 4 && buffer.toString("ascii", 0, 4) === "%PDF") {
     return { ok: true, contentType: "application/pdf" };
   }
@@ -152,7 +191,8 @@ export function validateDocumentBuffer(
     buffer[0] === 0xd0 &&
     buffer[1] === 0xcf &&
     buffer[2] === 0x11 &&
-    buffer[3] === 0xe0
+    buffer[3] === 0xe0 &&
+    ext === "doc"
   ) {
     return { ok: true, contentType: "application/msword" };
   }
@@ -170,6 +210,130 @@ export function validateDocumentBuffer(
     };
   }
   return { ok: false, error: "File content is not a valid PDF or Word document." };
+}
+
+function validateSpreadsheetBuffer(
+  buffer: Buffer,
+  fileName: string,
+): { ok: true; contentType: string } | { ok: false; error: string } {
+  const ext = applicationFileExtension(fileName);
+  if (
+    buffer.length >= 4 &&
+    buffer[0] === 0xd0 &&
+    buffer[1] === 0xcf &&
+    buffer[2] === 0x11 &&
+    buffer[3] === 0xe0 &&
+    ext === "xls"
+  ) {
+    return { ok: true, contentType: "application/vnd.ms-excel" };
+  }
+  if (
+    buffer.length >= 4 &&
+    buffer[0] === 0x50 &&
+    buffer[1] === 0x4b &&
+    buffer[2] === 0x03 &&
+    buffer[3] === 0x04 &&
+    ext === "xlsx"
+  ) {
+    return {
+      ok: true,
+      contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    };
+  }
+  return { ok: false, error: "File content is not a valid Excel spreadsheet." };
+}
+
+function validateApplicationImageBuffer(
+  buffer: Buffer,
+): { ok: true; contentType: string } | { ok: false; error: string } {
+  const image = validateImageBuffer(buffer);
+  if (image.ok) return image;
+
+  if (buffer.length >= 6 && buffer.toString("ascii", 0, 3) === "GIF") {
+    return { ok: true, contentType: "image/gif" };
+  }
+  if (buffer.length >= 2 && buffer[0] === 0x42 && buffer[1] === 0x4d) {
+    return { ok: true, contentType: "image/bmp" };
+  }
+  if (
+    buffer.length >= 4 &&
+    (buffer.toString("ascii", 0, 2) === "II" || buffer.toString("ascii", 0, 2) === "MM")
+  ) {
+    return { ok: true, contentType: "image/tiff" };
+  }
+  if (
+    buffer.length >= 4 &&
+    buffer[0] === 0x00 &&
+    buffer[1] === 0x00 &&
+    buffer[2] === 0x01 &&
+    buffer[3] === 0x00
+  ) {
+    return { ok: true, contentType: "image/x-icon" };
+  }
+  if (buffer.length >= 12 && buffer.toString("ascii", 4, 8) === "ftyp") {
+    const brand = buffer.toString("ascii", 8, 12);
+    if (brand === "avif" || brand.startsWith("avi")) {
+      return { ok: true, contentType: "image/avif" };
+    }
+    if (brand === "heic" || brand === "heix" || brand === "mif1") {
+      return { ok: true, contentType: "image/heic" };
+    }
+  }
+
+  return { ok: false, error: "File content is not a supported image." };
+}
+
+export function validateApplicationFileUpload(
+  file: File,
+): { ok: true } | { ok: false; error: string } {
+  const ext = applicationFileExtension(file.name);
+  const mimeOk = isAllowedApplicationMime(file.type);
+  const extOk = APPLICATION_FILE_EXTENSIONS.has(ext);
+  const genericBinary =
+    (file.type === "" || file.type === "application/octet-stream") && extOk;
+
+  if (!mimeOk && !genericBinary) {
+    return {
+      ok: false,
+      error: "Allowed: Excel, Word, PDF, and image files (max 15 MB each).",
+    };
+  }
+  if (!extOk && !file.type.startsWith("image/")) {
+    return {
+      ok: false,
+      error: "Allowed: Excel, Word, PDF, and image files (max 15 MB each).",
+    };
+  }
+  if (file.size > APPLICATION_FILE_MAX_BYTES) {
+    return { ok: false, error: "File must be 15 MB or smaller." };
+  }
+  return { ok: true };
+}
+
+export function validateApplicationFileBuffer(
+  buffer: Buffer,
+  fileName: string,
+): { ok: true; contentType: string } | { ok: false; error: string } {
+  const image = validateApplicationImageBuffer(buffer);
+  if (image.ok) return image;
+
+  const document = validateDocumentBuffer(buffer, fileName);
+  if (document.ok) return document;
+
+  const spreadsheet = validateSpreadsheetBuffer(buffer, fileName);
+  if (spreadsheet.ok) return spreadsheet;
+
+  return { ok: false, error: "File content is not a supported Excel, Word, PDF, or image file." };
+}
+
+export function sanitizeApplicationUploadKey(prefix: string, filename: string, contentType: string): string {
+  const ext = applicationFileExtension(filename);
+  const imageExts = ["jpg", "jpeg", "png", "webp", "gif", "bmp", "tif", "tiff", "ico", "avif", "heic", "heif"];
+  const docExts = ["pdf", "doc", "docx", "xls", "xlsx"];
+  const allowed = contentType.startsWith("image/") ? imageExts : [...docExts, ...imageExts];
+  const safeExt = allowed.includes(ext) ? ext : contentType.startsWith("image/") ? "jpg" : "pdf";
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix.replace(/\/$/, "")}/${id}.${safeExt}`;
 }
 
 export function sanitizeUploadKey(prefix: string, filename: string, kind: "image" | "document" = "image"): string {

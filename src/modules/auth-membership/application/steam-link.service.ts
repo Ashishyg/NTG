@@ -10,6 +10,7 @@ const CS2_APP_ID = 730;
 type SteamPlayerSummary = {
   personaname?: string;
   profileurl?: string;
+  avatarfull?: string;
 };
 
 type OwnedGame = {
@@ -145,6 +146,7 @@ export async function linkSteamAccount(
       steamId64,
       steamProfileUrl: normalizedUrl,
       steamPersonaName: summary.personaname ?? null,
+      steamAvatarUrl: summary.avatarfull ?? null,
       cs2HoursPlayed: cs2Hours,
       steamLinkedAt: new Date(),
     },

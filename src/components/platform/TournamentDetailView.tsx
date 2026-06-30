@@ -5,7 +5,7 @@ import TournamentBracketEmpty from "@/components/platform/tournament/TournamentB
 import TournamentFinalResults from "@/components/platform/tournament/TournamentFinalResults";
 import TournamentPlayersRegistered from "@/components/platform/tournament/TournamentPlayersRegistered";
 import TournamentTeamsList from "@/components/platform/tournament/TournamentTeamsList";
-import { gameMetaFor } from "@/lib/tournament-display";
+import { gameMetaFor, formatRegistrationLabel } from "@/lib/tournament-display";
 import TournamentRegisterForm from "./TournamentRegisterForm";
 import type { RegistrationPreview } from "./TournamentRegisterForm";
 import type { TournamentDetail } from "@core/contracts";
@@ -103,7 +103,7 @@ export default function TournamentDetailView({
                 {tournament.registrationFormat && (
                   <>
                     <span className="h-1 w-1 rounded-full bg-white/20" />
-                    <span>{tournament.registrationFormat === "AUCTION" ? "Auction Draft" : "Standard (5v5)"}</span>
+                    <span>{formatRegistrationLabel(tournament.registrationFormat)}</span>
                   </>
                 )}
                 {dateStr && (

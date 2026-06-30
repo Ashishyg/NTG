@@ -132,6 +132,22 @@ enum ListingStatus {
   CLOSED
 }
 
+enum ListingFieldType {
+  SECTION_HEADING
+  DESCRIPTION
+  SHORT_TEXT
+  LONG_TEXT
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  DROPDOWN
+  LINEAR_SCALE
+  MULTIPLE_CHOICE_GRID
+  CHECKBOX_GRID
+  DATE
+  TIME
+  FILE_UPLOAD
+}
+
 enum GamepassCategory {
   PLAYSTATION
   PC
@@ -166,6 +182,7 @@ model User {
   steamId64          String?   @unique
   steamProfileUrl    String?
   steamPersonaName   String?
+  steamAvatarUrl     String?
   cs2HoursPlayed     Float?
   steamLinkedAt      DateTime?
   signupCompleted    Boolean   @default(false)
@@ -788,8 +805,25 @@ model Listing {
   updatedAt   DateTime      @updatedAt
 
   applications ListingApplication[]
+  formFields   ListingFormField[]
 
   @@index([status, type, sortOrder])
+}
+
+model ListingFormField {
+  id        String           @id @default(cuid())
+  listingId String
+  listing   Listing          @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  sortOrder Int              @default(0)
+  fieldType ListingFieldType
+  label     String
+  helpText  String?
+  required  Boolean          @default(false)
+  options   Json?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([listingId, sortOrder])
 }
 
 model ListingApplication {
@@ -800,6 +834,7 @@ model ListingApplication {
   user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   status                RegistrationStatus @default(PENDING)
   message               String?
+  responses             Json?
   snapshotDisplayName   String?
   snapshotPhone         String?
   snapshotRiotId        String?

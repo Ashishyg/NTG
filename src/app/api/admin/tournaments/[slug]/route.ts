@@ -76,7 +76,7 @@ export async function PATCH(req: Request, { params }: Props) {
     showOnEsportsHub: body.showOnEsportsHub as boolean | undefined,
     hideAfter: body.hideAfter as string | null | undefined,
     teams: body.teams as string[] | undefined,
-    registrationFormat: body.registrationFormat as "AUCTION" | "STANDARD" | null | undefined,
+    registrationFormat: body.registrationFormat as "AUCTION" | "STANDARD" | "SOLO" | "DUO" | null | undefined,
     });
   } catch (err) {
     console.error("[admin/tournaments PATCH]", err);
