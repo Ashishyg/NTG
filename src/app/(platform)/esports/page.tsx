@@ -168,7 +168,7 @@ export default async function EsportsHubPage() {
           </div>
         </div>
       ) : (
-        <div className="rounded-[2rem] border border-white/[0.06] bg-gradient-to-br from-[#121212]/90 to-[#080808]/90 p-6 backdrop-blur-md sm:p-8 shadow-2xl relative overflow-hidden group">
+        <div className="rounded-[2rem] border border-white/[0.06] bg-gradient-to-br from-[#121212]/90 to-[#080808]/90 p-6 backdrop-blur-md sm:p-8 shadow-2xl relative overflow-hidden group isolate [transform:translateZ(0)]">
           <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-[var(--color-iris)]/5 blur-[50px] group-hover:bg-[var(--color-iris)]/10 transition-colors" />
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
@@ -188,7 +188,7 @@ export default async function EsportsHubPage() {
           </div>
         </div>
       )}      {/* Valorant Top 3 Podium Widget */}
-      <div className="rounded-[2rem] border border-[var(--color-iris)]/15 bg-gradient-to-br from-[#120F1F]/40 via-[#0A0A0A]/60 to-[#0A161A]/40 p-6 backdrop-blur-xl sm:p-8 shadow-[0_0_50px_rgba(124,58,237,0.06)] relative overflow-hidden group/board">
+      <div className="rounded-[2rem] border border-[var(--color-iris)]/15 bg-gradient-to-br from-[#120F1F]/40 via-[#0A0A0A]/60 to-[#0A161A]/40 p-6 backdrop-blur-xl sm:p-8 shadow-[0_0_50px_rgba(124,58,237,0.06)] relative overflow-hidden group/board isolate [transform:translateZ(0)]">
         <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[var(--color-brand)]/10 blur-[80px] transition-all duration-1000 group-hover/board:bg-[var(--color-brand)]/15" />
         <div className="pointer-events-none absolute -left-24 -bottom-24 h-72 w-72 rounded-full bg-[var(--color-iris)]/10 blur-[80px] transition-all duration-1000 group-hover/board:bg-[var(--color-iris)]/15" />
 
@@ -301,7 +301,7 @@ export default async function EsportsHubPage() {
       {latestCompleted && (
         <Link
           href={`/esports/tournaments/${latestCompleted.slug}`}
-          className="block rounded-[2rem] border border-amber-500/15 bg-gradient-to-br from-[#1E170A]/50 via-[#0A0A0A]/50 to-[#0A0A0A]/50 p-6 backdrop-blur-md sm:p-8 relative overflow-hidden group transition-transform hover:scale-[1.01] active:scale-[0.99]"
+          className="block rounded-[2rem] border border-amber-500/15 bg-gradient-to-br from-[#1E170A]/50 via-[#0A0A0A]/50 to-[#0A0A0A]/50 p-6 backdrop-blur-md sm:p-8 relative overflow-hidden group transition-transform hover:scale-[1.01] active:scale-[0.99] isolate [transform:translateZ(0)]"
         >
           <div className="absolute right-0 top-0 h-40 w-40 -translate-y-8 translate-x-8 rounded-full bg-amber-500/5 blur-[60px]" />
           <div className="flex flex-col gap-6 md:flex-row md:items-center">
@@ -396,7 +396,7 @@ export default async function EsportsHubPage() {
 
       {/* Glassmorphic Navigation Cards — moved to bottom */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <Link href="/esports/roster" prefetch={true} className="group relative flex min-h-[14rem] flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-[#0D0D0D]/60 p-8 shadow-lg backdrop-blur-md transition-all duration-500 hover:-translate-y-1 hover:border-violet-500/50 hover:bg-[#100c18]/80 hover:shadow-[0_0_40px_rgba(124,58,237,0.15)] active:scale-[0.98]">
+        <Link href="/esports/roster" prefetch={true} className="group relative flex min-h-[14rem] flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-[#0D0D0D]/60 p-8 shadow-lg backdrop-blur-md transition-all duration-500 hover:-translate-y-1 hover:border-violet-500/50 hover:bg-[#100c18]/80 hover:shadow-[0_0_40px_rgba(124,58,237,0.15)] active:scale-[0.98] isolate [transform:translateZ(0)]">
           <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.02] to-white/[0.05] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
           <div className="absolute right-0 top-0 h-32 w-32 -translate-y-8 translate-x-8 rounded-full bg-violet-500/10 blur-[50px] transition-all group-hover:bg-violet-500/20" />
           <div className="relative z-10 flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-300 ring-1 ring-inset ring-violet-500/30">
@@ -410,7 +410,7 @@ export default async function EsportsHubPage() {
           </div>
         </Link>
 
-        <Link href="/esports/tournaments" prefetch={true} className="group relative flex min-h-[14rem] flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-[#0D0D0D]/60 p-8 shadow-lg backdrop-blur-md transition-all duration-500 hover:-translate-y-1 hover:border-[var(--color-iris)]/50 hover:bg-[#121016]/80 hover:shadow-[0_0_40px_rgba(124,58,237,0.15)] active:scale-[0.98]">
+        <Link href="/esports/tournaments" prefetch={true} className="group relative flex min-h-[14rem] flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-[#0D0D0D]/60 p-8 shadow-lg backdrop-blur-md transition-all duration-500 hover:-translate-y-1 hover:border-[var(--color-iris)]/50 hover:bg-[#121016]/80 hover:shadow-[0_0_40px_rgba(124,58,237,0.15)] active:scale-[0.98] isolate [transform:translateZ(0)]">
           <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.02] to-white/[0.05] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
           <div className="absolute right-0 top-0 h-32 w-32 -translate-y-8 translate-x-8 rounded-full bg-[var(--color-iris)]/10 blur-[50px] transition-all group-hover:bg-[var(--color-iris)]/20" />
           <div className="relative z-10 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--color-iris)]/10 text-[var(--color-iris)] ring-1 ring-inset ring-[var(--color-iris)]/30">
@@ -424,7 +424,7 @@ export default async function EsportsHubPage() {
           </div>
         </Link>
 
-        <Link href="/esports/leaderboard" prefetch={true} className="group relative flex min-h-[14rem] flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-[#0D0D0D]/60 p-8 shadow-lg backdrop-blur-md transition-all duration-500 hover:-translate-y-1 hover:border-[var(--color-brand)]/50 hover:bg-[#0c1417]/80 hover:shadow-[0_0_40px_rgba(34,211,238,0.15)] active:scale-[0.98]">
+        <Link href="/esports/leaderboard" prefetch={true} className="group relative flex min-h-[14rem] flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-[#0D0D0D]/60 p-8 shadow-lg backdrop-blur-md transition-all duration-500 hover:-translate-y-1 hover:border-[var(--color-brand)]/50 hover:bg-[#0c1417]/80 hover:shadow-[0_0_40px_rgba(34,211,238,0.15)] active:scale-[0.98] isolate [transform:translateZ(0)]">
           <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.02] to-white/[0.05] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
           <div className="absolute right-0 top-0 h-32 w-32 -translate-y-8 translate-x-8 rounded-full bg-[var(--color-brand)]/10 blur-[50px] transition-all group-hover:bg-[var(--color-brand)]/20" />
           <div className="relative z-10 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--color-brand)]/10 text-[var(--color-brand)] ring-1 ring-inset ring-[var(--color-brand)]/30">
@@ -438,7 +438,7 @@ export default async function EsportsHubPage() {
           </div>
         </Link>
 
-        <Link href="/gallery" prefetch={true} className="group relative flex min-h-[14rem] flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-[#0D0D0D]/60 p-8 shadow-lg backdrop-blur-md transition-all duration-500 hover:-translate-y-1 hover:border-[#F43F5E]/50 hover:bg-[#170c0e]/80 hover:shadow-[0_0_40px_rgba(244,63,94,0.15)] active:scale-[0.98]">
+        <Link href="/gallery" prefetch={true} className="group relative flex min-h-[14rem] flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-[#0D0D0D]/60 p-8 shadow-lg backdrop-blur-md transition-all duration-500 hover:-translate-y-1 hover:border-[#F43F5E]/50 hover:bg-[#170c0e]/80 hover:shadow-[0_0_40px_rgba(244,63,94,0.15)] active:scale-[0.98] isolate [transform:translateZ(0)]">
           <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.02] to-white/[0.05] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
           <div className="absolute right-0 top-0 h-32 w-32 -translate-y-8 translate-x-8 rounded-full bg-[#F43F5E]/10 blur-[50px] transition-all group-hover:bg-[#F43F5E]/20" />
           <div className="relative z-10 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F43F5E]/10 text-[#F43F5E] ring-1 ring-inset ring-[#F43F5E]/30">
