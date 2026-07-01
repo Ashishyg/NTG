@@ -7,7 +7,7 @@ import { games, platforms, services } from "@/lib/data";
 
 export default function Arsenal() {
   return (
-    <section id="games" className="relative mx-auto w-full max-w-6xl scroll-mt-28 px-5 py-24 sm:py-32">
+    <section id="games" className="relative mx-auto w-full max-w-[var(--container)] scroll-mt-28 px-[clamp(1.25rem,_3vw,_4rem)] py-24 sm:py-32">
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute left-1/2 top-1/4 h-[40vh] w-[60vh] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse,rgba(168,85,247,0.14),transparent_65%)] blur-3xl" />
       </div>
@@ -28,7 +28,7 @@ export default function Arsenal() {
             <span className="font-display italic font-light text-white/55">On tap.</span>
           </h2>
         </div>
-        <p className="max-w-sm text-white/55">
+        <p className="max-w-sm text-white/55" style={{ fontSize: "16px" }}>
           From tactical FPS to MOBA marathons, every title in the lineup runs
           on full premium hardware, ready when you are.
         </p>
@@ -52,7 +52,7 @@ export default function Arsenal() {
               visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: "easeOut" } }
             }}
             style={{ ["--game" as string]: g.hex }}
-            className="group relative flex items-center gap-4 overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 transition-all hover:border-white/15 hover:bg-white/[0.04]"
+            className="group relative flex items-center gap-4 overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02] p-[20px] transition-all hover:border-white/15 hover:bg-white/[0.04]"
           >
             {/* Background art image (only for cards that have one) */}
             {g.bgImage && (
@@ -68,15 +68,16 @@ export default function Arsenal() {
             )}
             <div className="absolute inset-0 bg-[radial-gradient(60%_80%_at_0%_50%,var(--game),transparent_70%)] opacity-[0.18] mix-blend-soft-light md:opacity-0 md:transition-opacity md:duration-500 md:group-hover:opacity-100" />
             <span
-              className="relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/[0.04] text-[var(--game)] ring-1 ring-inset ring-[var(--game)]/35 transition-all duration-500 max-md:scale-105 md:text-white/85 md:ring-white/10 md:group-hover:scale-105 md:group-hover:text-[var(--game)] md:group-hover:ring-[var(--game)]/40"
+              className="relative z-10 flex shrink-0 items-center justify-center rounded-xl bg-white/[0.04] text-[var(--game)] ring-1 ring-inset ring-[var(--game)]/35 transition-all duration-500 max-md:scale-105 md:text-white/85 md:ring-white/10 md:group-hover:scale-105 md:group-hover:text-[var(--game)] md:group-hover:ring-[var(--game)]/40"
+              style={{ width: "48px", height: "48px" }}
             >
               <BrandIcon path={g.path} title={g.name} className="h-6 w-6" />
             </span>
             <div className="relative z-10 min-w-0">
-              <p className="truncate font-display text-base font-medium text-white">
+              <p className="truncate font-display font-medium text-white" style={{ fontSize: "16px" }}>
                 {g.name}
               </p>
-              <p className="text-[10px] uppercase tracking-[0.22em] text-white/35">
+              <p className="uppercase tracking-[0.22em] text-white/35" style={{ fontSize: "10px" }}>
                 {g.category}
               </p>
             </div>
@@ -90,7 +91,7 @@ export default function Arsenal() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-60px" }}
         transition={{ duration: 0.55, delay: 0.1 }}
-        className="mt-10 flex flex-col items-center justify-between gap-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-6 py-5 sm:flex-row"
+        className="mt-10 flex flex-col items-center justify-between gap-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-6 py-[20px] sm:flex-row"
       >
         <div className="flex items-center gap-5 text-white/55">
           <span className="text-[10px] uppercase tracking-[0.32em] text-white/35">
@@ -101,7 +102,7 @@ export default function Arsenal() {
               <span
                 key={p.name}
                 title={p.name}
-                className="text-white/55 transition-colors hover:text-white"
+                className="inline-block text-white/55 transition-all duration-300 hover:text-white hover:-translate-y-1 hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.65)]"
               >
                 <BrandIcon path={p.path} title={p.name} className="h-5 w-5" />
               </span>

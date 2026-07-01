@@ -468,7 +468,7 @@ function NavbarContent() {
       }}
     >
       <nav
-        className={`site-nav-shell glass w-full max-w-7xl rounded-2xl px-3 py-2 sm:px-5 sm:py-3 ${
+        className={`site-nav-shell glass w-full max-w-[var(--container)] rounded-2xl px-3 py-[10px] sm:px-5 sm:py-[16px] ${
           hideForIntro ? "pointer-events-none" : "pointer-events-auto"
         }`}
         style={{ transform: "translateZ(0)" }}

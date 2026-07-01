@@ -7,7 +7,7 @@ import { instagramUrl, showPlansSection, whatsappInquiryUrl } from "@/lib/env";
 
 export default function CtaBanner() {
   return (
-    <section className="mx-auto w-full max-w-6xl px-5 pb-24 [content-visibility:auto] sm:pb-32">
+    <section className="mx-auto w-full max-w-[var(--container)] px-[clamp(1.25rem,_3vw,_4rem)] pb-24 [content-visibility:auto] sm:pb-32">
       <motion.div
         initial={{ opacity: 0, y: 28 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -39,7 +39,7 @@ export default function CtaBanner() {
             Ready to{" "}
             <span className="font-display italic font-light text-white/70">dominate?</span>
           </h2>
-          <p className="mx-auto mt-5 max-w-xl text-balance text-white/65">
+          <p className="mx-auto mt-5 max-w-xl text-balance text-white/65" style={{ fontSize: "16px" }}>
             Gather your squad and step into Mangaluru&apos;s sharpest esports
             lounge. Just crash the lounge and get playing on PC, PS5, and pro setups.
           </p>

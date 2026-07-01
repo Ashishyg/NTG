@@ -50,7 +50,7 @@ export default function PlansAndHostClient({ data }: { data: LoungeCommerceHomeD
   );
 
   return (
-    <section id="plans" className="relative mx-auto w-full max-w-7xl scroll-mt-28 px-5 py-24 sm:py-32">
+    <section id="plans" className="relative mx-auto w-full max-w-[var(--container)] scroll-mt-28 px-[clamp(1.25rem,_3vw,_4rem)] py-24 sm:py-32">
       {/* Background Glows */}
       <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--color-iris)]/5 blur-[120px]" />
 

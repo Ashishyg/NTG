@@ -112,7 +112,7 @@ export default function BirthdaySection() {
   const content = TAB_DATA[activeTab];
 
   return (
-    <section id="birthday" className="relative mx-auto w-full max-w-7xl scroll-mt-28 px-5 py-24 sm:py-32">
+    <section id="birthday" className="relative mx-auto w-full max-w-[var(--container)] scroll-mt-28 px-[clamp(1.25rem,_3vw,_4rem)] py-24 sm:py-32">
       {/* Background ambient glow */}
       <div className="pointer-events-none absolute inset-0 -z-10 flex items-center justify-center opacity-30">
         <div className="h-[40rem] w-[40rem] rounded-full bg-[var(--color-iris)] blur-[120px]" />
@@ -123,16 +123,17 @@ export default function BirthdaySection() {
         <span className="text-[10px] font-semibold uppercase tracking-[0.4em] text-[var(--color-brand)]/80 mb-6">
           06 · Host at NTG
         </span>
-        <div className="inline-flex rounded-full border border-white/10 bg-white/[0.02] p-1.5 backdrop-blur-md">
+        <div className="inline-flex rounded-full border border-white/10 bg-white/[0.02] backdrop-blur-md" style={{ padding: "6px" }}>
           {(["events", "sponsors", "birthday"] as HostTabId[]).map((tabId) => {
             const isTabActive = activeTab === tabId;
             return (
               <button
                 key={tabId}
                 onClick={() => setActiveTab(tabId)}
-                className={`relative rounded-full px-5 py-2.5 text-xs font-bold uppercase tracking-widest transition-colors duration-300 ${
+                className={`relative rounded-full px-5 text-xs font-bold uppercase tracking-widest transition-colors duration-300 ${
                   isTabActive ? "text-black" : "text-white/60 hover:text-white"
                 }`}
+                style={{ paddingTop: "10px", paddingBottom: "10px" }}
               >
                 {isTabActive && (
                   <motion.span
@@ -238,7 +239,7 @@ export default function BirthdaySection() {
                 <h2 className="mt-4 font-display text-4xl font-bold tracking-tight text-white sm:text-5xl">
                   {tabContent.title}
                 </h2>
-                <p className="mt-6 text-[15px] leading-relaxed text-white/60">
+                <p className="mt-6 text-[15px] leading-relaxed text-white/60" style={{ fontSize: "15px" }}>
                   {tabContent.description}
                 </p>
 

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import SplitText from "./SplitText";
+
 
 const heroCtaBase =
   "inline-flex h-10 w-full cursor-pointer select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 text-[10px] font-semibold uppercase tracking-[0.12em] transition-all hover:scale-[1.03] active:scale-[0.98] sm:h-12 sm:gap-2 sm:px-5 sm:text-sm sm:tracking-[0.18em]";
@@ -32,26 +34,43 @@ export default function Hero() {  return (
         NTG
       </span>
 
-      <div className="relative z-10 flex flex-col items-center px-6 text-center">
-        <h1 className="font-display font-semibold uppercase text-white mt-30">
-          <span className="block text-4xl leading-[0.96] tracking-[-0.025em] sm:text-6xl md:text-7xl lg:text-[6rem]">
-            Namma Tulunad
+      {/*
+       * Heading + Caption + CTAs — Grouped together.
+       * The container top is pinned exactly at the watermark center (top-[42.7%]/sm:top-[48.5%]).
+       * The h1 uses -translate-y-1/2 to center itself vertically on that anchor line.
+       * The caption and buttons flow naturally below in layout order, keeping a proportional gap.
+       */}
+      <div className="absolute inset-x-0 top-[42.7%] sm:top-[48.5%] z-10 flex flex-col items-center px-6 text-center">
+        <h1 className="font-display font-semibold uppercase text-white -translate-y-1/2">
+          <span className="block leading-[0.96] tracking-[-0.025em]" style={{ fontSize: "var(--text-hero)" }}>
+            <SplitText text="Namma Tulunad" delay={0} stagger={25} duration={680} />
           </span>
-          <span className="mt-2 block text-4xl leading-[0.96] tracking-[-0.025em] sm:text-6xl md:text-7xl lg:text-[6rem]">
-            <span className="text-gradient-brand">Gaming</span>
+
+          {/* Line 2 — overflow-hidden clips the rising word, gradient works correctly */}
+          <span className="mt-2 block leading-[0.96] tracking-[-0.025em]" style={{ fontSize: "var(--text-hero)" }}>
+            <SplitText text="Gaming" delay={300} stagger={25} duration={680} charClassName="text-gradient-brand" />
           </span>
         </h1>
 
-        <div className="relative top-10 flex flex-col items-center">
-          <p className="max-w-xl text-balance text-base leading-relaxed text-white/55 sm:text-lg">
-            Mangaluru&apos;s premier esports lounge. Premium hardware, electric
+        {/* Caption + CTA buttons — naturally positioned below the h1 center line */}
+        <div className="mt-2 sm:mt-4 flex flex-col items-center">
+          <p
+            className="leading-relaxed text-white/55"
+            style={{
+              fontSize: "clamp(1rem, 1.25vw, 1.5rem)",
+              maxWidth: "clamp(28rem, 40vw, 68rem)",
+            }}
+          >
+            Mangaluru&apos;s premier esports lounge — premium hardware, electric
+            <br />
             atmosphere, engineered for the players who set the standard.
           </p>
 
-          <div className="mt-10 grid w-full max-w-[19rem] grid-cols-2 gap-2 sm:max-w-md sm:gap-3">
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
             <Link
               href="/listings"
-              className={`cta group relative ${heroCtaBase} hover:brightness-110`}
+              className={`cta group relative ${heroCtaBase} sm:w-auto hover:brightness-110`}
+              style={{ fontSize: "14px", height: "48px", padding: "0 28px" }}
             >
               <span>Opportunities</span>
               <svg
@@ -69,7 +88,8 @@ export default function Hero() {  return (
             </Link>
             <Link
               href="/esports/tournaments"
-              className={`glass group ${heroCtaBase} border border-white/15 text-white/90 hover:border-cyan-400/35 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_0_32px_-10px_rgba(34,211,238,0.4)]`}
+              className={`glass group ${heroCtaBase} sm:w-auto border border-white/15 text-white/90 hover:border-cyan-400/35 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_0_32px_-10px_rgba(34,211,238,0.4)]`}
+              style={{ fontSize: "14px", height: "48px", padding: "0 28px" }}
             >
               <span>Tournaments</span>
               <svg
@@ -85,7 +105,8 @@ export default function Hero() {  return (
                 <path d="M5 12h14M13 5l7 7-7 7" />
               </svg>
             </Link>
-          </div>        </div>
+          </div>
+        </div>
       </div>
     </section>
   );
