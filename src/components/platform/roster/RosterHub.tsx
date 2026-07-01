@@ -11,7 +11,8 @@ import BrandIcon from "@/components/ui/BrandIcon";
 import ListingCard from "@/components/platform/listings/ListingCard";
 import ValorantRosterGrid from "./ValorantRosterGrid";
 import Cs2RosterGrid from "./Cs2RosterGrid";
-import TryoutOpeningBanner, { RecruitingGamePanel } from "./RosterBenefitsBlock";
+import Cs2RosterImagePreload from "./Cs2RosterImagePreload";
+import TryoutStatusBlock from "./RosterBenefitsBlock";
 
 const GAME_KEY_TO_SLUG: Record<string, GameSlug> = {
   valorant: "VALORANT",
@@ -21,7 +22,6 @@ const GAME_KEY_TO_SLUG: Record<string, GameSlug> = {
 type Props = {
   teams: RosterTeamView[];
   jobListings: ListingPreview[];
-  tryoutListings: ListingPreview[];
 };
 
 const NTG_PERKS = [
@@ -75,41 +75,6 @@ function OpenJobsSection({ jobs }: { jobs: ListingPreview[] }) {
   );
 }
 
-function GameTryoutPostings({
-  listings,
-  gameKey,
-}: {
-  listings: ListingPreview[];
-  gameKey: string;
-}) {
-  const relevant = listings.filter((l) => !l.gameKey || l.gameKey === gameKey);
-  if (relevant.length === 0) return null;
-
-  return (
-    <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[220px] sm:max-w-xs sm:items-stretch">
-      {relevant.map((listing) => (
-        <Link
-          key={listing.id}
-          href={`/listings/${listing.slug}`}
-          className="group flex items-center gap-3 rounded-2xl border border-[var(--color-brand)]/30 bg-[var(--color-brand)]/10 px-4 py-3 transition-all duration-300 hover:border-[var(--color-brand)]/50 hover:bg-[var(--color-brand)]/15 hover:shadow-[0_8px_24px_-8px_rgba(94,234,212,0.35)]"
-        >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-brand)]/20 text-[var(--color-brand)] ring-1 ring-[var(--color-brand)]/30">
-            <svg className="h-4 w-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-            </svg>
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--color-brand)]/80">
-              Open tryout
-            </p>
-            <p className="truncate text-sm font-semibold text-white">{listing.title}</p>
-          </div>
-        </Link>
-      ))}
-    </div>
-  );
-}
-
 function NtgPerksSection() {
   return (
     <section className="mt-10 border-t border-white/[0.06] pt-14 space-y-8">
@@ -153,7 +118,7 @@ function NtgPerksSection() {
   );
 }
 
-export default function RosterHub({ teams, jobListings, tryoutListings }: Props) {
+export default function RosterHub({ teams, jobListings }: Props) {
   const [activeKey, setActiveKey] = useState(teams[0]?.gameKey ?? "valorant");
   const team = teams.find((t) => t.gameKey === activeKey) ?? teams[0];
 
@@ -180,6 +145,7 @@ export default function RosterHub({ teams, jobListings, tryoutListings }: Props)
 
   return (
     <div className="space-y-8">
+      <Cs2RosterImagePreload />
       <OpenJobsSection jobs={jobListings} />
 
       {teams.length > 1 && (
@@ -234,7 +200,7 @@ export default function RosterHub({ teams, jobListings, tryoutListings }: Props)
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#080808] via-[#080808]/90 to-transparent" />
 
         <div className="relative z-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-5 min-w-0">
+          <div className="flex min-w-0 items-center gap-5">
             <div
               className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl shadow-xl"
               style={{
@@ -276,12 +242,10 @@ export default function RosterHub({ teams, jobListings, tryoutListings }: Props)
               ) : null}
             </div>
           </div>
-
-          <GameTryoutPostings listings={tryoutListings} gameKey={team.gameKey} />
         </div>
       </div>
 
-      <TryoutOpeningBanner team={team} />
+      <TryoutStatusBlock team={team} />
 
       {team.status === "ACTIVE" && team.gameKey === "valorant" ? (
         <ValorantRosterGrid players={team.players} />
@@ -305,7 +269,9 @@ export default function RosterHub({ teams, jobListings, tryoutListings }: Props)
           ))}
         </div>
       ) : team.status === "RECRUITING" ? (
-        <RecruitingGamePanel team={team} />
+        <p className="py-8 text-center text-sm text-white/35">
+          Player slots will appear here once the roster is finalized.
+        </p>
       ) : (
         <p className="py-12 text-center text-sm text-white/40">No players on this roster yet.</p>
       )}

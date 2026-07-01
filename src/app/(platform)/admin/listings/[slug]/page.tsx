@@ -44,6 +44,13 @@ export default async function AdminListingDetailPage({ params }: Props) {
         title={listing.title}
         listingType={listing.type}
         gameKey={listing.gameKey}
+        initialDescription={listing.description}
+        initialRulebookUrl={listing.rulebookUrl}
+        initialAutoManageTryout={listing.autoManageTryout}
+        initialTryoutOpensAt={listing.tryoutOpensAt?.toISOString() ?? null}
+        initialTryoutClosesAt={listing.tryoutClosesAt?.toISOString() ?? null}
+        initialTryoutOpenDays={listing.tryoutOpenDays}
+        initialTryoutRepeatDays={listing.tryoutRepeatDays}
         initialFormFields={formFields}
         initialApplications={applications}
       />

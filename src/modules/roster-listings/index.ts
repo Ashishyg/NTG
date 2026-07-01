@@ -21,6 +21,7 @@ export {
   searchRosterCandidates,
   type RosterCandidateView,
 } from "./application/admin-roster.service";
+export { syncTryoutListingStatus } from "./application/tryout-schedule.service";
 export {
   listListingsAdmin,
   getListingAdmin,
@@ -31,6 +32,5 @@ export {
   updateListingApplicationStatus,
   deleteListingApplication,
   buildListingApplicationsCsv,
-  type AdminListingRow,
-  type AdminListingApplicationRow,
 } from "./application/admin-listing.service";
+export type { AdminListingRow, AdminListingApplicationRow } from "./application/admin-listing.service";

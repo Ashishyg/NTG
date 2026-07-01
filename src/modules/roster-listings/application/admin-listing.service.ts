@@ -3,6 +3,13 @@ import { rosterPresetLabel } from "@/lib/roster-games";
 import { slugify } from "../domain/helpers";
 import { getDefaultFormTemplate } from "./listing-form.service";
 import { serializeFieldOptions, formatResponseForDisplay } from "../domain/listing-form";
+import { validateTryoutSchedule } from "../domain/tryout-schedule";
+import {
+  normalizeTryoutGameKey,
+  tryoutGameConflictMessage,
+  validateTryoutListingGame,
+} from "../domain/tryout-listing";
+import { syncTryoutListingStatus } from "./tryout-schedule.service";
 
 export type AdminListingRow = {
   id: string;
@@ -60,6 +67,39 @@ export async function listListingsAdmin(): Promise<AdminListingRow[]> {
   }));
 }
 
+async function findTryoutListingForGame(
+  gameKey: string,
+  excludeListingId?: string,
+): Promise<{ slug: string } | null> {
+  return prisma.listing.findFirst({
+    where: {
+      type: "ROSTER_TRYOUT",
+      gameKey,
+      ...(excludeListingId ? { id: { not: excludeListingId } } : {}),
+    },
+    select: { slug: true },
+  });
+}
+
+async function validateTryoutListingFields(
+  type: "JOB" | "ROSTER_TRYOUT",
+  gameKey: string | null,
+  excludeListingId?: string,
+): Promise<string | null> {
+  if (type !== "ROSTER_TRYOUT") return null;
+
+  const gameErr = validateTryoutListingGame(gameKey);
+  if (gameErr) return gameErr;
+
+  const normalized = normalizeTryoutGameKey(gameKey)!;
+  const existing = await findTryoutListingForGame(normalized, excludeListingId);
+  if (existing) {
+    return tryoutGameConflictMessage(normalized, existing.slug);
+  }
+
+  return null;
+}
+
 export async function getListingAdmin(slug: string) {
   return prisma.listing.findUnique({
     where: { slug },
@@ -86,6 +126,16 @@ export async function createListing(input: {
   const existing = await prisma.listing.findUnique({ where: { slug } });
   if (existing) return { ok: false, error: "A listing with this slug already exists." };
 
+  const gameKey =
+    input.type === "ROSTER_TRYOUT" ? normalizeTryoutGameKey(input.gameKey) : null;
+  const gameLabel =
+    input.type === "ROSTER_TRYOUT" && gameKey
+      ? rosterPresetLabel(gameKey, input.gameLabel)
+      : input.gameLabel?.trim() || null;
+
+  const tryoutErr = await validateTryoutListingFields(input.type, gameKey);
+  if (tryoutErr) return { ok: false, error: tryoutErr };
+
   const maxOrder = await prisma.listing.aggregate({ _max: { sortOrder: true } });
 
   const template = getDefaultFormTemplate(input.type);
@@ -98,8 +148,8 @@ export async function createListing(input: {
           type: input.type,
           title: input.title.trim(),
           description: input.description?.trim() || null,
-          gameKey: input.gameKey?.trim() || null,
-          gameLabel: input.gameLabel?.trim() || null,
+          gameKey,
+          gameLabel,
           status: input.status ?? "DRAFT",
           sortOrder: input.sortOrder ?? (maxOrder._max.sortOrder ?? -1) + 1,
         },
@@ -120,6 +170,17 @@ export async function createListing(input: {
       }
     });
   } catch (err) {
+    if (
+      err &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code: string }).code === "P2002"
+    ) {
+      return {
+        ok: false,
+        error: "A tryout listing for this game already exists.",
+      };
+    }
     console.error("[createListing]", err);
     return { ok: false, error: "Could not create listing. Run npm run db:migrate:deploy if this persists." };
   }
@@ -137,10 +198,65 @@ export async function updateListing(
     gameLabel?: string | null;
     status?: "DRAFT" | "OPEN" | "CLOSED";
     sortOrder?: number;
+    rulebookUrl?: string | null;
+    tryoutOpensAt?: string | null;
+    tryoutClosesAt?: string | null;
+    tryoutOpenDays?: number | null;
+    autoManageTryout?: boolean;
+    tryoutRepeatDays?: number | null;
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const listing = await prisma.listing.findUnique({ where: { slug } });
   if (!listing) return { ok: false, error: "Listing not found." };
+
+  const nextType = input.type ?? listing.type;
+  let nextGameKey: string | null;
+  if (nextType === "JOB") {
+    nextGameKey = null;
+  } else if (input.gameKey !== undefined) {
+    nextGameKey = normalizeTryoutGameKey(input.gameKey);
+  } else {
+    nextGameKey = listing.gameKey;
+  }
+
+  let nextGameLabel: string | null;
+  if (nextType === "JOB") {
+    nextGameLabel = null;
+  } else if (input.gameLabel !== undefined) {
+    nextGameLabel = input.gameLabel?.trim() || (nextGameKey ? rosterPresetLabel(nextGameKey) : null);
+  } else if (input.gameKey !== undefined && nextGameKey) {
+    nextGameLabel = rosterPresetLabel(nextGameKey, listing.gameLabel);
+  } else {
+    nextGameLabel = listing.gameLabel;
+  }
+
+  const tryoutErr = await validateTryoutListingFields(nextType, nextGameKey, listing.id);
+  if (tryoutErr) return { ok: false, error: tryoutErr };
+
+  const nextOpens =
+    input.tryoutOpensAt !== undefined
+      ? input.tryoutOpensAt
+        ? new Date(input.tryoutOpensAt)
+        : null
+      : listing.tryoutOpensAt;
+  const nextCloses =
+    input.tryoutClosesAt !== undefined
+      ? input.tryoutClosesAt
+        ? new Date(input.tryoutClosesAt)
+        : null
+      : listing.tryoutClosesAt;
+  const nextOpenDays =
+    input.tryoutOpenDays !== undefined ? input.tryoutOpenDays : listing.tryoutOpenDays;
+  const nextAutoManage =
+    input.autoManageTryout !== undefined ? input.autoManageTryout : listing.autoManageTryout;
+
+  const scheduleErr = validateTryoutSchedule({
+    tryoutOpensAt: nextOpens,
+    tryoutClosesAt: nextCloses,
+    tryoutOpenDays: nextOpenDays,
+    autoManageTryout: nextAutoManage,
+  });
+  if (scheduleErr) return { ok: false, error: scheduleErr };
 
   await prisma.listing.update({
     where: { slug },
@@ -148,12 +264,33 @@ export async function updateListing(
       ...(input.title !== undefined ? { title: input.title.trim() } : {}),
       ...(input.description !== undefined ? { description: input.description } : {}),
       ...(input.type !== undefined ? { type: input.type } : {}),
-      ...(input.gameKey !== undefined ? { gameKey: input.gameKey } : {}),
-      ...(input.gameLabel !== undefined ? { gameLabel: input.gameLabel } : {}),
+      ...(input.type !== undefined || input.gameKey !== undefined
+        ? { gameKey: nextGameKey, gameLabel: nextGameLabel }
+        : input.gameLabel !== undefined
+          ? { gameLabel: input.gameLabel?.trim() || null }
+          : {}),
       ...(input.status !== undefined ? { status: input.status } : {}),
       ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+      ...(input.rulebookUrl !== undefined ? { rulebookUrl: input.rulebookUrl } : {}),
+      ...(input.tryoutOpensAt !== undefined
+        ? { tryoutOpensAt: input.tryoutOpensAt ? new Date(input.tryoutOpensAt) : null }
+        : {}),
+      ...(input.tryoutClosesAt !== undefined
+        ? { tryoutClosesAt: input.tryoutClosesAt ? new Date(input.tryoutClosesAt) : null }
+        : {}),
+      ...(input.tryoutOpenDays !== undefined ? { tryoutOpenDays: input.tryoutOpenDays } : {}),
+      ...(input.autoManageTryout !== undefined
+        ? { autoManageTryout: input.autoManageTryout }
+        : {}),
+      ...(input.tryoutRepeatDays !== undefined
+        ? { tryoutRepeatDays: input.tryoutRepeatDays }
+        : {}),
     },
   });
+
+  if (listing.type === "ROSTER_TRYOUT" || input.type === "ROSTER_TRYOUT") {
+    await syncTryoutListingStatus();
+  }
 
   return { ok: true };
 }

@@ -766,7 +766,6 @@ model RosterTeam {
   gameLabel        String
   status           RosterTeamStatus @default(RECRUITING)
   benefitsMarkdown String?
-  tryoutsOpenAt    DateTime?        // When the next tryout window opens (displayed on public roster)
   sortOrder        Int              @default(0)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
@@ -801,6 +800,12 @@ model Listing {
   gameLabel   String?
   status      ListingStatus @default(DRAFT)
   sortOrder   Int           @default(0)
+  rulebookUrl String?
+  tryoutOpensAt    DateTime?
+  tryoutClosesAt   DateTime?
+  tryoutOpenDays   Int?
+  autoManageTryout Boolean       @default(false)
+  tryoutRepeatDays Int?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 

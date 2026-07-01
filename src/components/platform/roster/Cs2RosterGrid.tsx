@@ -1,22 +1,13 @@
 import type { RosterPlayerView } from "@core/contracts/roster-listings";
 import { CS2_ROSTER_MAX_PLAYERS } from "@/lib/roster-games";
-
-// We define custom object positions to ensure characters aren't cropped weirdly by object-cover
-const CS2_CHARACTERS = [
-  { src: "/images/cs2/char-1.png", position: "center bottom" },
-  { src: "/images/cs2/char-2.png", position: "center bottom" },
-  { src: "/images/cs2/char-3.png", position: "center bottom" },
-  { src: "/images/cs2/char-4.png", position: "center bottom" },
-  { src: "/images/cs2/char-5.png", position: "center bottom" },
-];
+import { CS2_ROSTER_CHARACTER_IMAGES } from "@/lib/cs2-roster-assets";
 
 type Props = {
   players: RosterPlayerView[];
 };
 
 function Cs2SlotCard({ player, slotIndex }: { player: RosterPlayerView | null; slotIndex: number }) {
-  const char = CS2_CHARACTERS[slotIndex];
-  const charSrc = char.src;
+  const charSrc = CS2_ROSTER_CHARACTER_IMAGES[slotIndex];
   const isIGL = player?.roleLabel === "IGL";
 
   if (!player) {
@@ -25,7 +16,10 @@ function Cs2SlotCard({ player, slotIndex }: { player: RosterPlayerView | null; s
         <img
           src={charSrc}
           alt={`Player ${slotIndex + 1}`}
+          fetchPriority="high"
+          decoding="async"
           className="absolute bottom-12 sm:bottom-16 left-1/2 -translate-x-1/2 h-[calc(100%-3rem)] sm:h-[calc(100%-4rem)] w-auto max-w-none opacity-20 grayscale pointer-events-none select-none transition-transform duration-500 group-hover:scale-105"
+          draggable={false}
         />
         <span className="relative z-10 text-white/25 text-[10px] font-bold uppercase tracking-[0.18em]">
           Player {slotIndex + 1}
@@ -42,11 +36,14 @@ function Cs2SlotCard({ player, slotIndex }: { player: RosterPlayerView | null; s
       <img
         src={charSrc}
         alt={name}
+        fetchPriority="high"
+        decoding="async"
         className={`absolute bottom-12 sm:bottom-16 left-1/2 -translate-x-1/2 h-[calc(100%-3rem)] sm:h-[calc(100%-4rem)] w-auto max-w-none pointer-events-none select-none transition-all duration-500 group-hover:scale-105 ${
           isIGL
             ? "drop-shadow-[0_0_15px_rgba(250,204,21,0.2)] group-hover:drop-shadow-[0_0_25px_rgba(250,204,21,0.7)]"
             : "drop-shadow-[0_0_15px_rgba(0,0,0,0.5)] group-hover:drop-shadow-[0_0_25px_var(--color-brand)]"
         }`}
+        draggable={false}
       />
 
       <div className="relative z-20 flex flex-col items-center text-center w-full px-2 mt-4">

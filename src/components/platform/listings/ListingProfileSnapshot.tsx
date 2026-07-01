@@ -39,7 +39,7 @@ export default function ListingProfileSnapshot({
         <p className="mt-2 text-sm text-white/45">
           {variant === "review"
             ? "Snapshot from their NTG account at time of application."
-            : "Pulled from your NTG account. Update your profile if anything is incorrect."}
+            : "From your profile — update it if anything looks wrong."}
         </p>
       </div>
 
@@ -54,6 +54,10 @@ export default function ListingProfileSnapshot({
           <>
             <Field label="Riot ID" value={profile.riotId} />
             <Field label="Current rank" value={profile.rankTier} />
+            <Field
+              label="MMR"
+              value={profile.rankMmr != null ? String(Math.round(profile.rankMmr)) : null}
+            />
             <div className="sm:col-span-2">
               <Field
                 label="Valorant roles"
@@ -67,8 +71,14 @@ export default function ListingProfileSnapshot({
           <>
             <Field label="Steam ID" value={profile.steamId64} />
             <Field label="Steam name" value={profile.steamPersonaName} />
-            <Field label="Peak Premier rank" value={profile.cs2PeakPremier} />
-            <Field label="FACEIT rank" value={profile.cs2FaceitRank} />
+            <Field
+              label="Peak Premier rank"
+              value={profile.cs2PeakPremier?.trim() ? profile.cs2PeakPremier : "NA"}
+            />
+            <Field
+              label="FACEIT rank"
+              value={profile.cs2FaceitRank?.trim() ? profile.cs2FaceitRank : "NA"}
+            />
             <Field
               label="CS2 hours played"
               value={profile.cs2Hours != null ? String(Math.round(profile.cs2Hours)) : null}

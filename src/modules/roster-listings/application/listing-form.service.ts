@@ -3,7 +3,6 @@ import type { ListingFieldType } from "@prisma/client";
 import { sanitizeTextInput } from "@/lib/input-sanitize";
 import {
   defaultJobFormTemplate,
-  defaultTryoutFormTemplate,
   formatResponsesAsMessage,
   isGridField,
   isListingInputField,
@@ -119,7 +118,7 @@ export async function replaceListingFormFields(
 export function getDefaultFormTemplate(
   type: "JOB" | "ROSTER_TRYOUT",
 ): Omit<ListingFormFieldView, "id">[] {
-  return type === "JOB" ? defaultJobFormTemplate() : defaultTryoutFormTemplate();
+  return type === "JOB" ? defaultJobFormTemplate() : [];
 }
 
 const SHORT_TEXT_MAX = 500;

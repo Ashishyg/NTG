@@ -7,6 +7,7 @@ import {
   parsePrizeSplit,
 } from "@tournaments-leagues/index";
 import { serverEnv } from "@core/config/env.server";
+import { displayCs2Ranks, displayValorantRegistration } from "@auth-membership/domain/game-profile";
 import type { PrizeSplitRow } from "@core/contracts";
 
 export const metadata = { title: "Edit Cup" };
@@ -66,7 +67,29 @@ export default async function AdminTournamentEditPage({ params }: Props) {
         registrationId: p.registrationId,
       })),
     })),
-    registrations: t.registrations.map((r) => ({
+    registrations: t.registrations.map((r) => {
+      const cs2Ranks =
+        t.game === "CS2"
+          ? displayCs2Ranks(r.user.playerProfile, {
+              premier: r.snapshotCs2PeakPremier,
+              faceit: r.snapshotCs2FaceitRank,
+            })
+          : null;
+
+      const valorant =
+        t.game === "VALORANT"
+          ? displayValorantRegistration(
+              r.user.playerProfile,
+              r.user.leaderboard[0] ?? null,
+              {
+                roles: r.snapshotValorantRoles,
+                rankTier: r.snapshotRankTier,
+                rankTierId: r.snapshotRankTierId,
+              },
+            )
+          : null;
+
+      return {
       id: r.id,
       createdAt: r.createdAt.toISOString(),
       participantRole: r.participantRole,
@@ -79,16 +102,15 @@ export default async function AdminTournamentEditPage({ params }: Props) {
       partnerUsername: r.snapshotPartnerUsername,
       partnerName: r.partnerName,
       riotId: r.snapshotRiotId,
-      rankTier: r.snapshotRankTier,
-      valorantRoles: Array.isArray(r.snapshotValorantRoles)
-        ? (r.snapshotValorantRoles as string[]).join(", ")
-        : null,
+      rankTier: valorant?.rankTier ?? r.snapshotRankTier,
+      valorantRoles: valorant?.valorantRoles ?? null,
       steamId64: r.snapshotSteamId64,
       cs2Hours: r.snapshotCs2Hours,
-      cs2PeakPremier: r.snapshotCs2PeakPremier,
-      cs2FaceitRank: r.snapshotCs2FaceitRank,
+      cs2PeakPremier: cs2Ranks?.premier ?? r.snapshotCs2PeakPremier,
+      cs2FaceitRank: cs2Ranks?.faceit ?? r.snapshotCs2FaceitRank,
       teamId: r.teamId,
-    })),
+    };
+    }),
     poolPlayers,
     placements: t.placements.map((p) => ({
       role: p.role,

@@ -40,7 +40,6 @@ type Team = {
   gameKey: string;
   gameLabel: string;
   status: string;
-  tryoutsOpenAt: Date | null;
   sortOrder: number;
   players: Player[];
 };
@@ -161,18 +160,8 @@ export default function AdminRosterPanel({ initialTeams }: Props) {
   const [replaceSlot, setReplaceSlot] = useState(false);
   const [searchingMembers, setSearchingMembers] = useState(false);
 
-  const [tryoutsOpenAt, setTryoutsOpenAt] = useState<string>(
-    initialTeams[0]?.tryoutsOpenAt
-      ? new Date(initialTeams[0].tryoutsOpenAt).toISOString().slice(0, 10)
-      : "",
-  );
-
   function selectTeam(gameKey: string) {
     setSelectedKey(gameKey);
-    const t = teams.find((t) => t.gameKey === gameKey);
-    setTryoutsOpenAt(
-      t?.tryoutsOpenAt ? new Date(t.tryoutsOpenAt).toISOString().slice(0, 10) : "",
-    );
     setMemberSearch("");
     setMemberResults([]);
     setSelectedMember(null);
@@ -282,18 +271,12 @@ export default function AdminRosterPanel({ initialTeams }: Props) {
     setLoading(true);
     setMessage(null);
 
-    let tryoutsOpenAtIso: string | null = null;
-    if (tryoutsOpenAt) {
-      tryoutsOpenAtIso = new Date(`${tryoutsOpenAt}T00:00:00+05:30`).toISOString();
-    }
-
     const res = await fetch(`/api/admin/roster/${team.gameKey}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         gameLabel: team.gameLabel,
         status: team.status,
-        tryoutsOpenAt: tryoutsOpenAtIso,
         sortOrder: team.sortOrder,
       }),
     });
@@ -492,33 +475,6 @@ export default function AdminRosterPanel({ initialTeams }: Props) {
                     <option value="ACTIVE" className="bg-[#0a1020]">Active (show roster)</option>
                     <option value="RECRUITING" className="bg-[#0a1020]">Recruiting (applications open)</option>
                   </select>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-[var(--color-iris)]/15 bg-[var(--color-iris)]/[0.04] p-4">
-                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[var(--color-iris)]/70">
-                  Tryout opening date
-                </label>
-                <p className="mb-3 text-xs text-white/40">
-                  Shows a countdown banner on the public roster page. Leave blank to hide.
-                </p>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="date"
-                    className={`${inputClass} flex-1`}
-                    value={tryoutsOpenAt}
-                    onChange={(e) => setTryoutsOpenAt(e.target.value)}
-                    min={new Date().toISOString().slice(0, 10)}
-                  />
-                  {tryoutsOpenAt ? (
-                    <button
-                      type="button"
-                      onClick={() => setTryoutsOpenAt("")}
-                      className="shrink-0 rounded-xl border border-white/10 px-3 py-2.5 text-xs text-white/50 hover:border-white/20 hover:text-white/80 transition-colors"
-                    >
-                      Clear
-                    </button>
-                  ) : null}
                 </div>
               </div>
 

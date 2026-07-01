@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 const heroCtaBase =
-  "inline-flex h-10 w-full cursor-pointer select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[10px] font-semibold uppercase tracking-[0.12em] transition-all hover:scale-[1.03] active:scale-[0.98] sm:h-12 sm:gap-2 sm:px-5 sm:text-sm sm:tracking-[0.18em]";
+  "inline-flex h-10 w-full cursor-pointer select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 text-[10px] font-semibold uppercase tracking-[0.12em] transition-all hover:scale-[1.03] active:scale-[0.98] sm:h-12 sm:gap-2 sm:px-5 sm:text-sm sm:tracking-[0.18em]";
 
 export default function Hero() {  return (
     <section
@@ -51,7 +51,7 @@ export default function Hero() {  return (
           <div className="mt-10 grid w-full max-w-[19rem] grid-cols-2 gap-2 sm:max-w-md sm:gap-3">
             <Link
               href="/listings"
-              className={`cta group relative ${heroCtaBase} border-transparent hover:brightness-110`}
+              className={`cta group relative ${heroCtaBase} hover:brightness-110`}
             >
               <span>Opportunities</span>
               <svg
@@ -69,7 +69,7 @@ export default function Hero() {  return (
             </Link>
             <Link
               href="/esports/tournaments"
-              className={`glass group ${heroCtaBase} border-white/15 text-white/90 hover:border-cyan-400/35 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_0_32px_-10px_rgba(34,211,238,0.4)]`}
+              className={`glass group ${heroCtaBase} border border-white/15 text-white/90 hover:border-cyan-400/35 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_0_32px_-10px_rgba(34,211,238,0.4)]`}
             >
               <span>Tournaments</span>
               <svg

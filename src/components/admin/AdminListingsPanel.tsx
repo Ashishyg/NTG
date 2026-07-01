@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AdminSection } from "@/components/admin/AdminSection";
 import { useAdminDeleteConfirm } from "@/components/admin/useAdminDeleteConfirm";
-import { ROSTER_GAME_PRESETS } from "@/lib/roster-games";
+import { LISTING_TRYOUT_GAME_PRESETS } from "@/lib/roster-games";
 import type { AdminListingRow } from "@roster-listings/index";
 
 const inputClass =
@@ -32,8 +32,31 @@ export default function AdminListingsPanel({ initialListings }: Props) {
   const [title, setTitle] = useState("");
   const [type, setType] = useState<"JOB" | "ROSTER_TRYOUT">("JOB");
   const [description, setDescription] = useState("");
-  const [gameKey, setGameKey] = useState("cs2");
+  const [gameKey, setGameKey] = useState("valorant");
   const [status, setStatus] = useState<"DRAFT" | "OPEN" | "CLOSED">("DRAFT");
+
+  const takenTryoutGameKeys = useMemo(
+    () =>
+      new Set(
+        listings
+          .filter((l) => l.type === "ROSTER_TRYOUT" && l.gameKey)
+          .map((l) => l.gameKey!.toLowerCase()),
+      ),
+    [listings],
+  );
+
+  const availableTryoutGames = useMemo(
+    () => LISTING_TRYOUT_GAME_PRESETS.filter((g) => !takenTryoutGameKeys.has(g.key)),
+    [takenTryoutGameKeys],
+  );
+
+  useEffect(() => {
+    if (type !== "ROSTER_TRYOUT") return;
+    if (availableTryoutGames.length === 0) return;
+    if (!availableTryoutGames.some((g) => g.key === gameKey)) {
+      setGameKey(availableTryoutGames[0].key);
+    }
+  }, [type, availableTryoutGames, gameKey]);
 
   async function refresh() {
     const res = await fetch("/api/admin/listings");
@@ -57,7 +80,7 @@ export default function AdminListingsPanel({ initialListings }: Props) {
           gameKey: type === "ROSTER_TRYOUT" ? gameKey : undefined,
           gameLabel:
             type === "ROSTER_TRYOUT"
-              ? ROSTER_GAME_PRESETS.find((g) => g.key === gameKey)?.label
+              ? LISTING_TRYOUT_GAME_PRESETS.find((g) => g.key === gameKey)?.label
               : undefined,
           status,
         }),
@@ -195,13 +218,19 @@ export default function AdminListingsPanel({ initialListings }: Props) {
                 <option value="CLOSED" className="bg-[#0a1020]">Closed</option>
               </select>
               {type === "ROSTER_TRYOUT" ? (
-                <select className={inputClass} value={gameKey} onChange={(e) => setGameKey(e.target.value)}>
-                  {ROSTER_GAME_PRESETS.map((g) => (
-                    <option key={g.key} value={g.key} className="bg-[#0a1020]">
-                      {g.label}
-                    </option>
-                  ))}
-                </select>
+                availableTryoutGames.length > 0 ? (
+                  <select className={inputClass} value={gameKey} onChange={(e) => setGameKey(e.target.value)}>
+                    {availableTryoutGames.map((g) => (
+                      <option key={g.key} value={g.key} className="bg-[#0a1020]">
+                        {g.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className="flex items-center rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-200/90">
+                    Valorant and CS2 already have tryout listings.
+                  </p>
+                )
               ) : (
                 <div className="hidden sm:block" />
               )}
@@ -217,7 +246,11 @@ export default function AdminListingsPanel({ initialListings }: Props) {
             <button
               type="button"
               onClick={createListing}
-              disabled={loading || !title.trim()}
+              disabled={
+                loading ||
+                !title.trim() ||
+                (type === "ROSTER_TRYOUT" && availableTryoutGames.length === 0)
+              }
               className="rounded-xl bg-amber-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-amber-500 disabled:opacity-50"
             >
               {loading ? "Creating…" : "Publish listing"}

@@ -74,10 +74,13 @@ export async function listMembersAdmin(opts?: { search?: string; limit?: number;
         steamId64: u.steamId64,
         steamPersonaName: u.steamPersonaName,
         displayName: u.playerProfile?.displayName ?? null,
+        playedGames: u.playerProfile?.playedGames ?? [],
         valorantRoles: u.playerProfile?.valorantRoles ?? [],
         cs2FaceitRank: u.playerProfile?.cs2FaceitRank ?? null,
         cs2PeakPremierRank: u.playerProfile?.cs2PeakPremierRank ?? null,
+        cs2HoursPlayed: u.cs2HoursPlayed,
         valorantRankTier: valorantRank?.rankTier ?? null,
+        valorantRankMmr: valorantRank?.mmr ?? null,
         valorantRankTierId: valorantRank?.rankTierId ?? null,
         cs2RankTier: cs2Rank?.rankTier ?? null,
         cs2RankTierId: cs2Rank?.rankTierId ?? null,
@@ -91,9 +94,17 @@ export async function listMembersAdmin(opts?: { search?: string; limit?: number;
 export async function getMemberAdmin(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { playerProfile: true },
+    include: {
+      playerProfile: true,
+      leaderboard: {
+        where: { scope: "TOWN", game: { in: ["VALORANT", "CS2"] } },
+      },
+    },
   });
   if (!user) return null;
+
+  const valorantRank = user.leaderboard.find((row) => row.game === "VALORANT");
+  const cs2Rank = user.leaderboard.find((row) => row.game === "CS2");
 
   return {
     id: user.id,
@@ -113,6 +124,16 @@ export async function getMemberAdmin(userId: string) {
     steamId64: user.steamId64,
     steamPersonaName: user.steamPersonaName,
     displayName: user.playerProfile?.displayName ?? null,
+    playedGames: user.playerProfile?.playedGames ?? [],
+    valorantRoles: user.playerProfile?.valorantRoles ?? [],
+    cs2FaceitRank: user.playerProfile?.cs2FaceitRank ?? null,
+    cs2PeakPremierRank: user.playerProfile?.cs2PeakPremierRank ?? null,
+    cs2HoursPlayed: user.cs2HoursPlayed,
+    valorantRankTier: valorantRank?.rankTier ?? null,
+    valorantRankMmr: valorantRank?.mmr ?? null,
+    valorantRankTierId: valorantRank?.rankTierId ?? null,
+    cs2RankTier: cs2Rank?.rankTier ?? null,
+    cs2RankTierId: cs2Rank?.rankTierId ?? null,
     createdAt: user.createdAt.toISOString(),
   };
 }

@@ -7,6 +7,7 @@ import type {
   TournamentStatus,
 } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { displayCs2Ranks, displayValorantRegistration } from "@auth-membership/domain/game-profile";
 import {
   computeAutoStatus,
   getRegistrationCloseAt,
@@ -135,7 +136,16 @@ export async function getTournamentAdmin(slug: string) {
       },
       registrations: {
         include: {
-          user: { include: { playerProfile: true } },
+          user: {
+            include: {
+              playerProfile: true,
+              leaderboard: {
+                where: { scope: "TOWN", game: "VALORANT" },
+                orderBy: { updatedAt: "desc" },
+                take: 1,
+              },
+            },
+          },
         },
         orderBy: { createdAt: "desc" },
       },
@@ -680,15 +690,42 @@ export async function listTournamentRegistrationsAdmin(
   const rows = await prisma.tournamentRegistration.findMany({
     where: { tournamentId: tournament.id },
     include: {
-      user: true,
+      user: {
+        include: {
+          playerProfile: true,
+          leaderboard: {
+            where: { scope: "TOWN", game: "VALORANT" },
+            orderBy: { updatedAt: "desc" },
+            take: 1,
+          },
+        },
+      },
       team: { select: { name: true } },
     },
     orderBy: { createdAt: "desc" },
   });
 
+  const isCs2 = tournament.game === "CS2";
+  const isValorant = tournament.game === "VALORANT";
+
   return rows.map((r) => {
-    const roles = Array.isArray(r.snapshotValorantRoles)
-      ? (r.snapshotValorantRoles as string[]).join(", ")
+    const cs2Ranks = isCs2
+      ? displayCs2Ranks(r.user.playerProfile, {
+          premier: r.snapshotCs2PeakPremier,
+          faceit: r.snapshotCs2FaceitRank,
+        })
+      : null;
+
+    const valorant = isValorant
+      ? displayValorantRegistration(
+          r.user.playerProfile,
+          r.user.leaderboard[0] ?? null,
+          {
+            roles: r.snapshotValorantRoles,
+            rankTier: r.snapshotRankTier,
+            rankTierId: r.snapshotRankTierId,
+          },
+        )
       : null;
 
     return {
@@ -704,12 +741,12 @@ export async function listTournamentRegistrationsAdmin(
       partnerUsername: r.snapshotPartnerUsername,
       partnerName: r.partnerName,
       riotId: r.snapshotRiotId,
-      rankTier: r.snapshotRankTier,
-      valorantRoles: roles,
+      rankTier: valorant?.rankTier ?? r.snapshotRankTier,
+      valorantRoles: valorant?.valorantRoles ?? null,
       steamId64: r.snapshotSteamId64,
       cs2Hours: r.snapshotCs2Hours,
-      cs2PeakPremier: r.snapshotCs2PeakPremier,
-      cs2FaceitRank: r.snapshotCs2FaceitRank,
+      cs2PeakPremier: cs2Ranks?.premier ?? r.snapshotCs2PeakPremier,
+      cs2FaceitRank: cs2Ranks?.faceit ?? r.snapshotCs2FaceitRank,
       teamId: r.teamId,
     };
   });

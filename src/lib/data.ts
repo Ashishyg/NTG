@@ -188,7 +188,7 @@ export const brand = {
   name: "NTG Lounge",
   meaning: "Namma Tulunad Gaming",
   tagline: "Esport Lounge",
-  hours: "10 AM - 11 PM",
+  hours: "2:30 PM - 12 AM",
   address: "302, Lotus Paradise Elite, Bunts Hostel, MLR",
   // Lat/Lng of the lounge — used for the embedded map so it never
   // auto-opens Google's place info card.

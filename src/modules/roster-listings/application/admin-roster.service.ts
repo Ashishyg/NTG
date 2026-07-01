@@ -163,7 +163,6 @@ export async function updateRosterTeam(
     gameLabel?: string;
     status?: "ACTIVE" | "RECRUITING";
     benefitsMarkdown?: string | null;
-    tryoutsOpenAt?: string | null; // ISO date string or null to clear
     sortOrder?: number;
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -176,9 +175,6 @@ export async function updateRosterTeam(
       ...(input.gameLabel !== undefined ? { gameLabel: input.gameLabel.trim() } : {}),
       ...(input.status !== undefined ? { status: input.status } : {}),
       ...(input.benefitsMarkdown !== undefined ? { benefitsMarkdown: input.benefitsMarkdown } : {}),
-      ...(input.tryoutsOpenAt !== undefined
-        ? { tryoutsOpenAt: input.tryoutsOpenAt ? new Date(input.tryoutsOpenAt) : null }
-        : {}),
       ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
     },
   });

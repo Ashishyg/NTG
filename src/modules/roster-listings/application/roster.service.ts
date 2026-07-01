@@ -2,6 +2,12 @@ import { prisma } from "@core/database/client";
 import type { RosterPlayerView, RosterTeamView } from "@core/contracts/roster-listings";
 import { rosterPresetLabel } from "@/lib/roster-games";
 import type { ValorantRole } from "@prisma/client";
+import {
+  advanceTryoutWindow,
+  formatTryoutSchedulePhase,
+  isTryoutApplicationLive,
+} from "../domain/tryout-schedule";
+import { syncTryoutListingStatus } from "./tryout-schedule.service";
 
 function formatRiotId(user: {
   riotGameName: string | null;
@@ -66,6 +72,8 @@ function mapPlayer(
 }
 
 export async function listRosterTeams(): Promise<RosterTeamView[]> {
+  await syncTryoutListingStatus();
+
   const [teams, tryoutListings] = await Promise.all([
     prisma.rosterTeam.findMany({
       orderBy: { sortOrder: "asc" },
@@ -87,26 +95,57 @@ export async function listRosterTeams(): Promise<RosterTeamView[]> {
       },
     }),
     prisma.listing.findMany({
-      where: { type: "ROSTER_TRYOUT", status: "OPEN" },
-      select: { slug: true, gameKey: true },
+      where: { type: "ROSTER_TRYOUT", gameKey: { not: null } },
+      select: {
+        slug: true,
+        gameKey: true,
+        status: true,
+        autoManageTryout: true,
+        tryoutOpensAt: true,
+        tryoutClosesAt: true,
+        tryoutOpenDays: true,
+        tryoutRepeatDays: true,
+      },
     }),
   ]);
 
   const tryoutByGame = new Map(
-    tryoutListings.filter((l) => l.gameKey).map((l) => [l.gameKey!, l.slug]),
+    tryoutListings
+      .filter((l) => l.gameKey)
+      .map((l) => [l.gameKey!, l] as const),
   );
 
-  return teams.map((team) => ({
-    id: team.id,
-    gameKey: team.gameKey,
-    gameLabel: rosterPresetLabel(team.gameKey, team.gameLabel),
-    status: team.status,
-    benefitsMarkdown: team.benefitsMarkdown,
-    tryoutsOpenAt: team.tryoutsOpenAt?.toISOString() ?? null,
-    sortOrder: team.sortOrder,
-    players: team.players.map(mapPlayer),
-    tryoutListingSlug: tryoutByGame.get(team.gameKey) ?? null,
-  }));
+  return teams.map((team) => {
+    const listing = tryoutByGame.get(team.gameKey);
+    const schedule = listing
+      ? {
+          type: "ROSTER_TRYOUT" as const,
+          status: listing.status,
+          autoManageTryout: listing.autoManageTryout,
+          tryoutOpensAt: listing.tryoutOpensAt,
+          tryoutClosesAt: listing.tryoutClosesAt,
+          tryoutOpenDays: listing.tryoutOpenDays,
+          tryoutRepeatDays: listing.tryoutRepeatDays,
+        }
+      : null;
+
+    const window = schedule ? advanceTryoutWindow(schedule) : null;
+
+    return {
+      id: team.id,
+      gameKey: team.gameKey,
+      gameLabel: rosterPresetLabel(team.gameKey, team.gameLabel),
+      status: team.status,
+      benefitsMarkdown: team.benefitsMarkdown,
+      tryoutOpensAt: window?.opensAt.toISOString() ?? listing?.tryoutOpensAt?.toISOString() ?? null,
+      tryoutClosesAt: window?.closesAt.toISOString() ?? listing?.tryoutClosesAt?.toISOString() ?? null,
+      tryoutIsLive: schedule ? isTryoutApplicationLive(schedule) : false,
+      tryoutSchedulePhase: schedule ? formatTryoutSchedulePhase(schedule) : "unscheduled",
+      sortOrder: team.sortOrder,
+      players: team.players.map(mapPlayer),
+      tryoutListingSlug: listing?.slug ?? null,
+    };
+  });
 }
 
 export async function getRosterTeamByGameKey(gameKey: string): Promise<RosterTeamView | null> {

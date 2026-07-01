@@ -152,11 +152,18 @@ header[data-site-nav] {
 }
 
 @utility cta {
-  background-image: linear-gradient(110deg, #a855f7 0%, #6366f1 48%, #22d3ee 100%);
+  overflow: hidden;
+  border: 0 solid transparent;
+  background-image: linear-gradient(
+    110deg,
+    #9333ea 0%,
+    #6366f1 32%,
+    #38bdf8 50%,
+    #6366f1 68%,
+    #9333ea 100%
+  );
   color: #06121a;
-  box-shadow:
-    0 0 50px -10px rgba(124, 58, 237, 0.75),
-    0 0 24px -6px rgba(34, 211, 238, 0.35);
+  box-shadow: 0 0 40px -12px rgba(124, 58, 237, 0.65);
 }
 
 /* ---------- Animated gradient (shine) border ---------- */

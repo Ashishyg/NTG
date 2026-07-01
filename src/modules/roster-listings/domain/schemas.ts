@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { sanitizeTextInput } from "@/lib/input-sanitize";
+import { LISTING_TRYOUT_GAME_KEYS } from "@/lib/roster-games";
 
 const sanitizedString = z.string().transform(sanitizeTextInput);
 
@@ -93,7 +94,7 @@ export const listingApplySchema = z.object({
   ...registrationTermsField,
 });
 
-export const createListingSchema = z.object({
+const listingInputSchema = z.object({
   slug: sanitizedString.pipe(z.string().max(80)).optional(),
   type: z.enum(["JOB", "ROSTER_TRYOUT"]),
   title: sanitizedString.pipe(z.string().min(3).max(120)),
@@ -102,15 +103,45 @@ export const createListingSchema = z.object({
   gameLabel: sanitizedString.pipe(z.string().max(80)).optional(),
   status: z.enum(["DRAFT", "OPEN", "CLOSED"]).optional(),
   sortOrder: z.number().int().min(0).max(999).optional(),
+  rulebookUrl: sanitizedString.pipe(z.string().url().max(2048)).nullable().optional(),
+  tryoutOpensAt: z.string().datetime({ offset: true }).nullable().optional(),
+  tryoutClosesAt: z.string().datetime({ offset: true }).nullable().optional(),
+  tryoutOpenDays: z.number().int().min(1).max(90).nullable().optional(),
+  autoManageTryout: z.boolean().optional(),
+  tryoutRepeatDays: z.number().int().min(1).max(365).nullable().optional(),
 });
 
-export const updateListingSchema = createListingSchema.partial();
+function refineTryoutListingGame(
+  data: { type?: "JOB" | "ROSTER_TRYOUT"; gameKey?: string },
+  ctx: z.RefinementCtx,
+) {
+  if (data.type !== "ROSTER_TRYOUT") return;
+  const key = data.gameKey?.trim().toLowerCase();
+  if (!key) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Select a game for team tryouts.",
+      path: ["gameKey"],
+    });
+    return;
+  }
+  if (!LISTING_TRYOUT_GAME_KEYS.has(key)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Tryouts are only available for Valorant and Counter-Strike 2 right now.",
+      path: ["gameKey"],
+    });
+  }
+}
+
+export const createListingSchema = listingInputSchema.superRefine(refineTryoutListingGame);
+
+export const updateListingSchema = listingInputSchema.partial();
 
 export const updateRosterTeamSchema = z.object({
   gameLabel: sanitizedString.pipe(z.string().min(2).max(80)).optional(),
   status: z.enum(["ACTIVE", "RECRUITING"]).optional(),
   benefitsMarkdown: sanitizedString.pipe(z.string().max(12000)).optional(),
-  tryoutsOpenAt: z.string().datetime({ offset: true }).nullable().optional(),
   sortOrder: z.number().int().min(0).max(999).optional(),
 });
 

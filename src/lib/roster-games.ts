@@ -29,6 +29,15 @@ export const ROSTER_GAME_PRESETS: RosterGamePreset[] = [
   { key: "street-fighter", label: "Street Fighter", platforms: ["PC", "PS5"] },
 ];
 
+/** Games available when creating a team tryout listing (admin). */
+export const LISTING_TRYOUT_GAME_PRESETS: RosterGamePreset[] = ROSTER_GAME_PRESETS.filter(
+  (g) => g.key === "valorant" || g.key === "cs2",
+);
+
+export const LISTING_TRYOUT_GAME_KEYS = new Set(
+  LISTING_TRYOUT_GAME_PRESETS.map((g) => g.key),
+);
+
 export const VALORANT_ROSTER_MAX_PLAYERS = 5;
 export const CS2_ROSTER_MAX_PLAYERS = 5;
 export const ROSTER_SLOT_MAX_PLAYERS = 5;

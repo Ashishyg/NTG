@@ -25,7 +25,10 @@ export type RosterTeamView = {
   gameLabel: string;
   status: "ACTIVE" | "RECRUITING";
   benefitsMarkdown: string | null;
-  tryoutsOpenAt: string | null; // ISO string of when next tryout window opens
+  tryoutOpensAt: string | null;
+  tryoutClosesAt: string | null;
+  tryoutIsLive: boolean;
+  tryoutSchedulePhase: "unscheduled" | "countdown" | "live" | "closed";
   sortOrder: number;
   players: RosterPlayerView[];
   tryoutListingSlug: string | null;
@@ -40,6 +43,13 @@ export type ListingPreview = {
   gameKey: string | null;
   gameLabel: string | null;
   sortOrder: number;
+  rulebookUrl: string | null;
+  tryoutOpensAt: string | null;
+  tryoutClosesAt: string | null;
+  tryoutOpenDays: number | null;
+  autoManageTryout: boolean;
+  tryoutRepeatDays: number | null;
+  tryoutIsLive: boolean;
 };
 
 export type ListingDetail = ListingPreview & {
@@ -98,6 +108,7 @@ export type ListingApplicantProfile = {
   cs2PeakPremier: string | null;
   cs2FaceitRank: string | null;
   cs2Hours: number | null;
+  rankMmr: number | null;
 };
 
 export type ListingEligibility = {

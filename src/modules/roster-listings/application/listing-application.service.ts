@@ -1,18 +1,37 @@
 import { prisma } from "@core/database/client";
 import type { ListingEligibility, ListingApplicantProfile } from "@core/contracts/roster-listings";
 import { GameSlug, type ValorantRole } from "@prisma/client";
-import {
-  validateCs2RanksForRegistration,
-} from "@auth-membership/application/registration-helpers";
 import { syncUserRank } from "@tournaments-leagues/application/rank-sync.service";
 import { logUserActivity } from "@/lib/user-audit";
 import { gameKeyToSlug } from "../domain/helpers";
 import { mapListingFormField } from "../domain/listing-form";
 import { validateListingResponses } from "./listing-form.service";
 import type { ListingApplyInput } from "./listing-application.types";
+import {
+  advanceTryoutWindow,
+  isTryoutApplicationLive,
+} from "../domain/tryout-schedule";
+import { syncTryoutListingStatus } from "./tryout-schedule.service";
 
-function validateGameProfileForKey(
-  gameKey: string | null | undefined,
+function validateGeneralProfileForTryout(user: {
+  phone: string | null;
+  playerProfile: { displayName: string; town: string | null } | null;
+}): string[] {
+  const missing: string[] = [];
+  if (!user.playerProfile?.displayName?.trim()) {
+    missing.push("Add your display name on your profile.");
+  }
+  if (!user.phone?.trim()) {
+    missing.push("Add your phone number on your profile.");
+  }
+  if (!user.playerProfile?.town?.trim()) {
+    missing.push("Add your town on your profile.");
+  }
+  return missing;
+}
+
+function validateTryoutGameProfile(
+  gameKey: string,
   user: {
     dateOfBirth: Date | null;
     olympusId: string | null;
@@ -39,11 +58,6 @@ function validateGameProfileForKey(
 
   if (slug === GameSlug.CS2) {
     if (!user.steamId64) missing.push("Link your Steam account on your profile.");
-    const cs2Err = validateCs2RanksForRegistration(
-      user.playerProfile?.cs2FaceitRank,
-      user.playerProfile?.cs2PeakPremierRank,
-    );
-    if (cs2Err) missing.push(cs2Err);
   }
 
   if (slug === GameSlug.EA_FC26) {
@@ -57,6 +71,7 @@ function validateGameProfileForKey(
 async function getValorantRankSnapshot(userId: string): Promise<{
   tier: string | null;
   tierId: number | null;
+  mmr: number | null;
 }> {
   let entry = await prisma.leaderboardEntry.findFirst({
     where: { userId, game: "VALORANT", scope: "TOWN" },
@@ -75,6 +90,7 @@ async function getValorantRankSnapshot(userId: string): Promise<{
   return {
     tier: entry?.rankTier ?? null,
     tierId: entry?.rankTierId ?? null,
+    mmr: entry?.mmr ?? null,
   };
 }
 
@@ -114,6 +130,7 @@ async function buildApplicantProfile(
     cs2PeakPremier: null,
     cs2FaceitRank: null,
     cs2Hours: null,
+    rankMmr: null,
   };
 
   if (listing.type !== "ROSTER_TRYOUT" || !listing.gameKey) {
@@ -130,6 +147,7 @@ async function buildApplicantProfile(
           ? `${user.riotGameName}#${user.riotTagLine}`
           : null,
       rankTier: rank.tier,
+      rankMmr: rank.mmr,
       valorantRoles: user.playerProfile?.valorantRoles ?? [],
     };
   }
@@ -139,8 +157,8 @@ async function buildApplicantProfile(
       ...base,
       steamId64: user.steamId64,
       steamPersonaName: user.steamPersonaName,
-      cs2PeakPremier: user.playerProfile?.cs2PeakPremierRank ?? null,
-      cs2FaceitRank: user.playerProfile?.cs2FaceitRank ?? null,
+      cs2PeakPremier: user.playerProfile?.cs2PeakPremierRank?.trim() || "NA",
+      cs2FaceitRank: user.playerProfile?.cs2FaceitRank?.trim() || "NA",
       cs2Hours: user.cs2HoursPlayed,
     };
   }
@@ -152,8 +170,11 @@ export async function getListingEligibility(
   slug: string,
   userId: string,
 ): Promise<ListingEligibility | null> {
+  await syncTryoutListingStatus();
+
   const listing = await prisma.listing.findUnique({ where: { slug } });
-  if (!listing || listing.status !== "OPEN") return null;
+  if (!listing || listing.status === "DRAFT") return null;
+  if (listing.type === "JOB" && listing.status !== "OPEN") return null;
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -167,8 +188,26 @@ export async function getListingEligibility(
     missing.push("Complete signup before applying.");
   }
 
-  if (listing.type === "ROSTER_TRYOUT" && listing.gameKey) {
-    missing.push(...validateGameProfileForKey(listing.gameKey, user));
+  if (listing.type === "ROSTER_TRYOUT") {
+    if (!isTryoutApplicationLive(listing)) {
+      const window = advanceTryoutWindow(listing);
+      if (window && Date.now() < window.opensAt.getTime()) {
+        const openLabel = window.opensAt.toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          timeZone: "Asia/Kolkata",
+        });
+        missing.push(`Tryouts open on ${openLabel}. Check back then.`);
+      } else {
+        missing.push("Tryouts are not open right now.");
+      }
+    }
+
+    if (listing.gameKey) {
+      missing.push(...validateGeneralProfileForTryout(user));
+      missing.push(...validateTryoutGameProfile(listing.gameKey, user));
+    }
   }
 
   const profile = await buildApplicantProfile(listing, user, userId);
@@ -190,8 +229,14 @@ export async function applyToListing(
     where: { slug },
     include: { formFields: { orderBy: { sortOrder: "asc" } } },
   });
-  if (!listing || listing.status !== "OPEN") {
+  if (!listing || listing.status === "DRAFT") {
     return { ok: false, error: "This listing is not open." };
+  }
+  if (listing.type === "JOB" && listing.status !== "OPEN") {
+    return { ok: false, error: "This listing is not open." };
+  }
+  if (listing.type === "ROSTER_TRYOUT" && !isTryoutApplicationLive(listing)) {
+    return { ok: false, error: "Tryouts are not open right now." };
   }
 
   const user = await prisma.user.findUnique({
@@ -208,7 +253,10 @@ export async function applyToListing(
   }
 
   if (listing.type === "ROSTER_TRYOUT" && listing.gameKey) {
-    const missing = validateGameProfileForKey(listing.gameKey, user);
+    const missing = [
+      ...validateGeneralProfileForTryout(user),
+      ...validateTryoutGameProfile(listing.gameKey, user),
+    ];
     if (missing.length > 0) {
       return { ok: false, error: missing[0] };
     }
@@ -223,13 +271,15 @@ export async function applyToListing(
 
   const formFields = listing.formFields.map(mapListingFormField);
   const validated =
-    formFields.length > 0
-      ? validateListingResponses(formFields, input.responses)
-      : {
-          ok: true as const,
-          responses: {} as Record<string, string | string[]>,
-          message: input.message?.trim() || null,
-        };
+    listing.type === "ROSTER_TRYOUT"
+      ? { ok: true as const, responses: {} as Record<string, string | string[]>, message: null }
+      : formFields.length > 0
+        ? validateListingResponses(formFields, input.responses)
+        : {
+            ok: true as const,
+            responses: {} as Record<string, string | string[]>,
+            message: input.message?.trim() || null,
+          };
 
   if (!validated.ok) {
     return { ok: false, error: validated.error };
@@ -265,8 +315,8 @@ export async function applyToListing(
         snapshotValorantRoles: snapshotValorantRoles ?? undefined,
         snapshotSteamId64: user.steamId64,
         snapshotCs2Hours: user.cs2HoursPlayed,
-        snapshotCs2PeakPremier: user.playerProfile?.cs2PeakPremierRank ?? null,
-        snapshotCs2FaceitRank: user.playerProfile?.cs2FaceitRank ?? null,
+        snapshotCs2PeakPremier: user.playerProfile?.cs2PeakPremierRank?.trim() || "NA",
+        snapshotCs2FaceitRank: user.playerProfile?.cs2FaceitRank?.trim() || "NA",
         snapshotOlympusId: user.olympusId,
         snapshotDateOfBirth: user.dateOfBirth,
         status: "PENDING",

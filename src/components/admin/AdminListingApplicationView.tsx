@@ -26,6 +26,7 @@ function applicationToProfile(application: AdminListingApplicationRow): ListingA
     dateOfBirth: application.dateOfBirth,
     riotId: application.riotId,
     rankTier: application.rankTier,
+    rankMmr: null,
     valorantRoles: application.valorantRoles
       ? application.valorantRoles.split(",").map((r) => r.trim()).filter(Boolean)
       : [],
