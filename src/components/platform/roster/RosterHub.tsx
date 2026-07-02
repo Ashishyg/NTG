@@ -192,7 +192,7 @@ export default function RosterHub({ teams, jobListings }: Props) {
         </div>
       )}
 
-      <div className="relative overflow-hidden rounded-[1.75rem] border border-white/[0.07] bg-[#080808] p-6 sm:p-8 isolate [transform:translateZ(0)]">
+      <div className="relative overflow-hidden rounded-[1.75rem] border border-white/[0.07] bg-[#080808] p-6 sm:p-8">
         <div
           className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full blur-[80px] opacity-30"
           style={{ background: meta.hex }}
