@@ -23,12 +23,8 @@
 :root {
   color-scheme: dark;
 
-  /*
-   * Fluid container width — scales proportionally with the viewport.
-   * At 1440px  →  min(80vw, 1650px) = 1152px  (matches original max-w-6xl laptop layout)
-   * At 2560px  →  min(80vw, 1650px) = 1650px  (exactly 75% of the 2200px max, looks clean and compact)
-   */
-  --container: min(80vw, 1650px);
+  /* On mobile and tablet, use full viewport width */
+  --container: 100%;
 
   /*
    * Fluid section heading (h2).
@@ -53,6 +49,10 @@
  * margins, gaps, and standard text sizes for a clean 75% scaled look.
  */
 @media (min-width: 1024px) {
+  :root {
+    /* Fluid container width on desktop screens */
+    --container: min(80vw, 1650px);
+  }
   html {
     font-size: 14.5px;
   }
