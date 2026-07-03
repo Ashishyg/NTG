@@ -7,20 +7,45 @@ import { allowPastTournamentClicks } from "@/lib/env";
 import StatusBadge from "@/components/platform/ui/StatusBadge";
 import type { TournamentVaultProps } from "./tournaments/types";
 
+const sectionVariants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.12,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 24 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.65,
+      ease: [0.215, 0.61, 0.355, 1] as const, // Ease-out cubic
+    },
+  },
+};
+
 export default function TournamentVault({ tournaments, registration }: TournamentVaultProps) {
   const showBanner = registration?.active ?? false;
 
   return (
-    <section id="vault" className="relative mx-auto w-full max-w-[var(--container)] scroll-mt-28 px-[clamp(1.25rem,_3vw,_4rem)] py-24 sm:py-32">
+    <motion.section
+      id="vault"
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: "-100px" }}
+      variants={sectionVariants}
+      className="relative mx-auto w-full max-w-[var(--container)] scroll-mt-28 px-[clamp(1.25rem,_3vw,_4rem)] py-24 sm:py-32"
+    >
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute right-1/3 top-1/2 h-[50vh] w-[50vh] rounded-full bg-[radial-gradient(circle,rgba(217,70,239,0.10),transparent_65%)] blur-3xl" />
       </div>
 
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
+        variants={itemVariants}
         className="mb-14 flex flex-col items-start gap-4 sm:flex-row sm:items-end sm:justify-between"
       >
         <div>
@@ -38,7 +63,8 @@ export default function TournamentVault({ tournaments, registration }: Tournamen
       </motion.div>
 
       {showBanner && registration ? (
-        <aside
+        <motion.aside
+          variants={itemVariants}
           className="mb-8 flex flex-col gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
           role="status"
           aria-live="polite"
@@ -64,7 +90,7 @@ export default function TournamentVault({ tournaments, registration }: Tournamen
               <path d="M8 7h9v9" />
             </svg>
           </Link>
-        </aside>
+        </motion.aside>
       ) : null}
 
       <ol className="relative space-y-3">
@@ -75,10 +101,7 @@ export default function TournamentVault({ tournaments, registration }: Tournamen
         {tournaments.map((t, i) => (
           <motion.li
             key={t.slug}
-            initial={{ opacity: 0, y: 15 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.5, delay: i * 0.05 }}
+            variants={itemVariants}
             style={{ ["--cup" as string]: t.hex }}
             className="group relative flex items-stretch gap-5"
           >
@@ -178,15 +201,18 @@ export default function TournamentVault({ tournaments, registration }: Tournamen
         ))}
       </ol>
 
-      <div className="mt-10 flex flex-col items-center gap-3 text-center text-sm text-white/45 sm:flex-row sm:justify-center">
+      <motion.div
+        variants={itemVariants}
+        className="mt-10 flex flex-col items-center gap-3 text-center text-sm text-white/45 sm:flex-row sm:justify-center"
+      >
         <span>
           Looking for older cups?{" "}
           <Link href="/esports/tournaments" className="text-gradient-brand font-medium hover:underline">
             View all tournaments
           </Link>
         </span>
-      </div>
-    </section>
+      </motion.div>
+    </motion.section>
   );
 }
 

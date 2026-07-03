@@ -34,10 +34,7 @@ function ImageCard({
 }: ImageCardProps) {
   return (
     <motion.article
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.65, delay }}
+      variants={itemVariants}
       className={`group relative h-full min-h-[280px] overflow-hidden rounded-3xl border border-white/[0.08] ${className}`}
     >
       <div className={`relative h-full w-full ${imgClassName}`}>
@@ -107,10 +104,7 @@ function ChampionshipCard({
   return (
     <motion.article
       ref={ref}
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.65 }}
+      variants={itemVariants}
       className={`group relative h-full min-h-[280px] overflow-hidden rounded-3xl border border-white/[0.08] ${className}`}
     >
       <div className={`relative h-full w-full ${imgClassName}`}>
@@ -172,14 +166,39 @@ function ChampionshipCard({
   );
 }
 
+const sectionVariants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.12,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 24 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.65,
+      ease: [0.215, 0.61, 0.355, 1] as const, // Ease-out cubic
+    },
+  },
+};
+
 export default function Performance() {
   return (
-    <section id="arena" className="relative mx-auto w-full max-w-[var(--container)] scroll-mt-28 px-[clamp(1.25rem,_3vw,_4rem)] py-24 sm:py-32">
+    <motion.section
+      id="arena"
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: "-100px" }}
+      variants={sectionVariants}
+      className="relative mx-auto w-full max-w-[var(--container)] scroll-mt-28 px-[clamp(1.25rem,_3vw,_4rem)] py-24 sm:py-32"
+    >
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
+        variants={itemVariants}
         className="mb-12 flex flex-col items-start gap-4 sm:flex-row sm:items-end sm:justify-between"
       >
         <div>
@@ -211,12 +230,11 @@ export default function Performance() {
           kicker="The Vibe"
           title="Auction Nights"
           body="Neon-soaked energy, packed houses, and a crowd that lives for the play."
-          delay={0.08}
           imgClassName="min-h-[220px] md:min-h-full md:aspect-auto"
         />
 
-        <ReviewCarousel delay={0.16} />
+        <ReviewCarousel variants={itemVariants} />
       </div>
-    </section>
+    </motion.section>
   );
 }

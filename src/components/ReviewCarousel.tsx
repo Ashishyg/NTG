@@ -60,12 +60,15 @@ function HighlightedText({ text }: { text: string }) {
   );
 }
 
+import { Variants } from "framer-motion";
+
 type Props = {
   className?: string;
   delay?: number;
+  variants?: Variants;
 };
 
-export default function ReviewCarousel({ className = "", delay = 0 }: Props) {
+export default function ReviewCarousel({ className = "", delay = 0, variants }: Props) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [index, setIndex] = useState(0);
@@ -102,12 +105,19 @@ export default function ReviewCarousel({ className = "", delay = 0 }: Props) {
 
   const active = reviews[index];
 
+  const defaultVariants = {
+    hidden: { opacity: 0, y: 24 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.65, delay } }
+  };
+
   return (
     <motion.article
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.65, delay }}
+      variants={variants || defaultVariants}
+      {...(!variants ? {
+        initial: "hidden",
+        whileInView: "visible",
+        viewport: { once: true, margin: "-80px" }
+      } : {})}
       className={`group glass-strong relative flex h-full min-h-[260px] flex-col overflow-hidden rounded-3xl border border-white/[0.08] p-6 sm:p-7 ${className}`}
     >
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(110%_70%_at_100%_0%,rgba(124,58,237,0.22),transparent_55%)]" />
