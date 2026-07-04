@@ -3,9 +3,7 @@
 import { motion } from "framer-motion";
 import { brand, socials } from "@/lib/data";
 import BrandIcon from "./ui/BrandIcon";
-import LazyMap from "./LazyMap";
 import {
-  mapsEmbedFor,
   mapsSearchUrl,
   whatsappInquiryUrl,
 } from "@/lib/env";
@@ -110,10 +108,13 @@ export default function VisitLounge() {
             • No backdrop-blur or animate-ping below `md` (GPU-cheap)
           */}
           <div className="group relative overflow-hidden rounded-3xl border border-[var(--color-brand)]/25 bg-[#060a14] [contain:layout_paint] [content-visibility:auto] md:shadow-[0_0_40px_rgba(94,234,212,0.08),inset_0_0_60px_rgba(124,58,237,0.05)]" style={{ minHeight: "clamp(17.5rem, 28vw, 36.25rem)" }} >
-            <LazyMap
-              title={`Map · ${brand.name}`}
-              src={mapsEmbedFor(brand.coords)}
-              iframeClassName="pointer-events-none absolute inset-0 h-[112%] w-full border-0 select-none [transform:translate3d(0,-5%,0)_scale(1.03)] [filter:invert(1)_hue-rotate(180deg)] md:[filter:invert(1)_hue-rotate(180deg)_brightness(0.92)_contrast(1.1)_saturate(1.4)]"
+            <img
+              src="/images/lounge-map@2x.png"
+              srcSet="/images/lounge-map@2x.png 2x, /images/lounge-map.png 1x"
+              alt="Map showing NTG Lounge location in Mangaluru"
+              className="pointer-events-none absolute inset-0 h-[112%] w-full select-none object-cover [transform:translate3d(0,-5%,0)_scale(1.03)] [filter:invert(1)_hue-rotate(180deg)] md:[filter:invert(1)_hue-rotate(180deg)_brightness(0.92)_contrast(1.1)_saturate(1.4)]"
+              loading="eager"
+              decoding="async"
             />
 
             {/* One combined atmosphere overlay — was three separate gradients */}
