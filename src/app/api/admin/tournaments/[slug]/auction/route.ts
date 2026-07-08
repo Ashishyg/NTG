@@ -43,29 +43,42 @@ export async function POST(_req: Request, { params }: Props) {
     return NextResponse.json({ error: "This cup is not an auction draft." }, { status: 400 });
   }
 
-  const res = await fetch(`${serverEnv.auctionUrl}/api/init`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${auctionToken(auth.userId)}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      tournamentId: tournament.id,
-      settings: {
-        startingBudget: tournament.startingBudget,
-        rosterSize: tournament.rosterSize,
-        minBidIncrement: tournament.minBidIncrement,
-        coCaptainSlots: tournament.coCaptainSlots,
-        auctionStartsAt: tournament.auctionStartsAt?.toISOString() ?? null,
-        auctionEndsAt: tournament.auctionEndsAt?.toISOString() ?? null,
+  const auctionBaseUrl = serverEnv.auctionUrl!.trim().replace(/\/+$/, "");
+
+  let res: Response;
+  try {
+    res = await fetch(`${auctionBaseUrl}/api/init`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${auctionToken(auth.userId)}`,
+        "content-type": "application/json",
       },
-      // Valorant rank points from the main site; auction app falls back to its defaults if absent.
-      rankTable:
-        tournament.game === "VALORANT" && Array.isArray(tournament.rankPoints)
-          ? tournament.rankPoints
-          : undefined,
-    }),
-  });
+      body: JSON.stringify({
+        tournamentId: tournament.id,
+        settings: {
+          startingBudget: tournament.startingBudget,
+          rosterSize: tournament.rosterSize,
+          minBidIncrement: tournament.minBidIncrement,
+          coCaptainSlots: tournament.coCaptainSlots,
+          auctionStartsAt: tournament.auctionStartsAt?.toISOString() ?? null,
+          auctionEndsAt: tournament.auctionEndsAt?.toISOString() ?? null,
+        },
+        // Valorant rank points from the main site; auction app falls back to its defaults if absent.
+        rankTable:
+          tournament.game === "VALORANT" && Array.isArray(tournament.rankPoints)
+            ? tournament.rankPoints
+            : undefined,
+      }),
+    });
+  } catch (err) {
+    console.error("[auction init] fetch to auction app failed:", err);
+    return NextResponse.json(
+      {
+        error: `Could not reach the auction app at ${auctionBaseUrl}. Check AUCTION_URL is correct (no trailing slash/spaces) and the auction app is running.`,
+      },
+      { status: 502 },
+    );
+  }
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
