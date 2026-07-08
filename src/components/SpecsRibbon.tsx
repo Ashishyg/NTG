@@ -5,7 +5,7 @@ import { specs } from "@/lib/data";
 
 export default function SpecsRibbon() {
   return (
-    <section id="specs" className="relative mx-auto w-full max-w-[var(--container)] scroll-mt-28 px-[clamp(1.25rem,_3vw,_4rem)] pt-12 sm:pt-16">
+    <section id="specs" className="relative mx-auto w-full max-w-6xl scroll-mt-28 px-5 pt-12 sm:pt-16">
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         whileInView={{ opacity: 1, y: 0 }}

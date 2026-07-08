@@ -47,6 +47,8 @@ export type TournamentDetail = {
   matches: TournamentMatchView[];
   registrationCount: number;
   userRegistered: boolean;
+  userParticipantRole: "CAPTAIN" | "CO_CAPTAIN" | "PLAYER" | null;
+  coCaptainSlots: number;
 };
 
 export type PrizeSplitRow = {

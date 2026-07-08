@@ -142,6 +142,7 @@ export const tournamentRegisterSchema = z.discriminatedUnion("participantRole", 
     coCaptainUsername: z.string().trim().min(2).max(48),
     valorantRoles: valorantRolesSchema.optional(),
     cs2PeakPremierRank: cs2PremierRankSchema.optional(),
+    coCaptainUsernames: z.array(z.string().trim()).max(4).optional(),
     ...registrationTermsField,
   }),
   z.object({

@@ -148,7 +148,7 @@ function toRegistrationBanner(t: RegistrationBannerRow) {
 
 export class TournamentRepository {
   async listPreviews() {
-    await syncRegistrationStatus();
+    await syncRegistrationStatus().catch(() => {});
     const rows = await prisma.tournament.findMany({
       where: { status: { notIn: ["DRAFT", "CANCELLED"] } },
       orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }],
@@ -182,7 +182,7 @@ export class TournamentRepository {
   }
 
   async findDetailBySlug(slug: string, userId?: string): Promise<TournamentDetail | null> {
-    await syncRegistrationStatus();
+    await syncRegistrationStatus().catch(() => {});
     const t = await prisma.tournament.findUnique({
       where: { slug },
       include: {
@@ -227,8 +227,8 @@ export class TournamentRepository {
           },
         },
         registrations: userId
-          ? { where: { userId }, select: { id: true } }
-          : { select: { id: true } },
+          ? { where: { userId }, select: { id: true, participantRole: true } }
+          : { select: { id: true, participantRole: true } },
         _count: { select: { registrations: true } },
       },
     });
@@ -334,11 +334,13 @@ export class TournamentRepository {
         })) ?? [],
       registrationCount: t._count.registrations,
       userRegistered: userId ? t.registrations.length > 0 : false,
+      userParticipantRole: userId ? (t.registrations[0]?.participantRole ?? null) : null,
+      coCaptainSlots: t.coCaptainSlots,
     };
   }
 
   async findActiveRegistrationBanners() {
-    await syncRegistrationStatus();
+    await syncRegistrationStatus().catch(() => {});
     const candidates = await prisma.tournament.findMany({
       where: {
         status: { not: "CANCELLED" },

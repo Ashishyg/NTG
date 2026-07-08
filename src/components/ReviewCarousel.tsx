@@ -162,8 +162,7 @@ export default function ReviewCarousel({ className = "", delay = 0 }: Props) {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.55, ease: "easeOut" }}
-                className="absolute inset-0 line-clamp-5 font-display text-base leading-snug tracking-[-0.005em] text-white/90 sm:line-clamp-6 lg:line-clamp-[7]"
-                style={{ fontSize: "18px" }}
+                className="absolute inset-0 line-clamp-5 font-display text-base leading-snug tracking-[-0.005em] text-white/90 sm:line-clamp-6 sm:text-lg lg:line-clamp-[7]"
                 title={active.text}
               >
                 <span aria-hidden>&ldquo;</span>
@@ -181,8 +180,8 @@ export default function ReviewCarousel({ className = "", delay = 0 }: Props) {
             <>
               <Avatar name={active.author} />
               <div className="leading-tight">
-                <p className="text-sm font-medium text-white" style={{ fontSize: "14px" }}>{active.author}</p>
-                <p className="text-[11px] uppercase tracking-[0.18em] text-white/45" style={{ fontSize: "11px" }}>
+                <p className="text-sm font-medium text-white">{active.author}</p>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
                   {active.relativeTime || "Google Review"}
                 </p>
               </div>

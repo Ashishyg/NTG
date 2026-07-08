@@ -8,7 +8,7 @@ export default async function ListingsTeaser() {
   if (preview.length === 0) return null;
 
   return (
-    <section id="careers" className="relative mx-auto w-full max-w-[var(--container)] scroll-mt-28 px-[clamp(1.25rem,_3vw,_4rem)] py-20 sm:py-28">
+    <section id="careers" className="relative mx-auto w-full max-w-6xl scroll-mt-28 px-5 py-20 sm:py-28">
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute right-0 top-1/4 h-[38vh] w-[38vh] rounded-full bg-[radial-gradient(circle,rgba(94,234,212,0.14),transparent_65%)] blur-3xl" />
         <div className="absolute left-0 bottom-0 h-[32vh] w-[32vh] rounded-full bg-[radial-gradient(circle,rgba(168,85,247,0.12),transparent_65%)] blur-3xl" />

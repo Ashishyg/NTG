@@ -34,6 +34,7 @@ type Props = {
   registrationOpen: boolean;
   rulebookUrl?: string | null;
   preview: RegistrationPreview | null;
+  coCaptainSlots: number;
 };
 
 type Step = "role" | "captain" | "confirm";
@@ -88,6 +89,7 @@ export default function TournamentRegisterForm({
   registrationOpen,
   rulebookUrl,
   preview,
+  coCaptainSlots,
 }: Props) {
   const router = useRouter();
   const submitting = useRef(false);

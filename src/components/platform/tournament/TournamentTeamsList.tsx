@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { GameSlug } from "@prisma/client";
-import type { TournamentTeamView } from "@core/contracts";
-import { formatParticipantRole } from "@/lib/tournament-display";
+import type { TournamentTeamView, TournamentTeamPlayerView } from "@core/contracts";
 
 type Props = {
   teams: string[];
@@ -13,17 +12,30 @@ type Props = {
   registrationFormat?: string | null;
 };
 
+const ROLE_BADGE: Record<string, { label: string; color: string }> = {
+  CAPTAIN: { label: "Captain", color: "#f6c177" },
+  CO_CAPTAIN: { label: "Co-Captain", color: "#a78bfa" },
+  PLAYER: { label: "Player", color: "#5eead4" },
+};
+
+const ROLE_ORDER: Record<string, number> = { CAPTAIN: 0, CO_CAPTAIN: 1, PLAYER: 2 };
+
+function sortByRole(players: TournamentTeamPlayerView[]): TournamentTeamPlayerView[] {
+  return [...players].sort(
+    (a, b) => (ROLE_ORDER[a.participantRole ?? "PLAYER"] ?? 2) - (ROLE_ORDER[b.participantRole ?? "PLAYER"] ?? 2),
+  );
+}
+
 function TeamPreviewScreen({
   team,
-  accentHex,
   game,
   onClose,
 }: {
   team: TournamentTeamView;
-  accentHex: string;
   game?: GameSlug;
   onClose: () => void;
 }) {
+  const isFifa = game === "EA_FC26";
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -66,74 +78,34 @@ function TeamPreviewScreen({
 
       <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
         <p className="mb-5 text-[10px] font-medium uppercase tracking-[0.28em] text-white/35">
-          Squad · {team.players.length} players
+          Squad · {team.players.length} {team.players.length === 1 ? "player" : "players"}
         </p>
 
-        <ul className="mx-auto max-w-lg space-y-3">
-          {team.players.map((player) => (
-            <li
-              key={player.id}
-              className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <p className="font-display text-base font-semibold text-white">{player.displayName}</p>
+        <ul className="mx-auto max-w-lg space-y-2.5">
+          {sortByRole(team.players).map((player) => {
+            const role = player.participantRole ?? "PLAYER";
+            const badge = ROLE_BADGE[role] ?? ROLE_BADGE.PLAYER;
+            const secondary = isFifa ? player.olympusId : player.riotId;
+            return (
+              <li
+                key={player.id}
+                className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3.5"
+              >
+                <div className="min-w-0">
+                  <p className="font-display text-[15px] font-semibold text-white truncate">{player.displayName}</p>
+                  {secondary ? (
+                    <p className="mt-0.5 truncate text-xs text-white/45">{secondary}</p>
+                  ) : null}
+                </div>
                 <span
                   className="shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
-                  style={{
-                    background: `${accentHex}18`,
-                    color: accentHex,
-                    boxShadow: `inset 0 0 0 1px ${accentHex}33`,
-                  }}
+                  style={{ background: `${badge.color}1a`, color: badge.color, boxShadow: `inset 0 0 0 1px ${badge.color}40` }}
                 >
-                  {formatParticipantRole(player.participantRole ?? "PLAYER")}
+                  {badge.label}
                 </span>
-              </div>
-              <dl className="mt-4 space-y-2.5 text-sm">
-                {game === "EA_FC26" ? (
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-white/40">Olympus ID</dt>
-                    <dd className="text-right text-white/85">{player.olympusId ?? "—"}</dd>
-                  </div>
-                ) : null}
-                {game === "VALORANT" && player.riotId ? (
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-white/40">Riot ID</dt>
-                    <dd className="text-right font-mono text-white/85">{player.riotId}</dd>
-                  </div>
-                ) : null}
-                {game === "VALORANT" && player.valorantRankTier ? (
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-white/40">Rank</dt>
-                    <dd className="text-right text-white/85">{player.valorantRankTier}</dd>
-                  </div>
-                ) : null}
-                {game === "VALORANT" && player.valorantRoles?.length ? (
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-white/40">Roles</dt>
-                    <dd className="text-right text-white/85">{player.valorantRoles.join(", ")}</dd>
-                  </div>
-                ) : null}
-                {game === "CS2" && player.steamId64 ? (
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-white/40">Steam64</dt>
-                    <dd className="text-right font-mono text-xs text-white/85">{player.steamId64}</dd>
-                  </div>
-                ) : null}
-                {game === "CS2" && player.cs2FaceitRank ? (
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-white/40">Faceit</dt>
-                    <dd className="text-right text-white/85">{player.cs2FaceitRank}</dd>
-                  </div>
-                ) : null}
-                {game === "CS2" && player.cs2PeakPremier ? (
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-white/40">Peak Premier</dt>
-                    <dd className="text-right text-white/85">{player.cs2PeakPremier}</dd>
-                  </div>
-                ) : null}
-              </dl>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       </div>
     </div>
@@ -178,6 +150,7 @@ export default function TournamentTeamsList({
           {rows.map((team, index) => {
             const hasPlayers = team.players.length > 0;
             const canPreview = hasPlayers;
+            const captainName = team.players.find((p) => p.participantRole === "CAPTAIN")?.displayName;
 
             return (
               <li key={team.id}>
@@ -214,12 +187,14 @@ export default function TournamentTeamsList({
                       {team.name}
                     </span>
                     {hasPlayers ? (
-                      <p className="mt-0.5 text-xs text-white/40">
-                        {isDuoTeamCup
-                          ? `${team.players.length} players`
-                          : `${team.players.length} player${team.players.length === 1 ? "" : "s"}`}
+                      <p className="mt-0.5 truncate text-xs text-white/40">
+                        {captainName ? <span className="text-white/55">{captainName}</span> : null}
+                        {captainName ? " · " : ""}
+                        {team.players.length} {team.players.length === 1 ? "player" : "players"}
                       </p>
-                    ) : null}
+                    ) : (
+                      <p className="mt-0.5 text-xs text-white/30">Registration in progress</p>
+                    )}
                   </div>
                   {canPreview ? (
                     <svg
@@ -249,7 +224,6 @@ export default function TournamentTeamsList({
       {previewTeam ? (
         <TeamPreviewScreen
           team={previewTeam}
-          accentHex={accentHex}
           game={game}
           onClose={() => setPreviewTeam(null)}
         />
