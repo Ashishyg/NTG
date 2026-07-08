@@ -2,6 +2,7 @@ import { prisma } from "@core/database/client";
 import { GameSlug } from "@prisma/client";
 import { serverEnv } from "@core/config/env.server";
 import { linkGameIdentity } from "./profile.service";
+import { CS2_RANK_DEFAULT } from "../domain/game-profile";
 import { logUserActivity } from "@/lib/user-audit";
 
 
@@ -10,6 +11,7 @@ const CS2_APP_ID = 730;
 type SteamPlayerSummary = {
   personaname?: string;
   profileurl?: string;
+  avatarfull?: string;
 };
 
 type OwnedGame = {
@@ -145,6 +147,7 @@ export async function linkSteamAccount(
       steamId64,
       steamProfileUrl: normalizedUrl,
       steamPersonaName: summary.personaname ?? null,
+      steamAvatarUrl: summary.avatarfull ?? null,
       cs2HoursPlayed: cs2Hours,
       steamLinkedAt: new Date(),
     },
@@ -163,6 +166,23 @@ export async function linkSteamAccount(
       platform: "Steam",
     },
     data: { verified: true },
+  });
+
+  const existingProfile = await prisma.playerProfile.findUnique({
+    where: { userId },
+    select: { cs2PeakPremierRank: true, cs2FaceitRank: true },
+  });
+
+  await prisma.playerProfile.update({
+    where: { userId },
+    data: {
+      cs2PeakPremierRank: existingProfile?.cs2PeakPremierRank?.trim()
+        ? existingProfile.cs2PeakPremierRank
+        : CS2_RANK_DEFAULT,
+      cs2FaceitRank: existingProfile?.cs2FaceitRank?.trim()
+        ? existingProfile.cs2FaceitRank
+        : CS2_RANK_DEFAULT,
+    },
   });
 
   if (user) {
@@ -219,7 +239,7 @@ export async function unlinkSteamAccount(
 
   await prisma.playerProfile.updateMany({
     where: { userId },
-    data: { cs2PeakPremierRank: null },
+    data: { cs2PeakPremierRank: null, cs2FaceitRank: null },
   });
 
   if (user) {

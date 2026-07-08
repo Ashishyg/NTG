@@ -21,7 +21,7 @@ export default function CreateTournamentForm() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [game, setGame] = useState("VALORANT");
-  const [registrationFormat, setRegistrationFormat] = useState<"AUCTION" | "STANDARD">("AUCTION");
+  const [registrationFormat, setRegistrationFormat] = useState<"AUCTION" | "STANDARD" | "SOLO" | "DUO">("AUCTION");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -110,8 +110,9 @@ export default function CreateTournamentForm() {
           className={inputClass}
           value={game}
           onChange={(e) => {
-            setGame(e.target.value);
-            if (!SUPPORTS_FORMAT.includes(e.target.value)) setRegistrationFormat("AUCTION");
+            const next = e.target.value;
+            setGame(next);
+            if (SUPPORTS_FORMAT.includes(next)) setRegistrationFormat("AUCTION");
           }}
         >
           {GAME_OPTIONS.map((g) => (
@@ -135,7 +136,7 @@ export default function CreateTournamentForm() {
               }`}
             >
               <p className="text-sm font-semibold">Auction Draft</p>
-              <p className="mt-0.5 text-[10px] leading-relaxed text-white/40">Captains register team name. Players register individually. Admin assigns teams.</p>
+              <p className="mt-0.5 text-[10px] leading-relaxed text-white/40">Captains register team name + co-captain. Players join the pool. Admin assigns after auction.</p>
             </button>
             <button
               type="button"

@@ -9,6 +9,7 @@ type Props = {
   teamDetails?: TournamentTeamView[];
   accentHex?: string;
   game?: GameSlug;
+  registrationFormat?: string | null;
 };
 
 const ROLE_BADGE: Record<string, { label: string; color: string }> = {
@@ -117,6 +118,7 @@ export default function TournamentTeamsList({
   teamDetails = [],
   accentHex = "#7c3aed",
   game,
+  registrationFormat,
 }: Props) {
   const [previewTeam, setPreviewTeam] = useState<TournamentTeamView | null>(null);
 
@@ -131,7 +133,7 @@ export default function TournamentTeamsList({
           players: [],
         }));
 
-  const isFifa = game === "EA_FC26";
+  const isDuoTeamCup = game === "EA_FC26";
 
   return (
     <section>
@@ -155,7 +157,7 @@ export default function TournamentTeamsList({
                 <button
                   type="button"
                   onClick={() => canPreview && setPreviewTeam(team)}
-                  disabled={!hasPlayers}
+                  disabled={!canPreview}
                   className={`flex w-full items-center gap-4 rounded-[1.15rem] border border-white/[0.06] bg-[#0A0A0A]/70 px-5 py-4 text-left backdrop-blur-sm transition-colors ${
                     canPreview
                       ? "cursor-pointer hover:border-white/[0.12] hover:bg-[#0A0A0A]/85 active:scale-[0.99]"

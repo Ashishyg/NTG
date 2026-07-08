@@ -1,5 +1,6 @@
 import { prisma } from "@core/database/client";
 import type { PlayedGame, ValorantRole } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { AUTH_SIGNUP_DETAILS_CONFLICT } from "../domain/auth-messages";
 import {
   isOlympusIdTaken,
@@ -12,6 +13,7 @@ import {
   validateValorantRoles,
   normalizeCs2PeakPremierRank,
   normalizeCs2FaceitRank,
+  CS2_RANK_DEFAULT,
 } from "../domain/game-profile";
 import { clearSignupSession } from "../infrastructure/signup-session";
 
@@ -37,7 +39,47 @@ export type PlayerGameProfile = {
   signupCompleted: boolean;
 };
 
+export async function ensureCs2RankDefaults(userId: string): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      steamId64: true,
+      playerProfile: {
+        select: {
+          playedGames: true,
+          cs2PeakPremierRank: true,
+          cs2FaceitRank: true,
+        },
+      },
+    },
+  });
+
+  const profile = user?.playerProfile;
+  if (!profile) return;
+
+  const playsCs2 =
+    profile.playedGames.includes("CS2") || user.steamId64 != null;
+  if (!playsCs2) return;
+
+  const data: { cs2PeakPremierRank?: string; cs2FaceitRank?: string } = {};
+  if (!profile.cs2PeakPremierRank?.trim()) {
+    data.cs2PeakPremierRank = CS2_RANK_DEFAULT;
+  }
+  if (!profile.cs2FaceitRank?.trim()) {
+    data.cs2FaceitRank = CS2_RANK_DEFAULT;
+  }
+
+  if (Object.keys(data).length === 0) return;
+
+  await prisma.playerProfile.update({
+    where: { userId },
+    data,
+  });
+}
+
 export async function getPlayerGameProfile(userId: string): Promise<PlayerGameProfile | null> {
+  await ensureCs2RankDefaults(userId);
+
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
@@ -121,7 +163,79 @@ export async function updateValorantRoles(
     where: { userId },
     data: { valorantRoles: roles },
   });
+  await syncValorantRoleSnapshots(userId);
   return { ok: true };
+}
+
+async function syncValorantRoleSnapshots(userId: string): Promise<void> {
+  const profile = await prisma.playerProfile.findUnique({
+    where: { userId },
+    select: { valorantRoles: true },
+  });
+  const roles = profile?.valorantRoles ?? [];
+
+  await prisma.tournamentRegistration.updateMany({
+    where: { userId, tournament: { game: "VALORANT" } },
+    data: {
+      snapshotValorantRoles: roles as unknown as Prisma.InputJsonValue,
+    },
+  });
+
+  await prisma.listingApplication.updateMany({
+    where: { userId, listing: { gameKey: "valorant" } },
+    data: {
+      snapshotValorantRoles: roles as unknown as Prisma.InputJsonValue,
+    },
+  });
+}
+
+/** Push synced Valorant rank from leaderboard into open registrations. */
+export async function syncValorantRankSnapshots(userId: string): Promise<void> {
+  const entry = await prisma.leaderboardEntry.findFirst({
+    where: { userId, game: "VALORANT", scope: "TOWN" },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  await prisma.tournamentRegistration.updateMany({
+    where: { userId, tournament: { game: "VALORANT" } },
+    data: {
+      snapshotRankTier: entry?.rankTier ?? null,
+      snapshotRankTierId: entry?.rankTierId ?? null,
+    },
+  });
+
+  await prisma.listingApplication.updateMany({
+    where: { userId, listing: { gameKey: "valorant" } },
+    data: {
+      snapshotRankTier: entry?.rankTier ?? null,
+      snapshotRankTierId: entry?.rankTierId ?? null,
+    },
+  });
+}
+
+async function syncCs2RankSnapshots(userId: string): Promise<void> {
+  const profile = await prisma.playerProfile.findUnique({
+    where: { userId },
+    select: { cs2PeakPremierRank: true, cs2FaceitRank: true },
+  });
+  const premier = profile?.cs2PeakPremierRank?.trim() || CS2_RANK_DEFAULT;
+  const faceit = profile?.cs2FaceitRank?.trim() || CS2_RANK_DEFAULT;
+
+  await prisma.tournamentRegistration.updateMany({
+    where: { userId, tournament: { game: "CS2" } },
+    data: {
+      snapshotCs2PeakPremier: premier,
+      snapshotCs2FaceitRank: faceit,
+    },
+  });
+
+  await prisma.listingApplication.updateMany({
+    where: { userId, listing: { gameKey: "cs2" } },
+    data: {
+      snapshotCs2PeakPremier: premier,
+      snapshotCs2FaceitRank: faceit,
+    },
+  });
 }
 
 export async function updateCs2PeakPremierRank(
@@ -137,6 +251,7 @@ export async function updateCs2PeakPremierRank(
     where: { userId },
     data: { cs2PeakPremierRank: normalized },
   });
+  await syncCs2RankSnapshots(userId);
   return { ok: true, value: normalized };
 }
 
@@ -153,6 +268,7 @@ export async function updateCs2FaceitRank(
     where: { userId },
     data: { cs2FaceitRank: normalized },
   });
+  await syncCs2RankSnapshots(userId);
   return { ok: true, value: normalized };
 }
 

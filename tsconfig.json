@@ -25,7 +25,9 @@
       "@tournaments-leagues/*": ["./src/modules/tournaments-leagues/*"],
       "@socials-gallery/*": ["./src/modules/socials-gallery/*"],
       "@landing-home/*": ["./src/modules/landing-home/*"],
-      "@lounge-commerce/*": ["./src/modules/lounge-commerce/*"]
+      "@lounge-commerce/*": ["./src/modules/lounge-commerce/*"],
+      "@roster-listings/*": ["./src/modules/roster-listings/*"],
+      "@roster-listings/*": ["./src/modules/roster-listings/*"]
     }
   },
   "include": [

@@ -8,6 +8,7 @@ import type {
   TournamentStatus,
 } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { displayCs2Ranks, displayValorantRegistration } from "@auth-membership/domain/game-profile";
 import {
   computeAutoStatus,
   getRegistrationCloseAt,
@@ -146,7 +147,16 @@ export async function getTournamentAdmin(slug: string) {
       },
       registrations: {
         include: {
-          user: { include: { playerProfile: true } },
+          user: {
+            include: {
+              playerProfile: true,
+              leaderboard: {
+                where: { scope: "TOWN", game: "VALORANT" },
+                orderBy: { updatedAt: "desc" },
+                take: 1,
+              },
+            },
+          },
         },
         orderBy: { createdAt: "desc" },
       },
@@ -576,10 +586,14 @@ export async function deleteTournamentTeam(
   const team = await prisma.tournamentTeam.findUnique({ where: { id: teamId } });
   if (!team) return { ok: false, error: "Team not found." };
 
-  await prisma.tournamentTeam.delete({ where: { id: teamId } });
-  await prisma.tournament.update({
-    where: { id: team.tournamentId },
-    data: { updatedAt: new Date() },
+  await prisma.$transaction(async (tx) => {
+    await tx.tournamentTeamPlayer.deleteMany({ where: { teamId } });
+    await tx.tournamentRegistration.deleteMany({ where: { teamId } });
+    await tx.tournamentTeam.delete({ where: { id: teamId } });
+    await tx.tournament.update({
+      where: { id: team.tournamentId },
+      data: { updatedAt: new Date() },
+    });
   });
   return { ok: true };
 }
@@ -696,10 +710,18 @@ export async function deleteTeamPlayer(
   });
   if (!player) return { ok: false, error: "Player not found." };
 
-  await prisma.tournamentTeamPlayer.delete({ where: { id: playerId } });
-  await prisma.tournament.update({
-    where: { id: player.team.tournamentId },
-    data: { updatedAt: new Date() },
+  await prisma.$transaction(async (tx) => {
+    if (player.registrationId) {
+      await tx.tournamentRegistration.update({
+        where: { id: player.registrationId },
+        data: { teamId: null },
+      });
+    }
+    await tx.tournamentTeamPlayer.delete({ where: { id: playerId } });
+    await tx.tournament.update({
+      where: { id: player.team.tournamentId },
+      data: { updatedAt: new Date() },
+    });
   });
   return { ok: true };
 }
@@ -735,15 +757,42 @@ export async function listTournamentRegistrationsAdmin(
   const rows = await prisma.tournamentRegistration.findMany({
     where: { tournamentId: tournament.id },
     include: {
-      user: true,
+      user: {
+        include: {
+          playerProfile: true,
+          leaderboard: {
+            where: { scope: "TOWN", game: "VALORANT" },
+            orderBy: { updatedAt: "desc" },
+            take: 1,
+          },
+        },
+      },
       team: { select: { name: true } },
     },
     orderBy: { createdAt: "desc" },
   });
 
+  const isCs2 = tournament.game === "CS2";
+  const isValorant = tournament.game === "VALORANT";
+
   return rows.map((r) => {
-    const roles = Array.isArray(r.snapshotValorantRoles)
-      ? (r.snapshotValorantRoles as string[]).join(", ")
+    const cs2Ranks = isCs2
+      ? displayCs2Ranks(r.user.playerProfile, {
+          premier: r.snapshotCs2PeakPremier,
+          faceit: r.snapshotCs2FaceitRank,
+        })
+      : null;
+
+    const valorant = isValorant
+      ? displayValorantRegistration(
+          r.user.playerProfile,
+          r.user.leaderboard[0] ?? null,
+          {
+            roles: r.snapshotValorantRoles,
+            rankTier: r.snapshotRankTier,
+            rankTierId: r.snapshotRankTierId,
+          },
+        )
       : null;
 
     return {
@@ -759,12 +808,12 @@ export async function listTournamentRegistrationsAdmin(
       partnerUsername: r.snapshotPartnerUsername,
       partnerName: r.partnerName,
       riotId: r.snapshotRiotId,
-      rankTier: r.snapshotRankTier,
-      valorantRoles: roles,
+      rankTier: valorant?.rankTier ?? r.snapshotRankTier,
+      valorantRoles: valorant?.valorantRoles ?? null,
       steamId64: r.snapshotSteamId64,
       cs2Hours: r.snapshotCs2Hours,
-      cs2PeakPremier: r.snapshotCs2PeakPremier,
-      cs2FaceitRank: r.snapshotCs2FaceitRank,
+      cs2PeakPremier: cs2Ranks?.premier ?? r.snapshotCs2PeakPremier,
+      cs2FaceitRank: cs2Ranks?.faceit ?? r.snapshotCs2FaceitRank,
       teamId: r.teamId,
     };
   });
@@ -846,7 +895,12 @@ export function buildRegistrationsCsv(
   const lines = [headers.join(",")];
 
   for (const r of rows) {
-    const role = r.participantRole === "CAPTAIN" ? "Captain" : "Player";
+    const role =
+      r.participantRole === "CAPTAIN"
+        ? "Captain"
+        : r.participantRole === "CO_CAPTAIN"
+          ? "Co-Captain"
+          : "Player";
     const at = new Date(r.createdAt).toISOString();
 
     if (game === "CS2") {
@@ -897,6 +951,29 @@ export function buildRegistrationsCsv(
   }
 
   return `\uFEFF${lines.join("\r\n")}`;
+}
+
+const TEAM_ROLE_ORDER: Record<string, number> = {
+  CAPTAIN: 0,
+  CO_CAPTAIN: 1,
+  PLAYER: 2,
+};
+
+export function buildTeamsCsv(
+  game: import("@prisma/client").GameSlug,
+  rows: AdminRegistrationRow[],
+): string {
+  const teamRows = rows
+    .filter((r) => r.teamId != null)
+    .sort((a, b) => {
+      const byTeam = (a.teamName ?? "").localeCompare(b.teamName ?? "");
+      if (byTeam !== 0) return byTeam;
+      const roleA = TEAM_ROLE_ORDER[a.participantRole] ?? 99;
+      const roleB = TEAM_ROLE_ORDER[b.participantRole] ?? 99;
+      if (roleA !== roleB) return roleA - roleB;
+      return (a.displayName ?? "").localeCompare(b.displayName ?? "");
+    });
+  return buildRegistrationsCsv(game, teamRows);
 }
 
 export { parsePrizeSplit, defaultPrizeSplit };

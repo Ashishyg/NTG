@@ -4,10 +4,12 @@ import { serverEnv } from "@core/config/env.server";
 import { prisma } from "@core/database/client";
 import {
   registerForTournament,
+  registerStandardTeam,
   registerFifaTeam,
 } from "@tournaments-leagues/index";
 import {
   tournamentRegisterSchema,
+  standardTournamentRegisterSchema,
   fifaRegisterSchema,
 } from "@auth-membership/domain/schemas";
 import { NextResponse } from "next/server";
@@ -31,7 +33,7 @@ export async function POST(req: Request, { params }: Props) {
 
   const tournament = await prisma.tournament.findUnique({
     where: { slug },
-    select: { game: true },
+    select: { game: true, registrationFormat: true },
   });
   if (!tournament) {
     return NextResponse.json({ error: "Tournament not found." }, { status: 404 });
@@ -53,6 +55,21 @@ export async function POST(req: Request, { params }: Props) {
       );
     }
     const result = await registerFifaTeam(slug, auth.userId, parsed.data);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+    return NextResponse.json({ registrationId: result.registrationId });
+  }
+
+  if (tournament.registrationFormat === "STANDARD") {
+    const parsed = standardTournamentRegisterSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message ?? "Invalid registration." },
+        { status: 400 },
+      );
+    }
+    const result = await registerStandardTeam(slug, auth.userId, parsed.data);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }

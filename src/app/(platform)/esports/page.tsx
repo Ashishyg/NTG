@@ -395,7 +395,21 @@ export default async function EsportsHubPage() {
 
 
       {/* Glassmorphic Navigation Cards — moved to bottom */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <Link href="/esports/roster" prefetch={true} className="group relative flex min-h-[14rem] flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-[#0D0D0D]/60 p-8 shadow-lg backdrop-blur-md transition-all duration-500 hover:-translate-y-1 hover:border-violet-500/50 hover:bg-[#100c18]/80 hover:shadow-[0_0_40px_rgba(124,58,237,0.15)] active:scale-[0.98]">
+          <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.02] to-white/[0.05] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+          <div className="absolute right-0 top-0 h-32 w-32 -translate-y-8 translate-x-8 rounded-full bg-violet-500/10 blur-[50px] transition-all group-hover:bg-violet-500/20" />
+          <div className="relative z-10 flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-300 ring-1 ring-inset ring-violet-500/30">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+          </div>
+          <div className="relative z-10 mt-auto pt-8">
+            <h3 className="font-display text-2xl font-bold tracking-wide text-white">NTG Roster</h3>
+            <p className="mt-2 text-sm font-medium leading-relaxed text-white/50">Official teams, player cards, and open tryouts for NTG esports.</p>
+          </div>
+        </Link>
+
         <Link href="/esports/tournaments" prefetch={true} className="group relative flex min-h-[14rem] flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-[#0D0D0D]/60 p-8 shadow-lg backdrop-blur-md transition-all duration-500 hover:-translate-y-1 hover:border-[var(--color-iris)]/50 hover:bg-[#121016]/80 hover:shadow-[0_0_40px_rgba(124,58,237,0.15)] active:scale-[0.98]">
           <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.02] to-white/[0.05] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
           <div className="absolute right-0 top-0 h-32 w-32 -translate-y-8 translate-x-8 rounded-full bg-[var(--color-iris)]/10 blur-[50px] transition-all group-hover:bg-[var(--color-iris)]/20" />

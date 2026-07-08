@@ -8,6 +8,7 @@ import { AdminSection } from "@/components/admin/AdminSection";
 import { useAdminDeleteConfirm } from "@/components/admin/useAdminDeleteConfirm";
 import type { PrizeSplitRow } from "@core/contracts";
 import { emptyToNull, prizeSplitForSave } from "@/lib/admin-fields";
+import { formatParticipantRole } from "@/lib/tournament-display";
 
 type Team = {
   id: string;
@@ -19,6 +20,7 @@ type Team = {
     displayName: string;
     riotGameName: string | null;
     riotTagLine: string | null;
+    registrationId: string | null;
   }[];
 };
 
@@ -272,11 +274,22 @@ export default function AdminTournamentEditor({
   } | null>(null);
   const [addRole, setAddRole] = useState<"PLAYER" | "CAPTAIN">("PLAYER");
   const [addTeamName, setAddTeamName] = useState("");
+  const [addCoCaptainUsername, setAddCoCaptainUsername] = useState("");
+  const [addMemberUsernames, setAddMemberUsernames] = useState(["", "", "", ""]);
   const [addingMember, setAddingMember] = useState(false);
 
+  const isAuctionFormat =
+    SUPPORTS_FORMAT.includes(form.game) &&
+    (form.registrationFormat === "AUCTION" || !form.registrationFormat);
+  const isStandardFormat =
+    SUPPORTS_FORMAT.includes(form.game) && form.registrationFormat === "STANDARD";
+
   const prizeSplitDisplay =
-    form.prizeSplit ??
-    (form.prizePool ? defaultSplit(Number(form.prizePool)) : []);
+    form.prizeSplit != null
+      ? form.prizeSplit
+      : form.prizePool
+        ? defaultSplit(Number(form.prizePool))
+        : [];
 
   const cupUrl = `/esports/tournaments/${form.slug}`;
   const hubUrl = "/esports";
@@ -362,6 +375,7 @@ export default function AdminTournamentEditor({
 
   async function addMemberRegistration() {
     if (!selectedMember) return;
+    const participantRole = isStandardFormat ? "CAPTAIN" : addRole;
     setAddingMember(true);
     setMessage(null);
     try {
@@ -370,8 +384,14 @@ export default function AdminTournamentEditor({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: selectedMember.id,
-          participantRole: addRole,
-          teamName: addRole === "CAPTAIN" ? addTeamName.trim() : undefined,
+          participantRole,
+          teamName: participantRole === "CAPTAIN" ? addTeamName.trim() : undefined,
+          coCaptainUsername:
+            participantRole === "CAPTAIN" && isAuctionFormat ? addCoCaptainUsername.trim() : undefined,
+          memberUsernames:
+            participantRole === "CAPTAIN" && isStandardFormat
+              ? addMemberUsernames.map((u) => u.trim())
+              : undefined,
         }),
       });
       const data = await res.json();
@@ -383,6 +403,8 @@ export default function AdminTournamentEditor({
       setMemberSearch("");
       setMemberResults([]);
       setAddTeamName("");
+      setAddCoCaptainUsername("");
+      setAddMemberUsernames(["", "", "", ""]);
       setAddRole("PLAYER");
       setMessage("Member added to cup.");
       refreshLists();
@@ -574,7 +596,8 @@ export default function AdminTournamentEditor({
   function requestRemoveTeam(teamId: string, teamName: string) {
     openDeleteConfirm({
       title: `Delete team "${teamName}"?`,
-      description: "All players on this team will be removed from the cup page.",
+      description:
+        "This team and all linked cup registrations (captain, co-captain, and players) will be permanently removed.",
       confirmLabel: "Delete team",
       onConfirm: async () => {
         await fetch(`/api/admin/tournaments/${form.slug}/teams/${teamId}`, { method: "DELETE" });
@@ -586,7 +609,9 @@ export default function AdminTournamentEditor({
   function requestRemovePlayer(teamId: string, playerId: string, playerName: string) {
     openDeleteConfirm({
       title: `Remove ${playerName}?`,
-      description: "This player will be removed from the team on the cup page.",
+      description: isAuctionFormat
+        ? "This player will be removed from the team and returned to the unassigned player pool."
+        : "This player will be removed from the team on the cup page.",
       confirmLabel: "Remove player",
       onConfirm: async () => {
         await fetch(
@@ -594,6 +619,38 @@ export default function AdminTournamentEditor({
           { method: "DELETE" },
         );
         refreshLists();
+      },
+    });
+  }
+
+  function requestRemoveRosterMember(team: Team, reg: RegistrationRow) {
+    if (reg.participantRole === "CAPTAIN" || reg.participantRole === "CO_CAPTAIN") {
+      requestRemoveRegistration(reg);
+      return;
+    }
+
+    const draftedPlayer = team.players.find((p) => p.registrationId === reg.id);
+    if (isAuctionFormat && draftedPlayer) {
+      requestRemovePlayer(team.id, draftedPlayer.id, reg.displayName ?? "Player");
+      return;
+    }
+
+    openDeleteConfirm({
+      title: `Remove ${reg.displayName ?? "this player"}?`,
+      description: "This player will be removed from the team and their cup registration will be deleted.",
+      confirmLabel: "Remove",
+      onConfirm: async () => {
+        const res = await fetch(
+          `/api/admin/tournaments/${form.slug}/registrations/${reg.id}`,
+          { method: "DELETE" },
+        );
+        if (res.ok) {
+          setMessage("Player removed.");
+          refreshLists();
+        } else {
+          const data = await res.json();
+          setMessage(data.error ?? "Remove failed.");
+        }
       },
     });
   }
@@ -656,14 +713,40 @@ export default function AdminTournamentEditor({
     }
   }
 
+  function currentSplitRows(): PrizeSplitRow[] {
+    if (form.prizeSplit != null) return [...form.prizeSplit];
+    if (form.prizePool) return defaultSplit(Number(form.prizePool));
+    return [];
+  }
+
   function updateSplit(i: number, field: keyof PrizeSplitRow, value: string) {
-    const next = [...prizeSplitDisplay];
+    const next = currentSplitRows();
     const row = { ...next[i] };
     if (field === "amount") row.amount = Number(value) || 0;
     else if (field === "place") row.place = Number(value) || 1;
     else row.label = value;
     next[i] = row;
     setForm((f) => ({ ...f, prizeSplit: next }));
+  }
+
+  function addSplitRow() {
+    const current = currentSplitRows();
+    const nextPlace =
+      current.length > 0 ? Math.max(...current.map((r) => r.place)) + 1 : 1;
+    setForm((f) => ({
+      ...f,
+      prizeSplit: [
+        ...current,
+        { place: nextPlace, label: `Place ${nextPlace}`, amount: 0 },
+      ],
+    }));
+  }
+
+  function removeSplitRow(index: number) {
+    const next = currentSplitRows();
+    next.splice(index, 1);
+    const renumbered = next.map((row, i) => ({ ...row, place: i + 1 }));
+    setForm((f) => ({ ...f, prizeSplit: renumbered }));
   }
 
   const editorTabs = [
@@ -865,7 +948,14 @@ export default function AdminTournamentEditor({
                   <select
                     className={inputClass}
                     value={form.game}
-                    onChange={(e) => setForm({ ...form, game: e.target.value })}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setForm({
+                        ...form,
+                        game: next,
+                        registrationFormat: SUPPORTS_FORMAT.includes(next) ? "AUCTION" : form.registrationFormat,
+                      });
+                    }}
                   >
                     <option value="VALORANT" className="bg-[#0a1020]">Valorant</option>
                     <option value="CS2" className="bg-[#0a1020]">CS2</option>
@@ -877,7 +967,7 @@ export default function AdminTournamentEditor({
 
 
 
-              {/* Registration Format — only for Valorant & CS2 */}
+              {/* Registration Format — Valorant & CS2 */}
               {SUPPORTS_FORMAT.includes(form.game) && (
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-white/40">Registration Format</label>
@@ -892,7 +982,7 @@ export default function AdminTournamentEditor({
                       }`}
                     >
                       <p className="text-sm font-semibold">Auction Draft</p>
-                      <p className="mt-0.5 text-[10px] leading-relaxed text-white/40">Captains register team name. Players register individually. Admin assigns teams.</p>
+                      <p className="mt-0.5 text-[10px] leading-relaxed text-white/40">Captains register team name + co-captain. Players join the pool. Admin assigns after auction.</p>
                     </button>
                     <button
                       type="button"
@@ -1432,9 +1522,25 @@ export default function AdminTournamentEditor({
                           />
                         </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => removeSplitRow(i)}
+                        className="shrink-0 rounded-lg border border-rose-500/20 px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-rose-300 hover:bg-rose-500/10"
+                        aria-label={`Remove place ${row.place}`}
+                      >
+                        Remove
+                      </button>
                     </div>
                   ))}
                 </div>
+
+                <button
+                  type="button"
+                  onClick={addSplitRow}
+                  className="rounded-xl border border-dashed border-white/15 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-white/55 hover:border-white/30 hover:text-white/80"
+                >
+                  + Add place
+                </button>
               </div>
             </AdminSection>
           </div>
@@ -1594,20 +1700,60 @@ export default function AdminTournamentEditor({
                       value={addRole}
                       onChange={(e) => setAddRole(e.target.value as "PLAYER" | "CAPTAIN")}
                     >
-                      <option value="PLAYER" className="bg-[#0a1020]">Player</option>
-                      <option value="CAPTAIN" className="bg-[#0a1020]">Captain (creates team)</option>
+                      {isAuctionFormat ? (
+                        <>
+                          <option value="PLAYER" className="bg-[#0a1020]">Player</option>
+                          <option value="CAPTAIN" className="bg-[#0a1020]">Captain (creates team)</option>
+                        </>
+                      ) : (
+                        <option value="CAPTAIN" className="bg-[#0a1020]">Captain (creates team)</option>
+                      )}
                     </select>
                   </div>
                   {addRole === "CAPTAIN" ? (
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-white/40">Team name</label>
-                      <input
-                        className={inputClass}
-                        value={addTeamName}
-                        onChange={(e) => setAddTeamName(e.target.value)}
-                        placeholder="Team name"
-                      />
-                    </div>
+                    <>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-white/40">Team name</label>
+                        <input
+                          className={inputClass}
+                          value={addTeamName}
+                          onChange={(e) => setAddTeamName(e.target.value)}
+                          placeholder="Team name"
+                        />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        {isStandardFormat ? (
+                          <>
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-white/40">Teammate usernames (4)</label>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              {addMemberUsernames.map((username, index) => (
+                                <input
+                                  key={index}
+                                  className={inputClass}
+                                  value={username}
+                                  onChange={(e) => {
+                                    const next = [...addMemberUsernames];
+                                    next[index] = e.target.value;
+                                    setAddMemberUsernames(next);
+                                  }}
+                                  placeholder={`Teammate ${index + 1}`}
+                                />
+                              ))}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-white/40">Co-captain username</label>
+                            <input
+                              className={inputClass}
+                              value={addCoCaptainUsername}
+                              onChange={(e) => setAddCoCaptainUsername(e.target.value)}
+                              placeholder="NTG username"
+                            />
+                          </>
+                        )}
+                      </div>
+                    </>
                   ) : null}
                 </div>
                 <button
@@ -1616,7 +1762,10 @@ export default function AdminTournamentEditor({
                   disabled={
                     addingMember ||
                     !selectedMember ||
-                    (addRole === "CAPTAIN" && !addTeamName.trim())
+                    (addRole === "CAPTAIN" &&
+                      (!addTeamName.trim() ||
+                        (isAuctionFormat && !addCoCaptainUsername.trim()) ||
+                        (isStandardFormat && !addMemberUsernames.every((u) => u.trim().length >= 2))))
                   }
                   className="rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
                 >
@@ -1664,7 +1813,7 @@ export default function AdminTournamentEditor({
                         <tr key={r.id} className="border-b border-white/[0.04]">
                           <td className="px-3 py-2 font-medium text-white/85">{r.displayName ?? "—"}</td>
                           <td className="px-3 py-2">{r.email ?? "—"}</td>
-                          <td className="px-3 py-2">{r.participantRole === "CAPTAIN" ? "Captain" : r.participantRole === "CO_CAPTAIN" ? "Co-Captain" : "Player"}</td>
+                          <td className="px-3 py-2">{formatParticipantRole(r.participantRole)}</td>
                           <td className="px-3 py-2">{r.teamName ?? "—"}</td>
                           {form.game === "CS2" ? (
                             <>
@@ -1716,13 +1865,41 @@ export default function AdminTournamentEditor({
               showsOn="Registered rosters displaying inside teams overlays"
               viewHref={cupUrl}
             >
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <p className="text-sm text-white/45">
+                  {tournamentTeams.length} team{tournamentTeams.length === 1 ? "" : "s"}
+                </p>
+                {tournamentTeams.length > 0 ? (
+                  <a
+                    href={`/api/admin/tournaments/${form.slug}/teams/export`}
+                    className="rounded-xl border border-white/15 bg-white/[0.03] px-4 py-2 text-xs font-semibold text-white/65 hover:bg-white/[0.06] hover:text-white transition-colors"
+                  >
+                    Export CSV
+                  </a>
+                ) : null}
+              </div>
               <div className="space-y-6">
-                {/* Read-only notice — teams are created automatically from captain registrations */}
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
                   <p className="text-xs text-white/50">
-                    <span className="font-semibold text-white/70">Teams are auto-created</span> when captains register.
-                    To manually assign players, use the <span className="font-semibold text-white/70">Registrations</span> tab to add a member as Captain with a team name.
+                    {isAuctionFormat ? (
+                      <>
+                        <span className="font-semibold text-white/70">Auction rosters:</span> captains register with a co-captain at signup.
+                        After the draft, assign players from the pool to each team below.
+                      </>
+                    ) : isStandardFormat ? (
+                      <>
+                        <span className="font-semibold text-white/70">Standard rosters:</span> captains register the full 5-player team at signup.
+                        All players appear under their team below.
+                      </>
+                    ) : (
+                      <>Registered teams and rosters for this cup.</>
+                    )}
                   </p>
+                  {isAuctionFormat && poolPlayers.length > 0 ? (
+                    <p className="mt-2 text-xs text-[var(--color-brand)]/80">
+                      {poolPlayers.length} unassigned player{poolPlayers.length === 1 ? "" : "s"} in the pool
+                    </p>
+                  ) : null}
                 </div>
 
                 {/* Team Lists */}
@@ -1754,36 +1931,123 @@ export default function AdminTournamentEditor({
                           </button>
                         </div>
 
-                        {/* Player lists inside team */}
+                        {/* Roster: leadership + drafted players */}
                         <ul className="space-y-1.5 min-h-[3rem]">
                           {(() => {
                             const matchingRegs = registrations.filter(
-                              (r) =>
-                                r.teamName?.toLowerCase() === team.name.toLowerCase() ||
-                                r.teamId === team.id
+                              (r) => r.teamId === team.id,
                             );
-                            if (matchingRegs.length === 0 && team.players.length === 0) {
-                              return <p className="text-xs text-white/30 italic">No players registered for this roster.</p>;
-                            }
-                            
-                            const displayPlayers = matchingRegs.length > 0 
-                              ? matchingRegs.map(r => ({
-                                  id: r.id,
-                                  name: r.displayName,
-                                  role: r.participantRole === "CO_CAPTAIN" ? "Co-Captain" : r.participantRole === "CAPTAIN" ? "Captain" : "Player"
-                                }))
-                              : team.players.map(p => ({ id: p.id, name: p.displayName, role: "Player" }));
+                            const leadership = matchingRegs.filter((r) =>
+                              ["CAPTAIN", "CO_CAPTAIN"].includes(r.participantRole),
+                            );
+                            const rosterPlayers = matchingRegs.filter((r) => r.participantRole === "PLAYER");
+                            const rosterRegistrationIds = new Set(matchingRegs.map((r) => r.id));
+                            const drafted = team.players.filter(
+                              (p) => !p.registrationId || !rosterRegistrationIds.has(p.registrationId),
+                            );
 
-                            return displayPlayers.map((p) => (
-                              <li key={p.id} className="flex items-center justify-between rounded-lg bg-white/[0.02] border border-white/[0.03] px-3 py-1.5 text-xs text-white/70">
-                                <div>
-                                  <span className="font-medium">{p.name}</span>
-                                  <span className="ml-2 text-white/40 text-[10px] uppercase">{p.role}</span>
-                                </div>
-                              </li>
-                            ));
+                            if (leadership.length === 0 && rosterPlayers.length === 0 && drafted.length === 0) {
+                              return (
+                                <p className="text-xs text-white/30 italic">
+                                  {isAuctionFormat
+                                    ? "Captain and co-captain appear here after team registration."
+                                    : "Team roster appears here after registration."}
+                                </p>
+                              );
+                            }
+
+                            return (
+                              <>
+                                {leadership.map((r) => (
+                                  <li
+                                    key={r.id}
+                                    className="flex items-center justify-between rounded-lg bg-white/[0.02] border border-white/[0.03] px-3 py-1.5 text-xs text-white/70"
+                                  >
+                                    <div>
+                                      <span className="font-medium">{r.displayName}</span>
+                                      <span className="ml-2 text-white/40 text-[10px] uppercase">
+                                        {formatParticipantRole(r.participantRole)}
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => requestRemoveRosterMember(team, r)}
+                                      className="text-[10px] text-rose-300 hover:text-rose-200"
+                                    >
+                                      Remove
+                                    </button>
+                                  </li>
+                                ))}
+                                {rosterPlayers.map((r) => (
+                                  <li
+                                    key={r.id}
+                                    className="flex items-center justify-between rounded-lg bg-white/[0.02] border border-white/[0.03] px-3 py-1.5 text-xs text-white/70"
+                                  >
+                                    <div>
+                                      <span className="font-medium">{r.displayName}</span>
+                                      <span className="ml-2 text-white/40 text-[10px] uppercase">Player</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => requestRemoveRosterMember(team, r)}
+                                      className="text-[10px] text-rose-300 hover:text-rose-200"
+                                    >
+                                      Remove
+                                    </button>
+                                  </li>
+                                ))}
+                                {drafted.map((p) => (
+                                  <li
+                                    key={p.id}
+                                    className="flex items-center justify-between rounded-lg bg-white/[0.02] border border-white/[0.03] px-3 py-1.5 text-xs text-white/70"
+                                  >
+                                    <div>
+                                      <span className="font-medium">{p.displayName}</span>
+                                      <span className="ml-2 text-white/40 text-[10px] uppercase">Drafted</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => requestRemovePlayer(team.id, p.id, p.displayName)}
+                                      className="text-[10px] text-rose-300 hover:text-rose-200"
+                                    >
+                                      Remove
+                                    </button>
+                                  </li>
+                                ))}
+                              </>
+                            );
                           })()}
                         </ul>
+
+                        {isAuctionFormat && poolPlayers.length > 0 ? (
+                          <div className="flex flex-col gap-2 border-t border-white/[0.04] pt-3 sm:flex-row">
+                            <select
+                              className={`${inputClass} flex-1`}
+                              value={poolPick[team.id] ?? ""}
+                              onChange={(e) =>
+                                setPoolPick((prev) => ({ ...prev, [team.id]: e.target.value }))
+                              }
+                            >
+                              <option value="" className="bg-[#0a1020]">
+                                Add from player pool…
+                              </option>
+                              {poolPlayers.map((p) => (
+                                <option key={p.id} value={p.id} className="bg-[#0a1020]">
+                                  {p.displayName}
+                                  {p.steamId64 ? ` · Steam` : p.riotId ? ` · ${p.riotId}` : ""}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => addPlayer(team.id)}
+                              disabled={!poolPick[team.id]?.trim()}
+                              className="shrink-0 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-50"
+                            >
+                              Add to team
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                   </div>

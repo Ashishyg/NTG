@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 const marketingLinks = [
@@ -17,13 +17,14 @@ const marketingLinks = [
 
 const platformLinks = [
   { label: "Lounge", href: "/" },
+  { label: "Roster", href: "/esports/roster" },
   { label: "Cups", href: "/esports/tournaments" },
   { label: "Leaderboards", href: "/esports/leaderboard" },
   { label: "Moments", href: "/gallery" },
 ];
 
 function isPlatformRoute(path: string) {
-  const roots = ["/esports", "/gallery", "/profile", "/admin"];
+  const roots = ["/esports", "/gallery", "/profile", "/admin", "/listings"];
   return roots.some((r) => path === r || path.startsWith(`${r}/`));
 }
 
@@ -141,14 +142,58 @@ function AuthNavAction({
   displayName: string;
   isAdmin: boolean;
 }) {
+  const pathname = usePathname();
+  const [joinOpen, setJoinOpen] = useState(false);
+  const joinRef = useRef<HTMLDivElement>(null);
+  const callbackUrl = encodeURIComponent(pathname || "/");
+
+  useEffect(() => {
+    if (!joinOpen) return;
+    function handleClick(event: MouseEvent) {
+      if (joinRef.current && !joinRef.current.contains(event.target as Node)) {
+        setJoinOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [joinOpen]);
+
   if (!signedIn) {
     return (
-      <Link
-        href="/signup"
-        className="cta rounded-full px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.16em] transition-all hover:scale-[1.03] hover:brightness-110 sm:px-5 sm:py-2.5 sm:text-[13px]"
-      >
-        Join
-      </Link>
+      <div ref={joinRef} className="relative">
+        <button
+          type="button"
+          onClick={() => setJoinOpen((open) => !open)}
+          aria-expanded={joinOpen}
+          aria-haspopup="menu"
+          className="cta rounded-full px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.16em] transition-all hover:scale-[1.03] hover:brightness-110 sm:px-5 sm:py-2.5 sm:text-[13px]"
+        >
+          SIGN IN
+        </button>
+        {joinOpen ? (
+          <div
+            role="menu"
+            className="absolute right-0 top-full z-50 mt-2 w-44 overflow-hidden rounded-xl border border-white/10 bg-[#0a1020]/95 py-1 shadow-xl backdrop-blur-md"
+          >
+            <Link
+              href={`/login?callbackUrl=${callbackUrl}`}
+              role="menuitem"
+              onClick={() => setJoinOpen(false)}
+              className="block px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white"
+            >
+              Log in
+            </Link>
+            <Link
+              href={`/signup?callbackUrl=${callbackUrl}`}
+              role="menuitem"
+              onClick={() => setJoinOpen(false)}
+              className="block px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white"
+            >
+              Sign up
+            </Link>
+          </div>
+        ) : null}
+      </div>
     );
   }
 

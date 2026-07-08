@@ -42,6 +42,7 @@ export {
 } from "./application/leaderboard-hourly-refresh.service";
 export {
   registerForTournament,
+  registerStandardTeam,
   registerFifaTeam,
   getRegistrationEligibility,
   setTournamentPlacements,
@@ -66,6 +67,7 @@ export {
   listUnassignedPlayerRegistrations,
   listSeasonsAdmin,
   buildRegistrationsCsv,
+  buildTeamsCsv,
   parsePrizeSplit,
   defaultPrizeSplit,
   syncRegistrationStatus,

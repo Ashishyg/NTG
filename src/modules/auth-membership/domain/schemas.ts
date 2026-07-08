@@ -118,6 +118,14 @@ export const fifaRegisterSchema = z.object({
   ...registrationTermsField,
 });
 
+export const standardTournamentRegisterSchema = z.object({
+  teamName: sanitizedString.pipe(z.string().min(2).max(48)),
+  memberUsernames: z.array(usernameSchema).length(4, "Enter exactly 4 teammate usernames."),
+  valorantRoles: valorantRolesSchema.optional(),
+  cs2PeakPremierRank: cs2PremierRankSchema.optional(),
+  ...registrationTermsField,
+});
+
 export const profileAccountPatchSchema = z.object({
   dateOfBirth: z
     .string()
@@ -131,7 +139,7 @@ export const tournamentRegisterSchema = z.discriminatedUnion("participantRole", 
   z.object({
     participantRole: z.literal("CAPTAIN"),
     teamName: z.string().trim().min(2).max(48),
-    logoUrl: z.string().trim().url(),
+    coCaptainUsername: z.string().trim().min(2).max(48),
     valorantRoles: valorantRolesSchema.optional(),
     cs2PeakPremierRank: cs2PremierRankSchema.optional(),
     coCaptainUsernames: z.array(z.string().trim()).max(4).optional(),

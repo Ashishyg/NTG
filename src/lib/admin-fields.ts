@@ -31,7 +31,7 @@ export function prizeSplitForSave(
   if (!prizePool || !Number(prizePool)) return null;
 
   const total = Number(prizePool);
-  const source = prizeSplit?.length ? prizeSplit : defaultSplit(total);
+  const source = prizeSplit != null ? prizeSplit : defaultSplit(total);
   const rows = source
     .filter(
       (row) =>

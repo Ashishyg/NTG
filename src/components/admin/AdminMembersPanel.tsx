@@ -1,9 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatDateOfBirthDisplay } from "@/lib/date-age";
 import { useAdminDeleteConfirm } from "@/components/admin/useAdminDeleteConfirm";
+import { VALORANT_ROLE_LABELS } from "@/modules/auth-membership/domain/game-profile";
+import type { ValorantRole } from "@prisma/client";
 
 type Member = {
   id: string;
@@ -19,7 +21,27 @@ type Member = {
   steamPersonaName: string | null;
   displayName: string | null;
   signupCompleted: boolean;
+  playedGames?: string[];
+  valorantRoles?: ValorantRole[];
+  cs2FaceitRank?: string | null;
+  cs2PeakPremierRank?: string | null;
+  cs2HoursPlayed?: number | null;
+  valorantRankTier?: string | null;
+  valorantRankMmr?: number | null;
+  valorantRankTierId?: number | null;
+  cs2RankTier?: string | null;
+  cs2RankTierId?: number | null;
 };
+
+function formatValorantRoles(roles: ValorantRole[] | undefined): string {
+  if (!roles?.length) return "—";
+  return roles.map((r) => VALORANT_ROLE_LABELS[r] ?? r).join(", ");
+}
+
+function formatCs2Rank(value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : "NA";
+}
 
 const inputClass =
   "w-full rounded-xl border border-white/10 bg-[#0a1020]/60 px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-amber-500/30 focus:ring-1 focus:ring-amber-500/30 transition-all duration-200";
@@ -44,6 +66,12 @@ export default function AdminMembersPanel({
   const [createForm, setCreateForm] = useState({ email: "", password: "", displayName: "" });
   const [message, setMessage] = useState<string | null>(null);
   const [syncingRank, setSyncingRank] = useState(false);
+
+  useEffect(() => {
+    if (!selected) return;
+    const fresh = initialMembers.find((m) => m.id === selected.id);
+    if (fresh) setSelected(fresh);
+  }, [initialMembers, selected?.id]);
 
   const filtered = initialMembers.filter((m) => {
     const q = search.toLowerCase();
@@ -370,6 +398,73 @@ export default function AdminMembersPanel({
                     </div>
                   ) : null}
                 </dl>
+              </div>
+
+              {/* Game profile (read-only) */}
+              <div className="space-y-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-white/40">Game profile</p>
+
+                <div className="space-y-2 rounded-lg border border-cyan-500/15 bg-cyan-500/[0.03] p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-300/80">Valorant</p>
+                  <dl className="grid gap-2 text-xs">
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-white/40">Riot ID</dt>
+                      <dd className="text-white/75 text-right truncate max-w-[58%]">
+                        {selected.riotId ?? "—"}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-white/40">Roles</dt>
+                      <dd className="text-white/75 text-right max-w-[58%]">
+                        {formatValorantRoles(selected.valorantRoles)}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-white/40">Current rank</dt>
+                      <dd className="text-white/75 text-right">
+                        {selected.valorantRankTier ?? "—"}
+                      </dd>
+                    </div>
+                    {selected.valorantRankMmr != null ? (
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-white/40">MMR</dt>
+                        <dd className="text-white/75">{Math.round(selected.valorantRankMmr)}</dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                </div>
+
+                <div className="space-y-2 rounded-lg border border-amber-500/15 bg-amber-500/[0.03] p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-300/80">Counter-Strike 2</p>
+                  <dl className="grid gap-2 text-xs">
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-white/40">Steam</dt>
+                      <dd className="text-white/75 text-right truncate max-w-[58%]">
+                        {selected.steamPersonaName ?? selected.steamId64 ?? "—"}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-white/40">FACEIT rank</dt>
+                      <dd className="text-white/75">{formatCs2Rank(selected.cs2FaceitRank)}</dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-white/40">Peak Premier</dt>
+                      <dd className="text-white/75">{formatCs2Rank(selected.cs2PeakPremierRank)}</dd>
+                    </div>
+                    {selected.cs2HoursPlayed != null ? (
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-white/40">Hours played</dt>
+                        <dd className="text-white/75">{Math.round(selected.cs2HoursPlayed)}</dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                </div>
+
+                {selected.playedGames?.length ? (
+                  <p className="text-[10px] text-white/35">
+                    Games on profile: {selected.playedGames.join(", ")}
+                  </p>
+                ) : null}
               </div>
 
               {/* Action 1: Role Change */}

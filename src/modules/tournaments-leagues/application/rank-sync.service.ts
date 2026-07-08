@@ -11,6 +11,7 @@ import {
   type HenrikActSeasonStats,
 } from "@/lib/valorant-act";
 import { GameSlug, LeaderboardScope, LeaderboardSyncSource, Prisma } from "@prisma/client";
+import { syncValorantRankSnapshots } from "@auth-membership/application/game-profile.service";
 
 export const UNRANKED_TIER_ID = 0;
 export const UNRANKED_TIER_NAME = "Unranked";
@@ -624,6 +625,7 @@ export async function syncUserRank(
       }).catch(() => {});
     }
 
+    await syncValorantRankSnapshots(userId).catch(() => {});
     return { ok: true };
   }
 
@@ -668,6 +670,7 @@ export async function syncUserRank(
     }).catch(() => {});
   }
 
+  await syncValorantRankSnapshots(userId).catch(() => {});
   return { ok: true };
 }
 

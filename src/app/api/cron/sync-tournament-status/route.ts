@@ -1,6 +1,7 @@
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { serverEnv } from "@core/config/env.server";
 import { syncRegistrationStatus } from "@tournaments-leagues/index";
+import { syncTryoutListingStatus } from "@roster-listings/index";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -19,8 +20,11 @@ export async function GET(req: Request) {
   }
 
   try {
-    const result = await syncRegistrationStatus();
-    return NextResponse.json({ ok: true, ...result });
+    const [tournaments, tryouts] = await Promise.all([
+      syncRegistrationStatus(),
+      syncTryoutListingStatus(),
+    ]);
+    return NextResponse.json({ ok: true, ...tournaments, tryoutsUpdated: tryouts.updated });
   } catch {
     return NextResponse.json({ error: "Sync failed." }, { status: 500 });
   }

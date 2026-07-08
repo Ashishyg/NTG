@@ -1,6 +1,9 @@
-import { whatsappInquiryUrl } from "@/lib/env";
+import Link from "next/link";
 import { getActiveAuction } from "@tournaments-leagues/index";
 import AuctionLiveButton from "@/components/AuctionLiveButton";
+
+const heroCtaBase =
+  "inline-flex h-10 w-full cursor-pointer select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 text-[10px] font-semibold uppercase tracking-[0.12em] transition-all hover:scale-[1.03] active:scale-[0.98] sm:h-12 sm:gap-2 sm:px-5 sm:text-sm sm:tracking-[0.18em]";
 
 export default async function Hero() {
   const activeAuction = await getActiveAuction();
@@ -44,37 +47,48 @@ export default async function Hero() {
         </h1>
 
         <div className="relative top-10 flex flex-col items-center">
-          <p className="max-w-xl text-balance text-base leading-relaxed text-white/55 sm:text-lg translate-x-2.5">
+          <p className="max-w-xl text-balance text-base leading-relaxed text-white/55 sm:text-lg">
             Mangaluru&apos;s premier esports lounge. Premium hardware, electric
             atmosphere, engineered for the players who set the standard.
           </p>
 
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-            <a
-              href={whatsappInquiryUrl()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="cta group relative inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold uppercase tracking-[0.18em] transition-all hover:scale-[1.03] hover:brightness-110"
+          <div className="mt-10 grid w-full max-w-[19rem] grid-cols-2 gap-2 sm:max-w-md sm:gap-3">
+            <Link
+              href="/listings"
+              className={`cta group relative ${heroCtaBase} hover:brightness-110`}
             >
-              Inquire Now
+              <span>Opportunities</span>
               <svg
                 viewBox="0 0 24 24"
-                className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                className="h-3 w-3 shrink-0 transition-transform group-hover:translate-x-0.5 sm:h-4 sm:w-4"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                aria-hidden
               >
                 <path d="M5 12h14M13 5l7 7-7 7" />
               </svg>
-            </a>
-            <a
-              href="#games"
-              className="glass rounded-full px-7 py-3.5 text-sm font-medium uppercase tracking-[0.18em] text-white/85 transition-colors hover:text-white"
+            </Link>
+            <Link
+              href="/esports/tournaments"
+              className={`glass group ${heroCtaBase} border border-white/15 text-white/90 hover:border-cyan-400/35 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_0_32px_-10px_rgba(34,211,238,0.4)]`}
             >
-              Explore Games
-            </a>
+              <span>Tournaments</span>
+              <svg
+                viewBox="0 0 24 24"
+                className="h-3 w-3 shrink-0 text-white/70 transition-transform group-hover:translate-x-0.5 group-hover:text-white sm:h-4 sm:w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M5 12h14M13 5l7 7-7 7" />
+              </svg>
+            </Link>
           </div>
 
           {activeAuction && (

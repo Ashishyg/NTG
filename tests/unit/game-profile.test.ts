@@ -46,12 +46,12 @@ describe("CS2 rank normalization", () => {
 
 describe("validateCs2RanksForRegistration", () => {
   it("requires both ranks set", () => {
-    expect(validateCs2RanksForRegistration(null, "#15000")).toMatch(/Faceit/i);
-    expect(validateCs2RanksForRegistration("Level 5", null)).toMatch(/Premier/i);
+    expect(validateCs2RanksForRegistration(null, "#15000")).toMatch(/Faceit and Premier/i);
+    expect(validateCs2RanksForRegistration("Level 5", null)).toMatch(/Faceit and Premier/i);
   });
 
-  it("rejects both NA", () => {
-    expect(validateCs2RanksForRegistration("NA", "NA")).toMatch(/at least one real/i);
+  it("accepts both NA", () => {
+    expect(validateCs2RanksForRegistration("NA", "NA")).toBeNull();
   });
 
   it("accepts one real rank and one NA", () => {
