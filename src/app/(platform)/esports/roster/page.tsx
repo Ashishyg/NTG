@@ -22,7 +22,7 @@ export default async function RosterPage() {
   ]);
 
   return (
-    <div className="w-full pb-24 pt-8">
+    <div className="mx-auto max-w-6xl px-4 pb-24 pt-8 sm:px-6">
       <PlatformHeader
         eyebrow="NTG Esports"
         title="Official Roster"

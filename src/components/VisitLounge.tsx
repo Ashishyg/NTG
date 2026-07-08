@@ -35,7 +35,7 @@ const contacts = [
 
 export default function VisitLounge() {
   return (
-    <section id="visit" className="relative mx-auto w-full max-w-[var(--container)] scroll-mt-28 px-[clamp(1.25rem,_3vw,_4rem)] py-24 sm:py-32">
+    <section id="visit" className="relative mx-auto w-full max-w-7xl scroll-mt-28 px-5 py-24 sm:py-32">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -65,7 +65,7 @@ export default function VisitLounge() {
             <h3 className="font-display text-3xl font-semibold tracking-[-0.01em] text-white sm:text-4xl">
               {brand.name}.
             </h3>
-            <p className="mt-3 max-w-sm text-white/55" style={{ fontSize: "16px" }}>
+            <p className="mt-3 max-w-sm text-white/55">
               {brand.tagline}. Drop by, plug up, play your sharpest. Just crash the lounge, gather your squad, and get playing.
             </p>
 
@@ -109,7 +109,7 @@ export default function VisitLounge() {
             • Lighter filter chain on mobile, fuller chain on desktop
             • No backdrop-blur or animate-ping below `md` (GPU-cheap)
           */}
-          <div className="group relative overflow-hidden rounded-3xl border border-[var(--color-brand)]/25 bg-[#060a14] [contain:layout_paint] [content-visibility:auto] md:shadow-[0_0_40px_rgba(94,234,212,0.08),inset_0_0_60px_rgba(124,58,237,0.05)]" style={{ minHeight: "clamp(17.5rem, 28vw, 36.25rem)" }} >
+          <div className="group relative min-h-[280px] overflow-hidden rounded-3xl border border-[var(--color-brand)]/25 bg-[#060a14] [contain:layout_paint] [content-visibility:auto] md:min-h-[340px] md:shadow-[0_0_40px_rgba(94,234,212,0.08),inset_0_0_60px_rgba(124,58,237,0.05)]">
             <LazyMap
               title={`Map · ${brand.name}`}
               src={mapsEmbedFor(brand.coords)}

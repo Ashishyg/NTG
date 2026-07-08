@@ -12,7 +12,7 @@ const letters = [
 
 export default function NtgStandard() {
   return (
-    <section id="about" className="relative mx-auto w-full max-w-[var(--container)] scroll-mt-28 px-[clamp(1.25rem,_3vw,_4rem)] py-24 sm:py-32">
+    <section id="about" className="relative mx-auto w-full max-w-6xl scroll-mt-28 px-5 py-24 sm:py-32">
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute right-0 top-1/3 h-[42vh] w-[42vh] rounded-full bg-[radial-gradient(circle,rgba(168,85,247,0.16),transparent_65%)] blur-3xl" />
         <div className="absolute left-0 bottom-1/4 h-[36vh] w-[36vh] rounded-full bg-[radial-gradient(circle,rgba(34,211,238,0.12),transparent_65%)] blur-3xl" />
@@ -78,7 +78,6 @@ export default function NtgStandard() {
             viewport={{ once: true, margin: "-60px" }}
             transition={{ duration: 0.55, delay: 0.35 }}
             className="mt-10 max-w-md text-base leading-relaxed text-white/60"
-            style={{ fontSize: "16px" }}
           >
             Born in the Tulunad heartland of coastal Karnataka.
             NTG is a love letter from{" "}
