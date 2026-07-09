@@ -88,6 +88,7 @@ type TournamentData = {
   hideAfter: string | null;
   bracketUrl: string | null;
   rulebookUrl: string | null;
+  publicAuction?: boolean;
   tournamentTeams: Team[];
   registrations: RegistrationRow[];
   poolPlayers: PoolPlayer[];
@@ -121,7 +122,6 @@ const checkboxLabelClass =
 
 const SUPPORTS_FORMAT = ["VALORANT", "CS2"];
 
-/** Default Valorant rank → auction points (mirrors the auction app's DEFAULT_RANK_TABLES). */
 const DEFAULT_VALORANT_RANK_POINTS: { rank: string; floor: number }[] = [
   { rank: "Immortal", floor: 12 },
   { rank: "Ascendant", floor: 10 },
@@ -131,7 +131,6 @@ const DEFAULT_VALORANT_RANK_POINTS: { rank: string; floor: number }[] = [
   { rank: "Silver", floor: 2 },
   { rank: "Bronze", floor: 1 },
   { rank: "Iron", floor: 1 },
-  { rank: "Unranked", floor: 1 },
 ];
 
 /** Tier accent dots for the rank-points editor. */
@@ -189,6 +188,7 @@ function getSavePayload(form: TournamentData) {
     teamsPerGroup: form.teamsPerGroup,
     advancePerGroup: form.advancePerGroup,
     rankPoints: form.rankPoints,
+    publicAuction: form.publicAuction ?? false,
   };
 }
 
@@ -212,9 +212,11 @@ async function readJsonResponse(res: Response): Promise<Record<string, unknown>>
 export default function AdminTournamentEditor({
   initial,
   seasons,
+  auctionHref,
 }: {
   initial: TournamentData;
   seasons: { id: string; label: string }[];
+  auctionHref?: string | null;
 }) {
   const router = useRouter();
   const { openDeleteConfirm, DeleteConfirmDialog } = useAdminDeleteConfirm();
@@ -1376,6 +1378,56 @@ export default function AdminTournamentEditor({
                     {loading ? "Sending..." : "Create / Reset Auction"}
                   </button>
                 </div>
+
+                {/* Public Auction Visibility Toggle */}
+                <div className="border-t border-white/[0.04] pt-4 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-semibold text-white/80">Public Auction Visibility</h4>
+                    <p className="text-[10px] text-white/40 mt-0.5">
+                      When enabled, the "Enter Auction" button becomes visible to all registered users on the tournament details page.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextVal = !form.publicAuction;
+                      setForm({ ...form, publicAuction: nextVal });
+                      // Save immediately when toggled
+                      fetch(`/api/admin/tournaments/${form.slug}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ publicAuction: nextVal }),
+                      });
+                    }}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      form.publicAuction ? "bg-cyan-500" : "bg-white/[0.12]"
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        form.publicAuction ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Direct Link to Auction Site */}
+                {auctionHref && (
+                  <div className="border-t border-white/[0.04] pt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                      <h4 className="text-xs font-semibold text-white/80">Direct Link to Auction Site</h4>
+                      <p className="text-[10px] text-white/40 mt-0.5">Open the external auction interface to manage live bidding, teams, and drafts.</p>
+                    </div>
+                    <a
+                      href={auctionHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex rounded-full border border-cyan-500/30 bg-cyan-500/10 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200 transition-colors hover:bg-cyan-500/20"
+                    >
+                      Go to Auction Site →
+                    </a>
+                  </div>
+                )}
               </div>
             </AdminSection>
           </div>

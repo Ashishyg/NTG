@@ -18,6 +18,8 @@ type Props = {
   isLoggedIn: boolean;
   registrationPreview?: RegistrationPreview | null;
   registrationProfileCard?: ValorantRegistrationProfileCard | null;
+  auctionHref?: string | null;
+  auctionEnded?: boolean;
 };
 
 export default function TournamentDetailView({
@@ -26,6 +28,8 @@ export default function TournamentDetailView({
   isLoggedIn,
   registrationPreview,
   registrationProfileCard,
+  auctionHref,
+  auctionEnded,
 }: Props) {
   const meta = gameMetaFor(tournament.game);
   const dateStr = tournament.startsAt
@@ -161,6 +165,29 @@ export default function TournamentDetailView({
 
         <aside className="order-2 space-y-8 lg:col-start-2 lg:row-start-1 lg:row-span-2">
           <TournamentScheduleCard schedule={scheduleCard} />
+
+          {auctionHref ? (
+            <div className="group relative overflow-hidden rounded-[1.25rem] p-[1px] transition-all duration-300 hover:shadow-[0_0_30px_rgba(6,182,212,0.35)] shadow-xl">
+              {/* Outer cyan-indigo-purple gradient glowing background */}
+              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 via-indigo-500 to-purple-600 opacity-90 transition-all duration-300 group-hover:opacity-100" />
+              
+              <a
+                href={auctionHref}
+                className="relative block w-full rounded-[19px] bg-[#0c0c0e]/95 px-6 py-4.5 text-center text-xs font-bold uppercase tracking-[0.25em] text-white transition-all duration-300 group-hover:bg-[#0c0c0e]/75"
+              >
+                <span className="relative z-10 flex items-center justify-center gap-2.5">
+                  <span className="h-2 w-2 rounded-full bg-cyan-400" />
+                  Enter Live Auction
+                </span>
+              </a>
+            </div>
+          ) : auctionEnded ? (
+            <div className="rounded-[1.25rem] border border-white/[0.06] bg-[#0c0c0e]/40 p-4 text-center">
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">
+                Auction Ended
+              </span>
+            </div>
+          ) : null}
 
           {(tournament.prizePool || tournament.prizeNotes) && (
               <div className="rounded-[1.5rem] border border-white/[0.08] bg-[#0A0A0A]/80 p-8 shadow-2xl backdrop-blur-xl">

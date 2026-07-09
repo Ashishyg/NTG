@@ -9,6 +9,9 @@ import {
 import { serverEnv } from "@core/config/env.server";
 import { displayCs2Ranks, displayValorantRegistration } from "@auth-membership/domain/game-profile";
 import type { PrizeSplitRow } from "@core/contracts";
+import { prisma } from "@core/database/client";
+import { getSession } from "@core/auth/session";
+import { auctionLink } from "@/lib/auction-link";
 
 export const metadata = { title: "Edit Cup" };
 
@@ -23,10 +26,17 @@ export default async function AdminTournamentEditPage({ params }: Props) {
   if (!serverEnv.databaseUrl) notFound();
 
   const { slug } = await params;
-  const [t, poolPlayers, seasons] = await Promise.all([
+  const session = await getSession();
+  const userId = session?.user?.id;
+
+  const [t, poolPlayers, seasons, [row]] = await Promise.all([
     getTournamentAdmin(slug),
     listUnassignedPlayerRegistrations(slug),
     listSeasonsAdmin(),
+    prisma.$queryRawUnsafe<{ publicAuction: boolean }[]>(
+      'SELECT "publicAuction" FROM "Tournament" WHERE slug = $1 LIMIT 1',
+      slug
+    ),
   ]);
   if (!t) notFound();
 
@@ -62,6 +72,7 @@ export default async function AdminTournamentEditPage({ params }: Props) {
     groupCount: t.groupCount,
     teamsPerGroup: t.teamsPerGroup,
     advancePerGroup: t.advancePerGroup,
+    publicAuction: row?.publicAuction ?? false,
     rankPoints: (t.rankPoints as { rank: string; floor: number }[] | null) ?? null,
     bracketUrl: t.bracketUrl,
     rulebookUrl: t.rulebookUrl,
@@ -135,7 +146,11 @@ export default async function AdminTournamentEditPage({ params }: Props) {
     })),
   };
 
+  const auctionHref = userId && t.registrationFormat === "AUCTION" && serverEnv.auctionUrl && serverEnv.auctionJwtSecret
+    ? auctionLink(t.id, "auctioneer", userId)
+    : null;
+
   return (
-    <AdminTournamentEditor initial={initial} seasons={seasons} />
+    <AdminTournamentEditor initial={initial} seasons={seasons} auctionHref={auctionHref} />
   );
 }

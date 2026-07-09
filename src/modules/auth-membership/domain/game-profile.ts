@@ -91,9 +91,16 @@ export function displayValorantRegistration(
     : [];
   const roles = profile?.valorantRoles?.length ? profile.valorantRoles : snapshotRoles;
 
+  // Prefer the live rank when the player is actually ranked; otherwise fall back to the
+  // snapshot, which already holds their peak (or last-known) rank.
+  const liveRanked =
+    (leaderboard?.rankTierId ?? 0) > 0 &&
+    !!leaderboard?.rankTier &&
+    leaderboard.rankTier.trim().toLowerCase() !== "unranked";
+
   return {
     valorantRoles: formatValorantRolesList(roles),
-    rankTier: leaderboard?.rankTier ?? snapshot?.rankTier ?? null,
+    rankTier: liveRanked ? leaderboard!.rankTier : snapshot?.rankTier ?? leaderboard?.rankTier ?? null,
   };
 }
 

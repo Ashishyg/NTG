@@ -13,7 +13,9 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ slug: string }> };
+import { prisma } from "@core/database/client";
+
+export type Props = { params: Promise<{ slug: string }> };
 
 export async function GET(_req: Request, { params }: Props) {
   if (!serverEnv.databaseUrl) {
@@ -28,6 +30,12 @@ export async function GET(_req: Request, { params }: Props) {
   if (!tournament) {
     return NextResponse.json({ error: "Tournament not found." }, { status: 404 });
   }
+
+  const [row] = await prisma.$queryRawUnsafe<{ publicAuction: boolean }[]>(
+    'SELECT "publicAuction" FROM "Tournament" WHERE slug = $1 LIMIT 1',
+    slug
+  );
+  (tournament as any).publicAuction = row?.publicAuction ?? false;
 
   return NextResponse.json({ tournament });
 }
@@ -97,6 +105,16 @@ export async function PATCH(req: Request, { params }: Props) {
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 400 });
+  }
+
+  if (body.publicAuction !== undefined) {
+    const isPublic = !!body.publicAuction;
+    await prisma.$executeRawUnsafe(
+      'UPDATE "Tournament" SET "publicAuction" = $1 WHERE slug = $2',
+      isPublic,
+      slug
+    );
+    (result.tournament as any).publicAuction = isPublic;
   }
 
   await logAdminAction(auth.userId, "tournament.update", slug, {

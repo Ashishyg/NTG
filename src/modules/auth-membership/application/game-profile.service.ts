@@ -189,26 +189,58 @@ async function syncValorantRoleSnapshots(userId: string): Promise<void> {
   });
 }
 
-/** Push synced Valorant rank from leaderboard into open registrations. */
-export async function syncValorantRankSnapshots(userId: string): Promise<void> {
+type ValorantRankPair = { tier: string | null; tierId: number | null };
+
+/** Current rank when the player is actually ranked this act, otherwise their peak. */
+export function effectiveValorantRank(
+  current: ValorantRankPair,
+  peak: ValorantRankPair,
+): ValorantRankPair {
+  const isRanked =
+    current.tierId != null &&
+    current.tierId > 0 &&
+    !!current.tier &&
+    current.tier.trim().toLowerCase() !== "unranked";
+  return isRanked ? current : peak;
+}
+
+/**
+ * Push the player's latest Valorant rank into their registrations/applications so
+ * the admin table (and the auction app, which reads snapshotRankTier) stay live.
+ * When the player is unranked this act, we keep their peak rank instead of "Unranked".
+ */
+export async function syncValorantRankSnapshots(
+  userId: string,
+  peak?: ValorantRankPair,
+): Promise<void> {
   const entry = await prisma.leaderboardEntry.findFirst({
     where: { userId, game: "VALORANT", scope: "TOWN" },
     orderBy: { updatedAt: "desc" },
   });
 
+  const current: ValorantRankPair = {
+    tier: entry?.rankTier ?? null,
+    tierId: entry?.rankTierId ?? null,
+  };
+  const peakPair: ValorantRankPair = peak ?? { tier: null, tierId: null };
+  const effective = effectiveValorantRank(current, peakPair);
+
   await prisma.tournamentRegistration.updateMany({
     where: { userId, tournament: { game: "VALORANT" } },
     data: {
-      snapshotRankTier: entry?.rankTier ?? null,
-      snapshotRankTierId: entry?.rankTierId ?? null,
+      snapshotRankTier: current.tier,
+      snapshotRankTierId: current.tierId,
+      ...(peak
+        ? { snapshotPeakRankTier: peak.tier, snapshotPeakRankTierId: peak.tierId }
+        : {}),
     },
   });
 
   await prisma.listingApplication.updateMany({
     where: { userId, listing: { gameKey: "valorant" } },
     data: {
-      snapshotRankTier: entry?.rankTier ?? null,
-      snapshotRankTierId: entry?.rankTierId ?? null,
+      snapshotRankTier: current.tier,
+      snapshotRankTierId: current.tierId,
     },
   });
 }

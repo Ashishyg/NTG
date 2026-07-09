@@ -625,7 +625,10 @@ export async function syncUserRank(
       }).catch(() => {});
     }
 
-    await syncValorantRankSnapshots(userId).catch(() => {});
+    await syncValorantRankSnapshots(userId, {
+    tier: v2Bundle?.lifetime.peakRankTier ?? null,
+    tierId: v2Bundle?.lifetime.peakRankTierId ?? null,
+  }).catch(() => {});
     return { ok: true };
   }
 
@@ -670,7 +673,10 @@ export async function syncUserRank(
     }).catch(() => {});
   }
 
-  await syncValorantRankSnapshots(userId).catch(() => {});
+  await syncValorantRankSnapshots(userId, {
+    tier: v2Bundle?.lifetime.peakRankTier ?? null,
+    tierId: v2Bundle?.lifetime.peakRankTierId ?? null,
+  }).catch(() => {});
   return { ok: true };
 }
 

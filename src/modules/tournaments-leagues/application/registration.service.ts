@@ -12,7 +12,7 @@ import {
   normalizeCs2PeakPremierRank,
   normalizeCs2FaceitRank,
 } from "@auth-membership/application/registration-helpers";
-import { ensureCs2RankDefaults } from "@auth-membership/application/game-profile.service";
+import { ensureCs2RankDefaults, effectiveValorantRank } from "@auth-membership/application/game-profile.service";
 import { isTournamentRegistrationLive } from "../domain/registration-window";
 import { syncUserRank, fetchHenrikV2MmrBundle } from "./rank-sync.service";
 import { logUserActivity } from "@/lib/user-audit";
