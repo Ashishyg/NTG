@@ -17,10 +17,21 @@ type Props = {
   mode: "login";
 };
 
+function resolveCallbackUrl(raw: string | null): string {
+  if (!raw) return "/";
+  try {
+    const decoded = decodeURIComponent(raw);
+    if (decoded.startsWith("/") && !decoded.startsWith("//")) return decoded;
+  } catch {
+    // ignore malformed callback URLs
+  }
+  return "/";
+}
+
 export default function AuthForm({ mode }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/profile";
+  const callbackUrl = resolveCallbackUrl(searchParams.get("callbackUrl"));
   const justRegistered = searchParams.get("registered") === "1";
   
   const [email, setEmail] = useState("");
@@ -82,7 +93,7 @@ export default function AuthForm({ mode }: Props) {
         return;
       }
 
-      router.push(callbackUrl);
+      router.replace(callbackUrl);
       router.refresh();
     } catch {
       setError("Something went wrong. Please try again.");

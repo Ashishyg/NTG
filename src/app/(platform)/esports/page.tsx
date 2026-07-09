@@ -179,10 +179,10 @@ export default async function EsportsHubPage() {
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-3">
-              <Link href="/login" className="rounded-full bg-white px-5 py-3 text-xs font-bold uppercase tracking-wider text-black transition-transform hover:scale-[1.03] active:scale-[0.98]">
+              <Link href="/login?callbackUrl=%2Fesports" className="rounded-full bg-white px-5 py-3 text-xs font-bold uppercase tracking-wider text-black transition-transform hover:scale-[1.03] active:scale-[0.98]">
                 Sign In
               </Link>
-              <Link href="/signup" className="rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-xs font-bold uppercase tracking-wider text-white transition-all hover:bg-white/10 hover:border-white/20 active:scale-[0.98]">
+              <Link href="/signup?callbackUrl=%2Fesports" className="rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-xs font-bold uppercase tracking-wider text-white transition-all hover:bg-white/10 hover:border-white/20 active:scale-[0.98]">
                 Create Account
               </Link>
             </div>

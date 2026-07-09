@@ -537,11 +537,6 @@ function NavbarContent() {
       .catch(() => setIsAdmin(false));
   }, [status, session?.user?.id]);
 
-  if (pathname && isAuthRoute(pathname)) return null;
-
-  const signedIn = status === "authenticated" && session?.user;
-  const platform = isPlatformRoute(pathname);
-  const logoHref = platform ? "/esports" : "/";
   const [qaEnabled, setQaEnabled] = useState(false);
 
   useEffect(() => {
@@ -555,6 +550,12 @@ function NavbarContent() {
     window.addEventListener("focus", loadQaStatus);
     return () => window.removeEventListener("focus", loadQaStatus);
   }, [pathname]);
+
+  if (pathname && isAuthRoute(pathname)) return null;
+
+  const signedIn = status === "authenticated" && session?.user;
+  const platform = isPlatformRoute(pathname);
+  const logoHref = platform ? "/esports" : "/";
 
   const links: NavLinkItem[] = platform
     ? platformLinksBase
