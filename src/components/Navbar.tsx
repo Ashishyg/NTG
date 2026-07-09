@@ -7,7 +7,7 @@ import { signOut, useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-const marketingLinks = [
+const marketingLinksBase = [
   { label: "Arena", href: "/#arena" },
   { label: "Games", href: "/#games" },
   { label: "Trophies", href: "/#vault" },
@@ -15,12 +15,23 @@ const marketingLinks = [
   { label: "Visit", href: "/#visit" },
 ];
 
-const platformLinks = [
+const qaNavLink = {
+  label: "Q&A",
+  href: "/qa",
+  badge: "TIME LIMITED",
+} as const;
+
+type NavLinkItem = {
+  label: string;
+  href: string;
+  badge?: string;
+};
+
+const platformLinksBase = [
   { label: "Lounge", href: "/" },
   { label: "Roster", href: "/esports/roster" },
   { label: "Cups", href: "/esports/tournaments" },
   { label: "Leaderboards", href: "/esports/leaderboard" },
-  { label: "Moments", href: "/gallery" },
 ];
 
 function isPlatformRoute(path: string) {
@@ -33,11 +44,13 @@ function NavLink({
   label,
   active,
   external,
+  badge,
 }: {
   href: string;
   label: string;
   active?: boolean;
   external?: boolean;
+  badge?: string;
 }) {
   const pathname = usePathname();
   const isEsports = label.toLowerCase() === "esports";
@@ -87,12 +100,19 @@ function NavLink({
     </svg>
   );
 
+  const badgeEl = badge ? (
+    <span className="ml-1.5 rounded-full border border-amber-500/35 bg-amber-500/15 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.14em] text-amber-200/95">
+      {badge}
+    </span>
+  ) : null;
+
   if (external) {
     return (
       <a href={href} className={className} onClick={handleClick}>
         <span className={containerSpanClass}>
           {loungeIcon}
           <span className={textSpanClass || undefined}>{label}</span>
+          {badgeEl}
         </span>
         {underline}
       </a>
@@ -104,6 +124,7 @@ function NavLink({
       <span className={containerSpanClass}>
         {loungeIcon}
         <span className={textSpanClass || undefined}>{label}</span>
+        {badgeEl}
       </span>
       {underline}
     </Link>
@@ -133,6 +154,21 @@ function LogOutIcon({ className }: { className?: string }) {
   );
 }
 
+function UserAvatarIcon() {
+  return (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#141820] ring-2 ring-white/15 transition-all group-hover:ring-white/30 group-hover:scale-105">
+      <svg
+        className="h-[1.35rem] w-[1.35rem] text-white/65"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        aria-hidden
+      >
+        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+      </svg>
+    </span>
+  );
+}
+
 function AuthNavAction({
   signedIn,
   displayName,
@@ -143,20 +179,25 @@ function AuthNavAction({
   isAdmin: boolean;
 }) {
   const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const joinRef = useRef<HTMLDivElement>(null);
   const callbackUrl = encodeURIComponent(pathname || "/");
 
   useEffect(() => {
-    if (!joinOpen) return;
+    if (!menuOpen && !joinOpen) return;
     function handleClick(event: MouseEvent) {
-      if (joinRef.current && !joinRef.current.contains(event.target as Node)) {
+      if (menuOpen && menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+      if (joinOpen && joinRef.current && !joinRef.current.contains(event.target as Node)) {
         setJoinOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, [joinOpen]);
+  }, [menuOpen, joinOpen]);
 
   if (!signedIn) {
     return (
@@ -212,26 +253,66 @@ function AuthNavAction({
           </svg>
         </Link>
       ) : null}
-      <div className="site-nav-mobile-btn flex h-10 shrink-0 items-center gap-0.5 rounded-full border border-white/10 bg-white/[0.04] py-0 pl-2.5 pr-0.5 sm:pl-3.5">
-        <Link
-          href="/profile"
-          className={`truncate text-[12px] font-medium leading-none tracking-[0.02em] text-white/85 transition-colors hover:text-white sm:text-[13px] ${
-            isAdmin ? "max-w-[4.25rem] sm:max-w-[140px]" : "max-w-[5.5rem] sm:max-w-[140px]"
-          }`}
-          title={displayName}
-        >
-          {displayName}
-        </Link>
+      <div ref={menuRef} className="relative">
         <button
           type="button"
-          onClick={() => signOut({ callbackUrl: "/" })}
-          aria-label="Sign out"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/40 transition-colors hover:bg-red-500/10 hover:text-red-300"
+          onClick={() => setMenuOpen((open) => !open)}
+          aria-expanded={menuOpen}
+          aria-haspopup="menu"
+          aria-label={`Account menu for ${displayName}`}
+          title={displayName}
+          className="group site-nav-mobile-btn flex h-10 shrink-0 items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] py-0 pl-0.5 pr-1.5 transition-all hover:border-[var(--color-brand)]/35 hover:bg-white/[0.07] sm:pr-2"
         >
-          <LogOutIcon className="h-4 w-4" />
+          <UserAvatarIcon />
+          <ChevronDownIcon open={menuOpen} />
         </button>
+        {menuOpen ? (
+          <div
+            role="menu"
+            className="absolute right-0 top-full z-50 mt-2 w-44 overflow-hidden rounded-xl border border-white/10 bg-[#0a1020]/95 py-1 shadow-xl backdrop-blur-md"
+          >
+            <Link
+              href="/profile"
+              role="menuitem"
+              onClick={() => setMenuOpen(false)}
+              className="block px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white"
+            >
+              Profile
+            </Link>
+            <button
+              type="button"
+              role="menuitem"
+              aria-label="Sign out"
+              onClick={() => {
+                setMenuOpen(false);
+                signOut({ callbackUrl: "/" });
+              }}
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[12px] font-semibold uppercase tracking-[0.14em] text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white"
+            >
+              Logout
+              <LogOutIcon className="h-3.5 w-3.5 opacity-70" />
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
+  );
+}
+
+function ChevronDownIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={`h-3.5 w-3.5 shrink-0 text-white/45 transition-transform ${open ? "rotate-180" : ""}`}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
   );
 }
 
@@ -288,7 +369,7 @@ function MobileMenu({
 }: {
   open: boolean;
   onClose: () => void;
-  links: typeof marketingLinks;
+  links: NavLinkItem[];
   pathname: string;
   platform: boolean;
 }) {
@@ -329,7 +410,9 @@ function MobileMenu({
               ? pathname === link.href || pathname.startsWith(`${link.href}/`)
               : link.href === "/esports"
                 ? pathname.startsWith("/esports")
-                : false;
+                : link.href === "/qa"
+                  ? pathname === "/qa"
+                  : false;
 
             const rowClass = `flex w-full items-center justify-between px-4 py-4 text-left text-[13px] font-semibold uppercase tracking-[0.2em] transition-colors ${
               active ? "text-white" : "text-white/70 hover:text-white"
@@ -344,7 +427,17 @@ function MobileMenu({
 
             const content = (
               <>
-                <span>{link.label}{loungeIcon}</span>
+                <span className="flex flex-wrap items-center gap-2">
+                  <span>
+                    {link.label}
+                    {loungeIcon}
+                  </span>
+                  {link.badge ? (
+                    <span className="rounded-full border border-amber-500/35 bg-amber-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-amber-200/95">
+                      {link.badge}
+                    </span>
+                  ) : null}
+                </span>
                 <ChevronRightIcon />
               </>
             );
@@ -449,7 +542,25 @@ function NavbarContent() {
   const signedIn = status === "authenticated" && session?.user;
   const platform = isPlatformRoute(pathname);
   const logoHref = platform ? "/esports" : "/";
-  const links = platform ? platformLinks : marketingLinks;
+  const [qaEnabled, setQaEnabled] = useState(false);
+
+  useEffect(() => {
+    function loadQaStatus() {
+      fetch("/api/qa/status", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : { enabled: false }))
+        .then((data: { enabled?: boolean }) => setQaEnabled(Boolean(data.enabled)))
+        .catch(() => setQaEnabled(false));
+    }
+    loadQaStatus();
+    window.addEventListener("focus", loadQaStatus);
+    return () => window.removeEventListener("focus", loadQaStatus);
+  }, [pathname]);
+
+  const links: NavLinkItem[] = platform
+    ? platformLinksBase
+    : qaEnabled
+      ? [...marketingLinksBase, qaNavLink]
+      : marketingLinksBase;
 
   return (
     <header
@@ -502,9 +613,12 @@ function NavbarContent() {
                       ? pathname === link.href || pathname.startsWith(`${link.href}/`)
                       : link.href === "/esports"
                         ? pathname.startsWith("/esports")
-                        : false
+                        : link.href === "/qa"
+                          ? pathname === "/qa"
+                          : false
                   }
                   external={!platform && link.href.startsWith("#")}
+                  badge={link.badge}
                 />
               </li>
             ))}

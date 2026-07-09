@@ -27,7 +27,7 @@
       "@landing-home/*": ["./src/modules/landing-home/*"],
       "@lounge-commerce/*": ["./src/modules/lounge-commerce/*"],
       "@roster-listings/*": ["./src/modules/roster-listings/*"],
-      "@roster-listings/*": ["./src/modules/roster-listings/*"]
+      "@time-limited-qa/*": ["./src/modules/time-limited-qa/*"]
     }
   },
   "include": [

@@ -17,9 +17,6 @@ export default function PlatformFooter() {
           <Link href="/esports/leaderboard" className="text-white/45 transition-colors hover:text-white">
             Rankings
           </Link>
-          <Link href="/gallery" className="text-white/45 transition-colors hover:text-white">
-            Moments
-          </Link>
           <Link href="/privacy" className="text-white/45 transition-colors hover:text-white">
             Privacy
           </Link>

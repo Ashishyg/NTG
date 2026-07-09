@@ -16,6 +16,9 @@ export default defineConfig({
       "@tournaments-leagues": path.resolve(__dirname, "./src/modules/tournaments-leagues"),
       "@socials-gallery": path.resolve(__dirname, "./src/modules/socials-gallery"),
       "@landing-home": path.resolve(__dirname, "./src/modules/landing-home"),
+      "@roster-listings": path.resolve(__dirname, "./src/modules/roster-listings"),
+      "@time-limited-qa": path.resolve(__dirname, "./src/modules/time-limited-qa"),
+      "@lounge-commerce": path.resolve(__dirname, "./src/modules/lounge-commerce"),
     },
   },
 });

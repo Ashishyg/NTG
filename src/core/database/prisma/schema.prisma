@@ -218,6 +218,7 @@ model User {
   platformSettingsUpdated PlatformSetting[]         @relation("PlatformSettingUpdatedBy")
   rosterPlayers           RosterPlayer[]
   listingApplications     ListingApplication[]
+  timeLimitedQaResponses  TimeLimitedQaResponse[]
 }
 
 model EmailOtp {
@@ -882,4 +883,49 @@ model ListingApplication {
 
   @@unique([listingId, userId])
   @@index([listingId, createdAt])
+}
+
+// ─── Time-limited Q&A ───────────────────────────────────────────────────────
+
+model TimeLimitedQaCampaign {
+  id          String   @id @default(cuid())
+  slug        String   @unique @default("qa")
+  title       String   @default("Q&A")
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  formFields TimeLimitedQaFormField[]
+  responses  TimeLimitedQaResponse[]
+}
+
+model TimeLimitedQaFormField {
+  id         String                @id @default(cuid())
+  campaignId String
+  campaign   TimeLimitedQaCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  sortOrder  Int                   @default(0)
+  fieldType  ListingFieldType
+  label      String
+  helpText   String?
+  required   Boolean               @default(false)
+  options    Json?
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  @@index([campaignId, sortOrder])
+}
+
+model TimeLimitedQaResponse {
+  id            String                @id @default(cuid())
+  campaignId    String
+  campaign      TimeLimitedQaCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  userId        String?
+  user          User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
+  isAnonymous   Boolean               @default(false)
+  submitterName String?
+  responses     Json?
+  createdAt     DateTime              @default(now())
+
+  @@index([campaignId, createdAt])
 }
