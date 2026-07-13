@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { formatDateOfBirthDisplay } from "@/lib/date-age";
 import { useAdminDeleteConfirm } from "@/components/admin/useAdminDeleteConfirm";
-import { VALORANT_ROLE_LABELS } from "@/modules/auth-membership/domain/game-profile";
+import { VALORANT_ROLE_LABELS, VALORANT_ROLE_OPTIONS } from "@/modules/auth-membership/domain/game-profile";
 import type { ValorantRole } from "@prisma/client";
 
 type Member = {
@@ -62,6 +62,7 @@ export default function AdminMembersPanel({
   const [isCreating, setIsCreating] = useState(false);
   // No force reset password state
   const [riotId, setRiotId] = useState("");
+  const [valorantRoles, setValorantRoles] = useState<ValorantRole[]>([]);
   const [steamUrl, setSteamUrl] = useState("");
   const [createForm, setCreateForm] = useState({ email: "", password: "", displayName: "" });
   const [message, setMessage] = useState<string | null>(null);
@@ -72,6 +73,35 @@ export default function AdminMembersPanel({
     const fresh = initialMembers.find((m) => m.id === selected.id);
     if (fresh) setSelected(fresh);
   }, [initialMembers, selected?.id]);
+
+  useEffect(() => {
+    if (!selected) {
+      setValorantRoles([]);
+      return;
+    }
+    setValorantRoles(selected.valorantRoles ?? []);
+  }, [selected?.id, selected?.valorantRoles]);
+
+  function toggleValorantRole(role: ValorantRole) {
+    setValorantRoles((prev) => {
+      if (role === "FLEX") return prev.includes("FLEX") ? [] : ["FLEX"];
+      const withoutFlex = prev.filter((r) => r !== "FLEX");
+      if (withoutFlex.includes(role)) {
+        return withoutFlex.filter((r) => r !== role);
+      }
+      const next = [...withoutFlex, role];
+      if (next.length === 4) return ["FLEX"];
+      return next;
+    });
+  }
+
+  async function saveValorantRoles(id: string) {
+    const ok = await patchMember(id, {
+      action: "updateValorantRoles",
+      valorantRoles,
+    });
+    if (ok) setMessage("Valorant roles updated.");
+  }
 
   const filtered = initialMembers.filter((m) => {
     const q = search.toLowerCase();
@@ -103,6 +133,9 @@ export default function AdminMembersPanel({
       // Handle special actions locally
       if (body.riotId !== undefined) updated.riotId = body.riotId as string;
       if (body.action === "unlinkRiot") updated.riotId = null;
+      if (body.valorantRoles !== undefined) {
+        updated.valorantRoles = body.valorantRoles as ValorantRole[];
+      }
       if (body.action === "linkSteam") {
         updated.steamId64 = body.steamUrl as string;
         updated.steamPersonaName = "Loading...";
@@ -488,8 +521,30 @@ export default function AdminMembersPanel({
               {/* Force Password Reset removed */}
 
               {/* Action 3: Link Riot ID */}
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-white/40">Link Valorant Riot ID</label>
+                <div>
+                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-white/35">Valorant roles</p>
+                  <div className="flex flex-wrap gap-2">
+                    {VALORANT_ROLE_OPTIONS.map((role) => {
+                      const isSelected = valorantRoles.includes(role);
+                      return (
+                        <button
+                          key={role}
+                          type="button"
+                          onClick={() => toggleValorantRole(role)}
+                          className={`rounded-xl border px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+                            isSelected
+                              ? "border-[#ff4655]/50 bg-[#ff4655]/15 text-white"
+                              : "border-white/10 bg-white/5 text-white/60 hover:border-white/20 hover:bg-white/10"
+                          }`}
+                        >
+                          {VALORANT_ROLE_LABELS[role]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 {!selected.riotId ? (
                   <div className="flex gap-2">
                     <input
@@ -505,6 +560,7 @@ export default function AdminMembersPanel({
                         const ok = await patchMember(selected.id, {
                           action: "linkRiot",
                           riotId: riotId.trim(),
+                          valorantRoles,
                         });
                         if (ok) setMessage("Riot ID linked successfully.");
                       }}
@@ -534,6 +590,13 @@ export default function AdminMembersPanel({
                         Unlink
                       </button>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => void saveValorantRoles(selected.id)}
+                      className="w-full rounded-xl border border-[#ff4655]/25 bg-[#ff4655]/10 px-4 py-2 text-xs font-semibold text-[#ffb4bc] hover:bg-[#ff4655]/15 transition-colors"
+                    >
+                      Save roles
+                    </button>
                     <button
                       type="button"
                       disabled={syncingRank}

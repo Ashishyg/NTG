@@ -314,9 +314,6 @@ export default function TournamentRegisterForm({
 
         {showSwitchForm ? (
           <div className="mt-4 space-y-3 border-t border-white/[0.06] pt-4">
-            <p className="text-xs text-white/45">
-              Create your team to enter as captain. This is one-way — you cannot switch back to player.
-            </p>
             <div>
               <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-white/40">Team name</label>
               <input

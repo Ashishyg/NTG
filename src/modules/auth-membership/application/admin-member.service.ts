@@ -7,9 +7,10 @@ import {
   isUsernameTaken,
   usernameKeyFromDisplayName,
 } from "../domain/username";
+import type { UserRole, ValorantRole } from "@prisma/client";
 import { linkRiotAccount, unlinkRiotAccount } from "@auth-membership/application/riot-link.service";
+import { updateValorantRoles } from "@auth-membership/application/game-profile.service";
 import { linkSteamAccount, unlinkSteamAccount } from "@auth-membership/application/steam-link.service";
-import type { UserRole } from "@prisma/client";
 import { logUserActivity } from "@/lib/user-audit";
 
 
@@ -255,10 +256,25 @@ export async function resetMemberPasswordAdmin(
 export async function linkMemberRiotAdmin(
   userId: string,
   riotId: string,
+  valorantRoles?: ValorantRole[],
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return { ok: false, error: "User not found." };
-  return linkRiotAccount(userId, riotId);
+  const linked = await linkRiotAccount(userId, riotId);
+  if (!linked.ok) return linked;
+  if (valorantRoles?.length) {
+    return updateValorantRoles(userId, valorantRoles);
+  }
+  return linked;
+}
+
+export async function setMemberValorantRolesAdmin(
+  userId: string,
+  valorantRoles: ValorantRole[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return { ok: false, error: "User not found." };
+  return updateValorantRoles(userId, valorantRoles);
 }
 
 export async function unlinkMemberRiotAdmin(

@@ -159,9 +159,25 @@ export async function updateValorantRoles(
   const err = validateValorantRoles(roles);
   if (err) return { ok: false, error: err };
 
-  await prisma.playerProfile.update({
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      name: true,
+      playerProfile: { select: { displayName: true } },
+    },
+  });
+  if (!user) return { ok: false, error: "User not found." };
+
+  const displayName = user.playerProfile?.displayName ?? user.name ?? "Player";
+  await prisma.playerProfile.upsert({
     where: { userId },
-    data: { valorantRoles: roles },
+    create: {
+      userId,
+      displayName,
+      usernameKey: usernameKeyFromDisplayName(displayName),
+      valorantRoles: roles,
+    },
+    update: { valorantRoles: roles },
   });
   await syncValorantRoleSnapshots(userId);
   return { ok: true };

@@ -12,11 +12,13 @@ import {
   getMemberAdmin,
   linkMemberRiotAdmin,
   resetMemberPasswordAdmin,
+  setMemberValorantRolesAdmin,
   unlinkMemberRiotAdmin,
   unlinkMemberSteamAdmin,
   updateMemberAdmin,
   linkMemberSteamAdmin,
 } from "@auth-membership/application/admin-member.service";
+import { valorantRolesSchema } from "@auth-membership/domain/schemas";
 import { syncUserRank } from "@tournaments-leagues/application/rank-sync.service";
 import type { UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
@@ -68,7 +70,22 @@ export async function PATCH(req: Request, { params }: Props) {
   }
 
   if (body.action === "linkRiot") {
-    const result = await linkMemberRiotAdmin(id, String(body.riotId ?? ""));
+    let valorantRoles: import("@prisma/client").ValorantRole[] | undefined;
+    if (body.valorantRoles !== undefined) {
+      const parsedRoles = valorantRolesSchema.safeParse(body.valorantRoles);
+      if (!parsedRoles.success) {
+        return NextResponse.json(
+          { error: parsedRoles.error.issues[0]?.message ?? "Invalid Valorant roles." },
+          { status: 400 },
+        );
+      }
+      valorantRoles = parsedRoles.data;
+    }
+    const result = await linkMemberRiotAdmin(
+      id,
+      String(body.riotId ?? ""),
+      valorantRoles,
+    );
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
     const envAct = getEnvValorantActKey();
     if (envAct) {
@@ -86,6 +103,23 @@ export async function PATCH(req: Request, { params }: Props) {
     }
     await logAdminAction(auth.userId, "member.linkRiot", id, {
       riotId: String(body.riotId ?? "").trim(),
+      valorantRoles,
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === "updateValorantRoles") {
+    const parsedRoles = valorantRolesSchema.safeParse(body.valorantRoles);
+    if (!parsedRoles.success) {
+      return NextResponse.json(
+        { error: parsedRoles.error.issues[0]?.message ?? "Invalid Valorant roles." },
+        { status: 400 },
+      );
+    }
+    const result = await setMemberValorantRolesAdmin(id, parsedRoles.data);
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
+    await logAdminAction(auth.userId, "member.updateValorantRoles", id, {
+      valorantRoles: parsedRoles.data,
     });
     return NextResponse.json({ ok: true });
   }
