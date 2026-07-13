@@ -158,6 +158,7 @@ export default function TournamentDetailView({
               preview={registrationPreview ?? null}
               coCaptainSlots={tournament.coCaptainSlots}
               registrationProfileCard={registrationProfileCard ?? null}
+              userParticipantRole={tournament.userParticipantRole}
             />
           ) : null}
         </div>

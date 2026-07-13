@@ -3,6 +3,7 @@ import { GameSlug } from "@prisma/client";
 import { linkGameIdentity } from "./profile.service";
 import { normalizeHenrikRegion } from "@/lib/henrik-region";
 import { normalizeRiotPlayerCardUrls } from "@/lib/valorant-player-card";
+import { isValidRiotIdFormat } from "@/lib/riot-id";
 import { parseRiotId, resolveRiotAccount } from "./riot-henrik.service";
 import { logUserActivity } from "@/lib/user-audit";
 
@@ -11,6 +12,10 @@ export async function linkRiotAccount(
   userId: string,
   riotId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isValidRiotIdFormat(riotId)) {
+    return { ok: false, error: "Use format Name#Tag (e.g. Player#NA1)." };
+  }
+
   const parsed = parseRiotId(riotId);
   if (!parsed) {
     return { ok: false, error: "Use format Name#Tag (e.g. Player#NA1)." };

@@ -170,7 +170,7 @@ export default function GameProfilesPanel({
                   placeholder="Player#TAG"
                   className="w-full rounded-xl border border-white/10 bg-[#0c1428]/60 px-3 py-2 text-xs text-white placeholder:text-white/30 focus:border-[#ff4655]/50 focus:outline-none transition-all"
                 />
-                <p className="text-[9px] text-white/30">Enter your Riot ID (e.g. Player#NA1) to save changes.</p>
+                <p className="text-[9px] text-white/30">Enter your Riot ID (e.g. Player#NA1). Tags can include special characters.</p>
               </div>
             )}
           </div>

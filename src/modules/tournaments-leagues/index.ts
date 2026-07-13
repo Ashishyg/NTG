@@ -47,6 +47,7 @@ export {
   registerFifaTeam,
   getRegistrationEligibility,
   getValorantRegistrationProfileCard,
+  switchPlayerToCaptain,
   setTournamentPlacements,
   updateTournamentAdmin,
   adminAddTournamentRegistration,

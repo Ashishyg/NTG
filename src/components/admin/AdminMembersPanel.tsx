@@ -496,7 +496,7 @@ export default function AdminMembersPanel({
                       className={inputClass}
                       value={riotId}
                       onChange={(e) => setRiotId(e.target.value)}
-                      placeholder="RiotName#TagLine"
+                      placeholder="Name#Tag (unicode tags OK)"
                     />
                     <button
                       type="button"

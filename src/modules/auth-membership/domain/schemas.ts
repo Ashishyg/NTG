@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { sanitizeTextInput } from "@/lib/input-sanitize";
+import { isValidRiotIdFormat } from "@/lib/riot-id";
 
 const sanitizedString = z.string().transform(sanitizeTextInput);
 
@@ -77,7 +78,7 @@ export const riotLinkSchema = z.object({
   riotId: z
     .string()
     .trim()
-    .regex(/^[^#]{3,16}#[a-zA-Z0-9]{3,5}$/i, "Use format Name#Tag (e.g. Player#NA1)."),
+    .refine(isValidRiotIdFormat, "Use format Name#Tag (e.g. Player#NA1)."),
 });
 
 export const steamLinkSchema = z.object({
@@ -133,6 +134,14 @@ export const profileAccountPatchSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid date (YYYY-MM-DD).")
     .optional(),
   olympusId: sanitizedString.pipe(z.string().min(1).max(64)).optional(),
+});
+
+export const switchToCaptainSchema = z.object({
+  teamName: sanitizedString.pipe(z.string().min(2).max(48)),
+  coCaptainUsername: z.string().trim().min(2).max(48).optional(),
+  coCaptainUsernames: z.array(z.string().trim().min(2).max(48)).max(4).optional(),
+  memberUsernames: z.array(usernameSchema).max(4).optional(),
+  ...registrationTermsField,
 });
 
 export const tournamentRegisterSchema = z.discriminatedUnion("participantRole", [

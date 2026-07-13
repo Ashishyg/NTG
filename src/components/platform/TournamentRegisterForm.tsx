@@ -39,9 +39,10 @@ type Props = {
   coCaptainSlots: number;
   layout?: "sidebar" | "featured";
   registrationProfileCard?: ValorantRegistrationProfileCardData | null;
+  userParticipantRole?: "CAPTAIN" | "CO_CAPTAIN" | "PLAYER" | null;
 };
 
-type Step = "role" | "captain" | "confirm";
+type Step = "role" | "captain" | "confirm" | "switch-captain";
 
 function RegisterShell({
   layout = "sidebar",
@@ -167,6 +168,7 @@ export default function TournamentRegisterForm({
   coCaptainSlots,
   layout = "sidebar",
   registrationProfileCard = null,
+  userParticipantRole = null,
 }: Props) {
   const router = useRouter();
   const submitting = useRef(false);
@@ -182,6 +184,7 @@ export default function TournamentRegisterForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [switchedToCaptain, setSwitchedToCaptain] = useState(false);
   const [profileCard, setProfileCard] = useState<ValorantRegistrationProfileCardData | null>(
     registrationProfileCard,
   );
@@ -189,6 +192,60 @@ export default function TournamentRegisterForm({
   useEffect(() => {
     if (registrationProfileCard) setProfileCard(registrationProfileCard);
   }, [registrationProfileCard]);
+
+  const captainCoCaptainsComplete =
+    coCaptainSlots === 0 ||
+    coCaptainUsernames.slice(0, coCaptainSlots).every((u) => u.trim().length >= 2);
+
+  const switchCaptainFormComplete =
+    registrationFormat === "STANDARD"
+      ? memberUsernames.every((u) => u.trim().length >= 2)
+      : captainCoCaptainsComplete;
+
+  async function submitSwitchToCaptain() {
+    if (submitting.current || loading || !acceptedTerms || !teamName.trim()) return;
+    submitting.current = true;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const body: Record<string, unknown> = {
+        teamName: teamName.trim(),
+        acceptedTerms: true,
+      };
+      if (registrationFormat === "STANDARD") {
+        body.memberUsernames = memberUsernames.map((u) => u.trim());
+      } else if (coCaptainSlots > 0) {
+        body.coCaptainUsernames = coCaptainUsernames
+          .slice(0, coCaptainSlots)
+          .map((u) => u.trim());
+      }
+
+      const res = await fetch(`/api/tournaments/${slug}/switch-to-captain`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError((data as { error?: string }).error ?? "Could not switch to captain.");
+        submitting.current = false;
+        setLoading(false);
+        return;
+      }
+
+      setSwitchedToCaptain(true);
+      setStep("role");
+      setAcceptedTerms(false);
+      if (data.profileCard) setProfileCard(data.profileCard);
+      router.refresh();
+    } catch {
+      setError("Something went wrong. Try again.");
+    } finally {
+      submitting.current = false;
+      setLoading(false);
+    }
+  }
 
   const inputClass =
     layout === "featured"
@@ -204,7 +261,12 @@ export default function TournamentRegisterForm({
         }`
       : "rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4 text-left transition-colors hover:border-[var(--color-brand)]/40";
 
-  if (!registrationOpen) return null;
+  const effectiveRole = switchedToCaptain ? "CAPTAIN" : userParticipantRole;
+  const canSwitchToCaptain =
+    (alreadyRegistered || success) &&
+    effectiveRole === "PLAYER" &&
+    registrationOpen &&
+    game !== "EA_FC26";
 
   if (!isLoggedIn) {
     return (
@@ -224,23 +286,117 @@ export default function TournamentRegisterForm({
   }
 
   if (alreadyRegistered || success) {
-    if (game === "VALORANT" && profileCard) {
-      return (
-        <RegisterShell layout={layout} eyebrow="Registration" title="You're in" subtitle="See you on match day.">
-          <ValorantRegistrationProfileCard profile={profileCard} />
-        </RegisterShell>
-      );
-    }
+    const showSwitchForm = step === "switch-captain";
 
     return (
-      <RegisterShell layout={layout} title="You're in" subtitle="See you on match day.">
-        <div className="rounded-2xl border border-[var(--color-brand)]/25 bg-[var(--color-brand)]/[0.08] px-6 py-8 text-center">
-          <p className="font-display text-2xl font-bold text-white">Registered</p>
-          <p className="mt-2 text-sm text-white/50">Your spot is locked in for this cup.</p>
-        </div>
+      <RegisterShell layout={layout} eyebrow="Registration" title="You're in" subtitle="See you on match day.">
+        {game === "VALORANT" && profileCard ? (
+          <ValorantRegistrationProfileCard profile={profileCard} />
+        ) : (
+          <div className="rounded-2xl border border-[var(--color-brand)]/25 bg-[var(--color-brand)]/[0.08] px-6 py-8 text-center">
+            <p className="font-display text-2xl font-bold text-white">Registered</p>
+            <p className="mt-2 text-sm text-white/50">Your spot is locked in for this cup.</p>
+          </div>
+        )}
+
+        {canSwitchToCaptain && !showSwitchForm ? (
+          <button
+            type="button"
+            onClick={() => {
+              setStep("switch-captain");
+              setError(null);
+            }}
+            className="mt-4 w-full rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-white/75 transition-colors hover:border-[var(--color-brand)]/35 hover:bg-white/[0.06] hover:text-white"
+          >
+            Switch to captain
+          </button>
+        ) : null}
+
+        {showSwitchForm ? (
+          <div className="mt-4 space-y-3 border-t border-white/[0.06] pt-4">
+            <p className="text-xs text-white/45">
+              Create your team to enter as captain. This is one-way — you cannot switch back to player.
+            </p>
+            <div>
+              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-white/40">Team name</label>
+              <input
+                className={inputClass}
+                placeholder="Enter your team name"
+                value={teamName}
+                onChange={(e) => setTeamName(e.target.value)}
+              />
+            </div>
+            {registrationFormat === "STANDARD" ? (
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-white/40">Teammates</p>
+                {memberUsernames.map((value, index) => (
+                  <input
+                    key={index}
+                    className={inputClass}
+                    placeholder={`Teammate ${index + 1} username`}
+                    value={value}
+                    onChange={(e) => {
+                      const next = [...memberUsernames];
+                      next[index] = e.target.value;
+                      setMemberUsernames(next);
+                    }}
+                  />
+                ))}
+              </div>
+            ) : coCaptainSlots > 0 ? (
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-white/40">
+                  Co-captain{coCaptainSlots > 1 ? "s" : ""}
+                </p>
+                {Array.from({ length: coCaptainSlots }, (_, index) => (
+                  <input
+                    key={index}
+                    className={inputClass}
+                    placeholder={coCaptainSlots === 1 ? "Co-captain username" : `Co-captain ${index + 1}`}
+                    value={coCaptainUsernames[index] ?? ""}
+                    onChange={(e) => {
+                      const next = [...coCaptainUsernames];
+                      next[index] = e.target.value;
+                      setCoCaptainUsernames(next);
+                    }}
+                  />
+                ))}
+              </div>
+            ) : null}
+            <RegistrationTermsAgreement
+              checked={acceptedTerms}
+              onChange={setAcceptedTerms}
+              rulebookUrl={rulebookUrl}
+              disabled={loading}
+            />
+            {error ? <p className="text-sm text-red-300/90">{error}</p> : null}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("role");
+                  setError(null);
+                }}
+                className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/50 hover:bg-white/[0.04]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={loading || !acceptedTerms || !teamName.trim() || !switchCaptainFormComplete}
+                onClick={() => void submitSwitchToCaptain()}
+                className="cta flex-1 rounded-full py-3 text-xs font-semibold uppercase tracking-[0.16em] disabled:opacity-50"
+              >
+                {loading ? "Switching…" : "Confirm switch to captain"}
+              </button>
+            </div>
+          </div>
+        ) : null}
       </RegisterShell>
     );
   }
+
+  if (!registrationOpen) return null;
 
   if (preview && !preview.canRegister) {
     return (
@@ -513,10 +669,6 @@ export default function TournamentRegisterForm({
       </div>
     );
   }
-
-  const captainCoCaptainsComplete =
-    coCaptainSlots === 0 ||
-    coCaptainUsernames.slice(0, coCaptainSlots).every((u) => u.trim().length >= 2);
 
   const captainCardDescription =
     coCaptainSlots === 0
