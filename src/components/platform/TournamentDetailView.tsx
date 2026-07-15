@@ -173,6 +173,8 @@ export default function TournamentDetailView({
               
               <a
                 href={auctionHref}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="relative block w-full rounded-[19px] bg-[#0c0c0e]/95 px-6 py-4.5 text-center text-xs font-bold uppercase tracking-[0.25em] text-white transition-all duration-300 group-hover:bg-[#0c0c0e]/75"
               >
                 <span className="relative z-10 flex items-center justify-center gap-2.5">
