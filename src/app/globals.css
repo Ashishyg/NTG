@@ -41,6 +41,24 @@
    * Hard cap  → 11rem           (176px — stops at ~2640px viewport)
    */
   --text-hero: clamp(2.5rem, 6.67vw, 11rem);
+
+  /* Proportional top offset for Hero content to avoid watermark overlap on all viewports */
+  --hero-content-top: calc(44.2svh + 11.5vw + 2px);
+  --hero-content-bottom-above: calc(41.2svh - 11.5vw - 2px);
+}
+
+@media (min-width: 640px) {
+  :root {
+    --hero-content-top: calc(50svh + 9.5vw + 3px);
+    --hero-content-bottom-above: calc(47svh - 9.5vw - 3px);
+  }
+}
+
+@media (min-width: 768px) {
+  :root {
+    --hero-content-top: calc(50svh + 8.8vw + 4px);
+    --hero-content-bottom-above: calc(47svh - 8.8vw - 4px);
+  }
 }
 
 /*
