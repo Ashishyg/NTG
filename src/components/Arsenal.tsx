@@ -34,7 +34,7 @@ export default function Arsenal() {
       whileInView="visible"
       viewport={{ once: true, margin: "-100px" }}
       variants={sectionVariants}
-      className="relative mx-auto w-full max-w-[var(--container)] scroll-mt-28 px-[clamp(1.25rem,_3vw,_4rem)] py-24 sm:py-32"
+      className="relative mx-auto w-full max-w-7xl scroll-mt-28 px-5 py-24 sm:py-32"
     >
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute left-1/2 top-1/4 h-[40vh] w-[60vh] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse,rgba(168,85,247,0.14),transparent_65%)] blur-3xl" />

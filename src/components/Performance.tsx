@@ -195,7 +195,7 @@ export default function Performance() {
       whileInView="visible"
       viewport={{ once: true, margin: "-100px" }}
       variants={sectionVariants}
-      className="relative mx-auto w-full max-w-[var(--container)] scroll-mt-28 px-[clamp(1.25rem,_3vw,_4rem)] py-24 sm:py-32"
+      className="relative mx-auto w-full max-w-7xl scroll-mt-28 px-5 py-24 sm:py-32"
     >
       <motion.div
         variants={itemVariants}

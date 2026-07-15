@@ -32,7 +32,7 @@ export default async function Hero() {
       {/* Watermark */}
       <span
         aria-hidden
-        className="text-outline pointer-events-none absolute left-1/2 top-[42.7%] sm:top-[48.5%] z-0 -translate-x-1/2 -translate-y-1/2 select-none whitespace-nowrap font-display text-[32vw] font-black leading-none tracking-[-0.06em] sm:text-[26vw] md:text-[24vw]"
+        className="text-outline pointer-events-none absolute left-1/2 top-[42.7%] sm:top-[48.5%] z-0 -translate-x-1/2 -translate-y-1/2 select-none whitespace-nowrap font-display text-[25.6vw] font-black leading-none tracking-[-0.06em] sm:text-[20.8vw] md:text-[19.2vw]"
       >
         NTG
       </span>
@@ -56,13 +56,9 @@ export default async function Hero() {
             <SplitText text="Namma Tulunad" delay={0} stagger={25} duration={680} />
           </span>
 
-          {/* Line 2 — overflow-hidden clips the rising word, gradient works correctly */}
+          {/* Line 2 — SplitText with brand gradient, delayed to sequence after line 1 */}
           <span className="mt-2 block leading-[0.96] tracking-[-0.025em]" style={{ fontSize: "var(--text-hero)" }}>
-            <span className="inline-block overflow-hidden">
-              <span className="text-gradient-brand inline-block hero-word-rise">
-                Gaming
-              </span>
-            </span>
+            <SplitText text="Gaming" delay={380} stagger={35} duration={680} charClassName="text-gradient-brand" />
           </span>
         </h1>
       </div>
@@ -74,8 +70,8 @@ export default async function Hero() {
         <p
           className="leading-relaxed text-white/55"
           style={{
-            fontSize: "clamp(0.78rem, 3vw, 1.5rem)",
-            maxWidth: "clamp(18rem, 80vw, 68rem)",
+            fontSize: "clamp(0.62rem, 2.4vw, 1.2rem)",
+            maxWidth: "clamp(14.4rem, 64vw, 54.4rem)",
           }}
         >
           Mangaluru&apos;s premier esports lounge — premium hardware, electric

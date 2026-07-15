@@ -85,18 +85,27 @@ export default function VisitLounge() {
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2">
-                {socials.map((s) => (
-                  <a
-                    key={s.name}
-                    href={s.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={s.name}
-                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white/65 transition-all hover:border-[var(--color-brand)]/40 hover:text-white"
-                  >
-                    <BrandIcon path={s.path} title={s.name} className="h-4 w-4" />
-                  </a>
-                ))}
+                {socials.map((s) => {
+                  const brandColor =
+                    s.name === "Instagram"
+                      ? "text-[#EC4899] border-[#EC4899]/30 bg-[#EC4899]/5 hover:border-[#EC4899]/60 hover:bg-[#EC4899]/10 shadow-[0_0_10px_rgba(236,72,153,0.15)] hover:shadow-[0_0_20px_rgba(236,72,153,0.45)]"
+                      : s.name === "Discord"
+                      ? "text-[#5865F2] border-[#5865F2]/30 bg-[#5865F2]/5 hover:border-[#5865F2]/60 hover:bg-[#5865F2]/10 shadow-[0_0_10px_rgba(88,101,242,0.15)] hover:shadow-[0_0_20px_rgba(88,101,242,0.45)]"
+                      : "text-[#25D366] border-[#25D366]/30 bg-[#25D366]/5 hover:border-[#25D366]/60 hover:bg-[#25D366]/10 shadow-[0_0_10px_rgba(37,211,102,0.15)] hover:shadow-[0_0_20px_rgba(37,211,102,0.45)]";
+
+                  return (
+                    <a
+                      key={s.name}
+                      href={s.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={s.name}
+                      className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-all duration-300 hover:scale-105 active:scale-95 ${brandColor}`}
+                    >
+                      <BrandIcon path={s.path} title={s.name} className="h-4 w-4 [filter:drop-shadow(0_0_1px_currentColor)]" />
+                    </a>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -107,7 +116,7 @@ export default function VisitLounge() {
             • Lighter filter chain on mobile, fuller chain on desktop
             • No backdrop-blur or animate-ping below `md` (GPU-cheap)
           */}
-          <div className="group relative overflow-hidden rounded-3xl border border-[var(--color-brand)]/25 bg-[#060a14] [contain:layout_paint] [content-visibility:auto] md:shadow-[0_0_40px_rgba(94,234,212,0.08),inset_0_0_60px_rgba(124,58,237,0.05)]" style={{ minHeight: "clamp(17.5rem, 28vw, 36.25rem)" }} >
+          <div className="group relative overflow-hidden rounded-3xl border border-[var(--color-brand)]/25 bg-[#060a14] [contain:layout_paint] [content-visibility:auto] md:shadow-[0_0_40px_rgba(94,234,212,0.08),inset_0_0_60px_rgba(124,58,237,0.05)]" style={{ minHeight: "clamp(15rem, 22vw, 22rem)" }} >
             <a
               href={mapsSearchUrl(`${brand.name}, ${brand.address}, Mangaluru`)}
               target="_blank"
@@ -172,7 +181,7 @@ export default function VisitLounge() {
             </div>
 
             {/* Top-left pill */}
-            <div className="pointer-events-none absolute left-5 top-5 inline-flex items-center rounded-full border border-[var(--color-brand)]/40 bg-[#0a1020]/95 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.28em] text-[var(--color-brand)] md:bg-[#0a1020]/85 md:shadow-[0_0_14px_rgba(94,234,212,0.2)] md:backdrop-blur z-30">
+            <div className="pointer-events-none absolute left-5 top-[17px] inline-flex items-center rounded-full border border-[var(--color-brand)]/40 bg-[#0a1020]/95 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.28em] text-[var(--color-brand)] md:bg-[#0a1020]/85 md:shadow-[0_0_14px_rgba(94,234,212,0.2)] md:backdrop-blur z-30">
               <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-brand)] md:shadow-[0_0_6px_rgba(94,234,212,0.95)]" />
               Mangaluru
             </div>
@@ -181,7 +190,7 @@ export default function VisitLounge() {
               href={mapsSearchUrl(`${brand.name}, ${brand.address}, Mangaluru`)}
               target="_blank"
               rel="noopener noreferrer"
-              className="absolute bottom-5 right-5 inline-flex items-center gap-1.5 rounded-full border border-[var(--color-brand)]/35 bg-[#0a1020]/95 px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-white/95 transition-colors hover:border-[var(--color-brand)]/65 hover:text-[var(--color-brand)] md:bg-[#0a1020]/80 md:shadow-[0_0_16px_rgba(94,234,212,0.15)] md:backdrop-blur z-30"
+              className="absolute bottom-[17px] right-5 inline-flex items-center gap-1.5 rounded-full border border-[var(--color-brand)]/35 bg-[#0a1020]/95 px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-white/95 transition-colors hover:border-[var(--color-brand)]/65 hover:text-[var(--color-brand)] md:bg-[#0a1020]/80 md:shadow-[0_0_16px_rgba(94,234,212,0.15)] md:backdrop-blur z-30"
             >
               Open in Maps
               <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

@@ -87,9 +87,11 @@ export default function TournamentVault({ tournaments, registration, auction, hi
           : "relative mx-auto w-full max-w-[var(--container)] scroll-mt-28 px-[clamp(1.25rem,_3vw,_4rem)] py-24 sm:py-32"
       }
     >
-      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute right-1/3 top-1/2 h-[50vh] w-[50vh] rounded-full bg-[radial-gradient(circle,rgba(217,70,239,0.10),transparent_65%)] blur-3xl" />
-      </div>
+      {!hideHeader && (
+        <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+          <div className="absolute right-1/3 top-1/2 h-[50vh] w-[50vh] rounded-full bg-[radial-gradient(circle,rgba(217,70,239,0.10),transparent_65%)] blur-3xl" />
+        </div>
+      )}
 
       {!hideHeader && (
         <motion.div

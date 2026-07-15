@@ -356,7 +356,7 @@ export default async function EsportsHubPage() {
 
 
       {/* Glassmorphic Navigation Cards — moved to bottom */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <Link href="/esports/roster" prefetch={true} className="group relative flex min-h-[14rem] flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-[#0D0D0D]/60 p-8 shadow-lg backdrop-blur-md transition-all duration-500 hover:-translate-y-1 hover:border-violet-500/50 hover:bg-[#100c18]/80 hover:shadow-[0_0_40px_rgba(124,58,237,0.15)] active:scale-[0.98]">
           <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.02] to-white/[0.05] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
           <div className="absolute right-0 top-0 h-32 w-32 -translate-y-8 translate-x-8 rounded-full bg-violet-500/10 blur-[50px] transition-all group-hover:bg-violet-500/20" />

@@ -180,8 +180,8 @@ export default function PlansAndHostClient({ data }: { data: LoungeCommerceHomeD
           <div className="absolute inset-x-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-[var(--color-iris)]/50 to-transparent" />
           
           <div>
-            <div className="flex items-start justify-between mb-6">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--color-iris)]/10 ring-1 ring-[var(--color-iris)]/30">
+            <div className="mb-6">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--color-iris)]/10 ring-1 ring-[var(--color-iris)]/30 mb-3">
                 <FeaturedIcon />
               </div>
               <span className="rounded-full border border-[var(--color-iris)]/30 bg-[var(--color-iris)]/20 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.2em] text-purple-300">
@@ -233,8 +233,8 @@ export default function PlansAndHostClient({ data }: { data: LoungeCommerceHomeD
           <div className="absolute inset-x-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-amber-400/50 to-transparent" />
 
           <div>
-            <div className="flex items-start justify-between mb-6">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/10 ring-1 ring-amber-500/30">
+            <div className="mb-6">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/10 ring-1 ring-amber-500/30 mb-3">
                 <CrownIcon />
               </div>
               <span className="rounded-full border border-amber-500/30 bg-amber-500/20 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.2em] text-amber-300">

@@ -26,7 +26,7 @@ const cellVariants = {
 
 export default function SpecsRibbon() {
   return (
-    <section id="specs" className="relative mx-auto w-full max-w-[var(--container)] scroll-mt-28 px-[clamp(1.25rem,_3vw,_4rem)] pt-12 sm:pt-16">
+    <section id="specs" className="relative mx-auto w-full max-w-7xl scroll-mt-28 px-5 pt-12 sm:pt-16">
       <div className="shine-border relative overflow-hidden rounded-2xl">
         <motion.div
           initial="hidden"
