@@ -20,6 +20,7 @@ type Props = {
 export default function LazyMap({ src, title, iframeClassName = "" }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [shouldMount, setShouldMount] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -41,14 +42,14 @@ export default function LazyMap({ src, title, iframeClassName = "" }: Props) {
           }
         }
       },
-      { rootMargin: "300px 0px" },
+      { rootMargin: "600px 0px" },
     );
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
 
   return (
-    <div ref={wrapRef} aria-hidden className="absolute inset-0">
+    <div ref={wrapRef} aria-hidden className="absolute inset-0 bg-[#060a14]">
       {shouldMount ? (
         <iframe
           title={title}
@@ -57,7 +58,10 @@ export default function LazyMap({ src, title, iframeClassName = "" }: Props) {
           referrerPolicy="no-referrer-when-downgrade"
           tabIndex={-1}
           aria-hidden
-          className={iframeClassName}
+          className={`${iframeClassName} transition-opacity duration-700 ${
+            loaded ? "opacity-100" : "opacity-0"
+          }`}
+          onLoad={() => setLoaded(true)}
         />
       ) : null}
     </div>

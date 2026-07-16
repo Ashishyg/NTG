@@ -37,5 +37,5 @@ export function mergeReviews(
 export function trimReviewText(text: string, max = 320): string {
   const clean = text.trim();
   if (clean.length <= max) return clean;
-  return `${clean.slice(0, max - 1).trimEnd()}…`;
+  return `${clean.slice(0, max - 1).trimEnd()}...`;
 }

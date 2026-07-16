@@ -60,12 +60,15 @@ function HighlightedText({ text }: { text: string }) {
   );
 }
 
+import { Variants } from "framer-motion";
+
 type Props = {
   className?: string;
   delay?: number;
+  variants?: Variants;
 };
 
-export default function ReviewCarousel({ className = "", delay = 0 }: Props) {
+export default function ReviewCarousel({ className = "", delay = 0, variants }: Props) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [index, setIndex] = useState(0);
@@ -102,13 +105,20 @@ export default function ReviewCarousel({ className = "", delay = 0 }: Props) {
 
   const active = reviews[index];
 
+  const defaultVariants = {
+    hidden: { opacity: 0, y: 24 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.65, delay } }
+  };
+
   return (
     <motion.article
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.65, delay }}
-      className={`group glass-strong relative flex h-full min-h-[260px] flex-col overflow-hidden rounded-3xl border border-white/[0.08] p-6 sm:p-7 ${className}`}
+      variants={variants || defaultVariants}
+      {...(!variants ? {
+        initial: "hidden",
+        whileInView: "visible",
+        viewport: { once: true, margin: "-80px" }
+      } : {})}
+      className={`group glass-strong relative flex h-full min-h-[340px] sm:min-h-[260px] flex-col overflow-hidden rounded-3xl border border-white/[0.08] p-6 sm:p-7 ${className}`}
     >
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(110%_70%_at_100%_0%,rgba(124,58,237,0.22),transparent_55%)]" />
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(80%_60%_at_0%_100%,rgba(34,211,238,0.14),transparent_55%)]" />
@@ -145,7 +155,7 @@ export default function ReviewCarousel({ className = "", delay = 0 }: Props) {
 
         {/* Stable-height stage — children are absolutely positioned so layout
             never shifts during a review transition (no flicker). */}
-        <div className="relative h-full overflow-hidden pl-7">
+        <div className="relative h-full overflow-hidden">
           {!loaded && (
             <div aria-hidden className="absolute inset-0">
               <span className="block h-3 w-5/6 rounded bg-white/10" />
@@ -156,19 +166,21 @@ export default function ReviewCarousel({ className = "", delay = 0 }: Props) {
 
           <AnimatePresence initial={false}>
             {active ? (
-              <motion.p
+              <motion.div
                 key={active.id}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.55, ease: "easeOut" }}
-                className="absolute inset-0 line-clamp-5 font-display text-base leading-snug tracking-[-0.005em] text-white/90 sm:line-clamp-6 sm:text-lg lg:line-clamp-[7]"
-                title={active.text}
+                className="absolute inset-y-0 left-7 right-0 overflow-hidden"
               >
-                <span aria-hidden>&ldquo;</span>
-                <HighlightedText text={active.text} />
-                <span aria-hidden>&rdquo;</span>
-              </motion.p>
+                <p
+                  className="font-display text-[18px] leading-relaxed sm:leading-snug tracking-[-0.005em] text-white/90 line-clamp-6"
+                  title={active.text}
+                >
+                  <HighlightedText text={active.text} />
+                </p>
+              </motion.div>
             ) : null}
           </AnimatePresence>
         </div>

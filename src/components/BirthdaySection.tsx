@@ -115,7 +115,7 @@ export default function BirthdaySection() {
     <section id="birthday" className="relative mx-auto w-full max-w-7xl scroll-mt-28 px-5 py-24 sm:py-32">
       {/* Background ambient glow */}
       <div className="pointer-events-none absolute inset-0 -z-10 flex items-center justify-center opacity-30">
-        <div className="h-[40rem] w-[40rem] rounded-full bg-[var(--color-iris)] blur-[120px]" />
+        <div className="h-[40rem] w-[40rem] rounded-full bg-[radial-gradient(circle,_var(--color-iris)_0%,_transparent_70%)]" />
       </div>
 
       {/* Tabs Selector Switcher */}
@@ -130,7 +130,7 @@ export default function BirthdaySection() {
               <button
                 key={tabId}
                 onClick={() => setActiveTab(tabId)}
-                className={`relative rounded-full px-5 py-2.5 text-xs font-bold uppercase tracking-widest transition-colors duration-300 ${
+                className={`relative rounded-full px-3 py-2 text-[10px] font-bold uppercase tracking-wide transition-colors duration-300 sm:px-5 sm:py-2.5 sm:text-xs sm:tracking-widest ${
                   isTabActive ? "text-black" : "text-white/60 hover:text-white"
                 }`}
               >
@@ -187,7 +187,7 @@ export default function BirthdaySection() {
                     fill
                     sizes="(max-width: 1024px) 100vw, 50vw"
                     className="object-cover"
-                    priority
+                    priority={tabId === "events"}
                   />
                   <div className="absolute bottom-8 left-8 z-20 max-w-[280px]">
                     <div className={`inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/40 px-4 py-2 backdrop-blur-md mb-4`}>
