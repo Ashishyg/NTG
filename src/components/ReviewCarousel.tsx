@@ -166,17 +166,21 @@ export default function ReviewCarousel({ className = "", delay = 0, variants }: 
 
           <AnimatePresence initial={false}>
             {active ? (
-              <motion.p
+              <motion.div
                 key={active.id}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.55, ease: "easeOut" }}
-                className="absolute inset-y-0 left-7 right-0 overflow-y-auto font-display text-[12.5px] sm:text-[14.5px] leading-relaxed tracking-[-0.005em] text-white/90 pr-2"
-                title={active.text}
+                className="absolute inset-y-0 left-7 right-0 overflow-hidden"
               >
-                <HighlightedText text={active.text} />
-              </motion.p>
+                <p
+                  className="font-display text-[18px] leading-relaxed sm:leading-snug tracking-[-0.005em] text-white/90 line-clamp-6"
+                  title={active.text}
+                >
+                  <HighlightedText text={active.text} />
+                </p>
+              </motion.div>
             ) : null}
           </AnimatePresence>
         </div>
