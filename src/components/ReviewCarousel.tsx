@@ -155,7 +155,7 @@ export default function ReviewCarousel({ className = "", delay = 0, variants }: 
 
         {/* Stable-height stage — children are absolutely positioned so layout
             never shifts during a review transition (no flicker). */}
-        <div className="relative h-full overflow-hidden pl-7">
+        <div className="relative h-full overflow-hidden">
           {!loaded && (
             <div aria-hidden className="absolute inset-0">
               <span className="block h-3 w-5/6 rounded bg-white/10" />
@@ -172,12 +172,10 @@ export default function ReviewCarousel({ className = "", delay = 0, variants }: 
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.55, ease: "easeOut" }}
-                className="absolute inset-0 line-clamp-[8] overflow-hidden font-display text-[15px] sm:text-[18px] leading-relaxed sm:leading-snug tracking-[-0.005em] text-white/90 sm:line-clamp-6 lg:line-clamp-[7]"
+                className="absolute inset-y-0 left-7 right-0 overflow-y-auto font-display text-[12.5px] sm:text-[14.5px] leading-relaxed tracking-[-0.005em] text-white/90 pr-2"
                 title={active.text}
               >
-                <span aria-hidden>&ldquo;</span>
                 <HighlightedText text={active.text} />
-                <span aria-hidden>&rdquo;</span>
               </motion.p>
             ) : null}
           </AnimatePresence>

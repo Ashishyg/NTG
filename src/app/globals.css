@@ -70,6 +70,7 @@
     /* Fluid container width on desktop screens */
     --container: min(80vw, 1650px);
   }
+
   html {
     font-size: 14.5px;
   }
@@ -145,6 +146,7 @@ header[data-site-nav] {
 }
 
 @media (min-width: 768px) {
+
   .site-nav,
   header[data-site-nav] {
     position: absolute !important;
@@ -223,14 +225,12 @@ header[data-site-nav] {
 @utility cta {
   overflow: hidden;
   border: 0 solid transparent;
-  background-image: linear-gradient(
-    110deg,
-    #9333ea 0%,
-    #6366f1 32%,
-    #38bdf8 50%,
-    #6366f1 68%,
-    #9333ea 100%
-  );
+  background-image: linear-gradient(110deg,
+      #9333ea 0%,
+      #6366f1 32%,
+      #38bdf8 50%,
+      #6366f1 68%,
+      #9333ea 100%);
   color: #06121a;
   box-shadow: 0 0 40px -12px rgba(124, 58, 237, 0.65);
 }
@@ -241,6 +241,7 @@ header[data-site-nav] {
   background: rgba(255, 255, 255, 0.025);
   isolation: isolate;
 }
+
 @utility shine-border-inner {
   position: relative;
   z-index: 1;
@@ -252,17 +253,15 @@ header[data-site-nav] {
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: conic-gradient(
-    from var(--angle),
-    transparent 0%,
-    rgba(94, 234, 212, 0.55) 8%,
-    rgba(168, 85, 247, 0.65) 22%,
-    transparent 35%,
-    transparent 65%,
-    rgba(34, 211, 238, 0.55) 78%,
-    rgba(217, 70, 239, 0.55) 92%,
-    transparent 100%
-  );
+  background: conic-gradient(from var(--angle),
+      transparent 0%,
+      rgba(94, 234, 212, 0.55) 8%,
+      rgba(168, 85, 247, 0.65) 22%,
+      transparent 35%,
+      transparent 65%,
+      rgba(34, 211, 238, 0.55) 78%,
+      rgba(217, 70, 239, 0.55) 92%,
+      transparent 100%);
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
@@ -292,6 +291,7 @@ header[data-site-nav] {
   position: relative;
   overflow: hidden;
 }
+
 .aurora::before {
   content: "";
   position: absolute;
@@ -308,12 +308,16 @@ header[data-site-nav] {
 }
 
 @keyframes auroraDrift {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translate3d(0, 0, 0) scale(1);
   }
+
   33% {
     transform: translate3d(2%, -3%, 0) scale(1.05);
   }
+
   66% {
     transform: translate3d(-3%, 2%, 0) scale(0.97);
   }
@@ -321,8 +325,13 @@ header[data-site-nav] {
 
 /* ---------- Marquee ---------- */
 @keyframes marquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
 }
 
 .animate-marquee {
@@ -340,17 +349,35 @@ header[data-site-nav] {
 
 /* ---------- Soft floating ---------- */
 @keyframes floatY {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
 }
-.float-soft { animation: floatY 6s ease-in-out infinite; }
+
+.float-soft {
+  animation: floatY 6s ease-in-out infinite;
+}
 
 /* ---------- Orbit ---------- */
 @keyframes spinSlow {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
-.spin-slow { animation: spinSlow 40s linear infinite; }
-.spin-slower { animation: spinSlow 80s linear infinite reverse; }
+
+.spin-slow {
+  animation: spinSlow 40s linear infinite;
+}
+
+.spin-slower {
+  animation: spinSlow 80s linear infinite reverse;
+}
 
 /* ---------- Noise overlay (subtle film grain) ---------- */
 .noise {
@@ -363,14 +390,22 @@ header[data-site-nav] {
 }
 
 /* ---------- Scrollbar ---------- */
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 ::-webkit-scrollbar-thumb {
   background: rgba(124, 58, 237, 0.35);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(94, 234, 212, 0.45);
   background-clip: content-box;
@@ -380,7 +415,10 @@ header[data-site-nav] {
   html {
     scroll-behavior: auto !important;
   }
-  *, *::before, *::after {
+
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;

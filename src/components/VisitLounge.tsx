@@ -85,27 +85,18 @@ export default function VisitLounge() {
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2">
-                {socials.map((s) => {
-                  const brandColor =
-                    s.name === "Instagram"
-                      ? "text-[#EC4899] border-[#EC4899]/30 bg-[#EC4899]/5 hover:border-[#EC4899]/60 hover:bg-[#EC4899]/10 shadow-[0_0_10px_rgba(236,72,153,0.15)] hover:shadow-[0_0_20px_rgba(236,72,153,0.45)]"
-                      : s.name === "Discord"
-                      ? "text-[#5865F2] border-[#5865F2]/30 bg-[#5865F2]/5 hover:border-[#5865F2]/60 hover:bg-[#5865F2]/10 shadow-[0_0_10px_rgba(88,101,242,0.15)] hover:shadow-[0_0_20px_rgba(88,101,242,0.45)]"
-                      : "text-[#25D366] border-[#25D366]/30 bg-[#25D366]/5 hover:border-[#25D366]/60 hover:bg-[#25D366]/10 shadow-[0_0_10px_rgba(37,211,102,0.15)] hover:shadow-[0_0_20px_rgba(37,211,102,0.45)]";
-
-                  return (
-                    <a
-                      key={s.name}
-                      href={s.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={s.name}
-                      className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-all duration-300 hover:scale-105 active:scale-95 ${brandColor}`}
-                    >
-                      <BrandIcon path={s.path} title={s.name} className="h-4 w-4 [filter:drop-shadow(0_0_1px_currentColor)]" />
-                    </a>
-                  );
-                })}
+                {socials.map((s) => (
+                  <a
+                    key={s.name}
+                    href={s.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={s.name}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.02] text-white/55 transition-all duration-300 hover:scale-105 hover:border-white/40 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_0_16px_rgba(255,255,255,0.22)] active:scale-95"
+                  >
+                    <BrandIcon path={s.path} title={s.name} className="h-4 w-4 [filter:drop-shadow(0_0_1px_currentColor)]" />
+                  </a>
+                ))}
               </div>
             </div>
           </div>
