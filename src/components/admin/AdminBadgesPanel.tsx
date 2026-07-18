@@ -100,78 +100,80 @@ export default function AdminBadgesPanel({
 
       {message ? <p className="text-xs text-amber-300">{message}</p> : null}
 
-      <AdminSection title="Award a badge" showsOn="Player profile page; auction draft pool">
-        <div className="space-y-3 relative">
-          <select
-            className={inputClass}
-            value={tournamentId}
-            onChange={(e) => setTournamentId(e.target.value)}
-          >
-            <option value="">Select a tournament...</option>
-            {tournaments.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-          <select
-            className={inputClass}
-            value={type}
-            onChange={(e) => setType(e.target.value as "WINNER" | "RUNNER_UP")}
-          >
-            <option value="WINNER">Winner</option>
-            <option value="RUNNER_UP">Runner-up</option>
-          </select>
-          {tournamentId ? (
-            <p className="text-[10px] text-white/40">
-              Badge label:{" "}
-              <span className="text-amber-300 font-semibold">
-                {tournaments.find((t) => t.id === tournamentId)?.name} {type === "WINNER" ? "WINNER" : "RUNNER-UP"}
-              </span>
-            </p>
-          ) : null}
-          <input
-            className={inputClass}
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setSelected(null);
-            }}
-            placeholder="Search for a player..."
-          />
-          {results.length > 0 && !selected ? (
-            <ul className="absolute z-10 w-full max-h-40 overflow-y-auto rounded-xl border border-white/[0.06] bg-[#0a1020] shadow-xl mt-1">
-              {results.map((m) => {
-                const displayLabel = m.displayName ?? m.name ?? m.email ?? "Member";
-                return (
-                  <li key={m.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelected({ id: m.id, label: displayLabel });
-                        setSearch(displayLabel);
-                        setResults([]);
-                      }}
-                      className="w-full px-3 py-2 text-left text-xs text-white/75 hover:bg-white/[0.04]"
-                    >
-                      <span className="font-medium text-white/90">{displayLabel}</span>
-                      {m.email ? <span className="ml-2 text-white/40">{m.email}</span> : null}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : null}
-          <button
-            type="button"
-            disabled={!selected || !tournamentId || awarding}
-            onClick={awardBadge}
-            className="rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-black disabled:opacity-40"
-          >
-            {awarding ? "Awarding..." : "Award badge"}
-          </button>
-        </div>
-      </AdminSection>
+      <div className="relative z-20">
+        <AdminSection title="Award a badge" showsOn="Player profile page; auction draft pool">
+          <div className="space-y-3 relative">
+            <select
+              className={inputClass}
+              value={tournamentId}
+              onChange={(e) => setTournamentId(e.target.value)}
+            >
+              <option value="">Select a tournament...</option>
+              {tournaments.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            <select
+              className={inputClass}
+              value={type}
+              onChange={(e) => setType(e.target.value as "WINNER" | "RUNNER_UP")}
+            >
+              <option value="WINNER">Winner</option>
+              <option value="RUNNER_UP">Runner-up</option>
+            </select>
+            {tournamentId ? (
+              <p className="text-[10px] text-white/40">
+                Badge label:{" "}
+                <span className="text-amber-300 font-semibold">
+                  {tournaments.find((t) => t.id === tournamentId)?.name} {type === "WINNER" ? "WINNER" : "RUNNER-UP"}
+                </span>
+              </p>
+            ) : null}
+            <input
+              className={inputClass}
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setSelected(null);
+              }}
+              placeholder="Search for a player..."
+            />
+            {results.length > 0 && !selected ? (
+              <ul className="absolute z-10 w-full max-h-40 overflow-y-auto rounded-xl border border-white/[0.06] bg-[#0a1020] shadow-xl mt-1">
+                {results.map((m) => {
+                  const displayLabel = m.displayName ?? m.name ?? m.email ?? "Member";
+                  return (
+                    <li key={m.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelected({ id: m.id, label: displayLabel });
+                          setSearch(displayLabel);
+                          setResults([]);
+                        }}
+                        className="w-full px-3 py-2 text-left text-xs text-white/75 hover:bg-white/[0.04]"
+                      >
+                        <span className="font-medium text-white/90">{displayLabel}</span>
+                        {m.email ? <span className="ml-2 text-white/40">{m.email}</span> : null}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+            <button
+              type="button"
+              disabled={!selected || !tournamentId || awarding}
+              onClick={awardBadge}
+              className="rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-black disabled:opacity-40"
+            >
+              {awarding ? "Awarding..." : "Award badge"}
+            </button>
+          </div>
+        </AdminSection>
+      </div>
 
       <AdminSection title={`All badges (${initialBadges.length})`} showsOn="Player profile page; auction draft pool">
         {initialBadges.length === 0 ? (
