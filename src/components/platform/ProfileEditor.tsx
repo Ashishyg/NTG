@@ -34,6 +34,16 @@ function rolesEqual(a: ValorantRole[], b: ValorantRole[]) {
 
 type Badge = { id: string; label: string; awardedAt: string };
 
+/** Runner-up badges end in "RUNNER-UP"; everything else is a win. */
+function isRunnerUp(label: string): boolean {
+  return /RUNNER-UP$/i.test(label);
+}
+
+/** Matches the auction site's trophy icon: a 🏆 tinted silver via filter for runner-ups. */
+function TrophyIcon({ silver = false }: { silver?: boolean }) {
+  return silver ? <span style={{ filter: "grayscale(1) brightness(1.5)" }}>🏆</span> : <span>🏆</span>;
+}
+
 export default function ProfileEditor() {
   const searchParams = useSearchParams();
   const [profile, setProfile] = useState<FullProfile | null>(null);
@@ -313,14 +323,21 @@ export default function ProfileEditor() {
             <div className="w-full mt-6 border-t border-white/[0.06] pt-6 text-left">
               <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/35 mb-3">Trophy Case</h4>
               <div className="flex flex-wrap gap-2">
-                {badges.map((b) => (
-                  <span
-                    key={b.id}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-300"
-                  >
-                    🏆 {b.label}
-                  </span>
-                ))}
+                {badges.map((b) => {
+                  const runnerUp = isRunnerUp(b.label);
+                  return (
+                    <span
+                      key={b.id}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
+                        runnerUp
+                          ? "border-slate-400/25 bg-slate-400/10 text-slate-300"
+                          : "border-amber-500/25 bg-amber-500/10 text-amber-300"
+                      }`}
+                    >
+                      <TrophyIcon silver={runnerUp} /> {b.label}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           )}

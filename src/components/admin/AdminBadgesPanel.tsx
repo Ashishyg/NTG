@@ -42,6 +42,15 @@ function isRunnerUp(label: string): boolean {
   return /RUNNER-UP$/i.test(label);
 }
 
+/** Matches the auction site's trophy icon: a 🏆 tinted silver via filter for runner-ups. */
+function TrophyIcon({ silver = false }: { silver?: boolean }) {
+  return silver ? (
+    <span style={{ filter: "grayscale(1) brightness(1.5)" }}>🏆</span>
+  ) : (
+    <span>🏆</span>
+  );
+}
+
 export default function AdminBadgesPanel({
   initialBadges,
   tournaments,
@@ -181,7 +190,7 @@ export default function AdminBadgesPanel({
                         : "border-white/10 bg-[#0a1020]/60 text-white/50 hover:text-white/80"
                     }`}
                   >
-                    🏆 Winner
+                    <TrophyIcon /> Winner
                   </button>
                   <button
                     type="button"
@@ -192,7 +201,7 @@ export default function AdminBadgesPanel({
                         : "border-white/10 bg-[#0a1020]/60 text-white/50 hover:text-white/80"
                     }`}
                   >
-                    🥈 Runner-up
+                    <TrophyIcon silver /> Runner-up
                   </button>
                 </div>
               </div>
@@ -319,7 +328,7 @@ export default function AdminBadgesPanel({
                     <span className="min-w-0">
                       <span className="font-semibold text-white">{name}</span>{" "}
                       <span className="text-white/40">
-                        {runnerUp ? "🥈" : "🏆"} {b.label}
+                        <TrophyIcon silver={runnerUp} /> {b.label}
                       </span>
                       {b.tournamentName ? <span className="ml-1.5 text-white/25">({b.tournamentName})</span> : null}
                     </span>

@@ -56,9 +56,9 @@ export default async function TournamentDetailPage({ params }: Props) {
     tournament.userRegistered &&
     !!serverEnv.auctionUrl &&
     !!serverEnv.auctionJwtSecret;
-  // Admins can always enter; players enter only while IN_PROGRESS, see it disabled once COMPLETED.
+  // Admins can always enter, but only for tournaments that are actually auction-format.
   // Normal registered users only see the button if publicAuction is enabled by the admin.
-  const showEnterButton = admin.ok || (auctionEligible && publicAuction);
+  const showEnterButton = tournament.registrationFormat === "AUCTION" && (admin.ok || (auctionEligible && publicAuction));
   const auctionHref = (showEnterButton && userId)
     ? auctionLink(tournament.id, auctionView, userId)
     : null;

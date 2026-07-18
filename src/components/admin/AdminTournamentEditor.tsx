@@ -174,9 +174,7 @@ function getSavePayload(form: TournamentData) {
     autoManageStatus: form.autoManageStatus,
     bracketUrl: emptyToNull(form.bracketUrl),
     rulebookUrl: emptyToNull(form.rulebookUrl),
-    registrationFormat: SUPPORTS_FORMAT.includes(form.game)
-      ? (form.registrationFormat ?? "AUCTION")
-      : null,
+    registrationFormat: SUPPORTS_FORMAT.includes(form.game) ? form.registrationFormat : null,
     format: form.format || null,
     coCaptainSlots: form.coCaptainSlots,
     startingBudget: form.startingBudget,
@@ -562,7 +560,7 @@ export default function AdminTournamentEditor({
           hideAfter: null,
           bracketUrl: emptyToNull(form.bracketUrl),
           rulebookUrl: emptyToNull(form.rulebookUrl),
-          registrationFormat: SUPPORTS_FORMAT.includes(form.game) ? (form.registrationFormat ?? "AUCTION") : null,
+          registrationFormat: SUPPORTS_FORMAT.includes(form.game) ? form.registrationFormat : null,
           format: form.format || null,
           coCaptainSlots: form.coCaptainSlots,
           startingBudget: form.startingBudget,
