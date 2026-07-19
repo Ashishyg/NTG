@@ -1,13 +1,51 @@
 import Link from "next/link";
-import { getHeroCupStatus } from "@tournaments-leagues/index";
+import { getHeroCupStatus, getTournamentDetail } from "@tournaments-leagues/index";
+import { resolveEffectivePublicAuction } from "@tournaments-leagues/domain/auction-hero-phase";
 import HeroCupStatusBanner from "@/components/HeroCupStatusBanner";
 import SplitText from "./SplitText";
+import { getSession } from "@core/auth/session";
+import { requireAdmin } from "@core/auth/require-admin";
+import { serverEnv } from "@core/config/env.server";
+import { auctionLink } from "@/lib/auction-link";
+import { prisma } from "@core/database/client";
 
 const heroCtaBase =
   "inline-flex h-10 w-auto cursor-pointer select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 text-[10px] font-semibold uppercase tracking-[0.12em] transition-all hover:scale-[1.03] active:scale-[0.98] sm:h-12 sm:gap-2 sm:px-5 sm:text-sm sm:tracking-[0.18em]";
 
+// Same gating rules as the tournament detail page's "Enter Live Auction" button
+// (admin.ok, or a registered+eligible user when the admin has made the auction public).
+async function resolveHeroAuctionHref(slug: string): Promise<string | null> {
+  const session = await getSession();
+  const userId = session?.user?.id;
+  const [tournament, admin] = await Promise.all([getTournamentDetail(slug, userId), requireAdmin()]);
+  if (!tournament) return null;
+
+  const [dbRow] = await prisma.$queryRawUnsafe<{ publicAuction: boolean }[]>(
+    'SELECT "publicAuction" FROM "Tournament" WHERE id = $1 LIMIT 1',
+    tournament.id
+  );
+  const publicAuction = resolveEffectivePublicAuction(dbRow?.publicAuction ?? false, tournament);
+
+  const auctionEligible =
+    tournament.registrationFormat === "AUCTION" &&
+    !!userId &&
+    tournament.userRegistered &&
+    !!serverEnv.auctionUrl &&
+    !!serverEnv.auctionJwtSecret;
+  const showEnterButton = tournament.registrationFormat === "AUCTION" && (admin.ok || (auctionEligible && publicAuction));
+  if (!showEnterButton || !userId) return null;
+
+  const auctionView = admin.ok
+    ? "auctioneer"
+    : tournament.userParticipantRole === "CAPTAIN" || tournament.userParticipantRole === "CO_CAPTAIN"
+      ? "captain"
+      : "observe";
+  return auctionLink(tournament.id, auctionView, userId);
+}
+
 export default async function Hero() {
   const heroCup = await getHeroCupStatus();
+  const auctionHref = heroCup?.phase === "auction_live" ? await resolveHeroAuctionHref(heroCup.slug) : null;
   return (
     <section
       id="top"
@@ -44,7 +82,7 @@ export default async function Hero() {
           style={{ top: "var(--hero-content-bottom-above)" }}
         >
           <div className="animate-in fade-in slide-in-from-bottom-1 duration-300">
-            <HeroCupStatusBanner cup={heroCup} />
+            <HeroCupStatusBanner cup={heroCup} auctionHref={auctionHref} />
           </div>
         </div>
       ) : null}

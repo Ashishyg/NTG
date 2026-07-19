@@ -117,13 +117,21 @@ function countdownPrefix(cup: HeroCupStatusClient): string | undefined {
   }
 }
 
-export default function HeroCupStatusBanner({ cup }: { cup: HeroCupStatusClient }) {
+export default function HeroCupStatusBanner({
+  cup,
+  auctionHref,
+}: {
+  cup: HeroCupStatusClient;
+  auctionHref?: string | null;
+}) {
   const style = phaseStyles[cup.phase];
-  const href = `/esports/tournaments/${cup.slug}`;
+  const href = auctionHref ?? `/esports/tournaments/${cup.slug}`;
 
   return (
     <Link
       href={href}
+      target={auctionHref ? "_blank" : undefined}
+      rel={auctionHref ? "noopener noreferrer" : undefined}
       className={`group relative inline-flex max-w-full flex-row items-center gap-1.5 rounded-full border px-3 py-1 text-[8px] font-semibold uppercase tracking-[0.08em] transition-all hover:scale-[1.02] sm:px-6 sm:py-2.5 sm:text-xs sm:gap-2.5 sm:tracking-[0.18em] ${style.border} ${style.bg} ${style.text} hover:brightness-110 shadow-[0_0_20px_-5px_rgba(124,58,237,0.15)]`}
     >
       <span className="inline-flex items-center gap-2">
