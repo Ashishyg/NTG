@@ -13,7 +13,10 @@ type Props = {
   teams: { id: string; name: string }[];
   busy: boolean;
   savingMatchIds: Set<string>;
+  generateProgress?: string | null;
+  canResumeGenerate?: boolean;
   onGenerate: () => void;
+  onResumeGenerate?: () => void;
   onSetSchedule: (
     matchId: string,
     localValue: string,
@@ -36,7 +39,10 @@ export default function StageMatchesTab({
   teams,
   busy,
   savingMatchIds,
+  generateProgress = null,
+  canResumeGenerate = false,
   onGenerate,
+  onResumeGenerate,
   onSetSchedule,
   onSetWinner,
   onAssignTeam,
@@ -57,6 +63,9 @@ export default function StageMatchesTab({
           runnable={selected.runnable}
           matchCount={selected.matchCount}
           onGenerate={onGenerate}
+          progressLabel={generateProgress}
+          canResume={canResumeGenerate}
+          onResume={onResumeGenerate}
         />
         <p className="text-[11px] text-white/40">
           Saves drafts for all stages, then builds this stage&apos;s matches from

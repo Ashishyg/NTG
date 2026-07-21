@@ -55,6 +55,12 @@ export function useStageBuilderState(
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syncNote, setSyncNote] = useState<string | null>(null);
+  const [generateProgress, setGenerateProgress] = useState<string | null>(null);
+  const [pendingGenerate, setPendingGenerate] = useState<{
+    stageId: string;
+    cursor: number;
+    total: number;
+  } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(
     () => initialGraph?.stages[0]?.id ?? null,
   );
@@ -601,27 +607,111 @@ export function useStageBuilderState(
     });
   }
 
-  async function generate(stageId: string) {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch(
+  async function continueGenerateInsert(
+    stageId: string,
+    startCursor: number,
+    startTotal: number,
+  ) {
+    let cursor = startCursor;
+    let total = startTotal;
+    setPendingGenerate({ stageId, cursor, total });
+
+    while (true) {
+      setGenerateProgress(
+        total > 0
+          ? `Creating matches… ${Math.min(cursor, total)}/${total}`
+          : "Creating matches…",
+      );
+      const insertRes = await fetch(
         `/api/admin/tournaments/${slug}/stages/${stageId}/generate`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ drafts: buildDrafts(graphRef.current) }),
+          body: JSON.stringify({ phase: "insert", cursor }),
         },
       );
-      await requireApiJson(res);
-      // Generate no longer returns the full graph (that was timing out).
+      const insertData = (await requireApiJson(insertRes)) as {
+        cursor: number;
+        total: number;
+        complete: boolean;
+      };
+      cursor = insertData.cursor;
+      total = insertData.total;
+      setPendingGenerate({ stageId, cursor, total });
+      setGenerateProgress(
+        `Creating matches… ${Math.min(cursor, total)}/${total}`,
+      );
+      if (insertData.complete || cursor >= total) break;
+    }
+
+    setGenerateProgress("Finalizing…");
+    setPendingGenerate({ stageId, cursor, total });
+    const finalizeRes = await fetch(
+      `/api/admin/tournaments/${slug}/stages/${stageId}/generate`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phase: "finalize" }),
+      },
+    );
+    await requireApiJson(finalizeRes);
+    setPendingGenerate(null);
+    setGenerateProgress(null);
+  }
+
+  async function generate(stageId: string) {
+    setBusy(true);
+    setError(null);
+    setGenerateProgress("Preparing…");
+    setPendingGenerate(null);
+    try {
+      const prepareRes = await fetch(
+        `/api/admin/tournaments/${slug}/stages/${stageId}/generate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phase: "prepare",
+            drafts: buildDrafts(graphRef.current),
+          }),
+        },
+      );
+      const prepared = (await requireApiJson(prepareRes)) as {
+        cursor: number;
+        total: number;
+      };
+      await continueGenerateInsert(
+        stageId,
+        prepared.cursor ?? 0,
+        prepared.total ?? 0,
+      );
       matchesLoadedRef.current.delete(stageId);
       await load({ silent: true });
       await loadMatchesForStage(stageId, { force: true });
       setDirty(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Generate failed");
+      setGenerateProgress(null);
       throw e;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resumeGenerate() {
+    if (!pendingGenerate) return;
+    const { stageId, cursor, total } = pendingGenerate;
+    setBusy(true);
+    setError(null);
+    try {
+      await continueGenerateInsert(stageId, cursor, total);
+      matchesLoadedRef.current.delete(stageId);
+      await load({ silent: true });
+      await loadMatchesForStage(stageId, { force: true });
+      setDirty(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Generate failed");
+      setGenerateProgress(null);
     } finally {
       setBusy(false);
     }
@@ -749,18 +839,29 @@ export function useStageBuilderState(
   async function reshuffleBracket(stageId: string) {
     setBusy(true);
     setError(null);
+    setGenerateProgress("Reshuffling…");
+    setPendingGenerate(null);
     try {
       const res = await fetch(
         `/api/admin/tournaments/${slug}/stages/${stageId}/reshuffle`,
         { method: "POST" },
       );
-      await requireApiJson(res);
+      const prepared = (await requireApiJson(res)) as {
+        cursor: number;
+        total: number;
+      };
+      await continueGenerateInsert(
+        stageId,
+        prepared.cursor ?? 0,
+        prepared.total ?? 0,
+      );
       matchesLoadedRef.current.delete(stageId);
       await load({ silent: true });
       await loadMatchesForStage(stageId, { force: true });
       setDirty(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Reshuffle failed");
+      setGenerateProgress(null);
     } finally {
       setBusy(false);
     }
@@ -836,6 +937,8 @@ export function useStageBuilderState(
     error,
     setError,
     syncNote,
+    generateProgress,
+    pendingGenerate,
     selectedId,
     setSelectedId,
     selected,
@@ -863,6 +966,7 @@ export function useStageBuilderState(
     reshufflePools,
     moveTeamToPool,
     generate,
+    resumeGenerate,
     syncPipeline,
     setMatchWinner,
     assignBracketTeam,

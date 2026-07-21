@@ -12,7 +12,12 @@ import type {
 } from "@tournaments-leagues/domain/stages/types";
 import { validateStageGraph } from "@tournaments-leagues/domain/stages/validation";
 import { getStagePlugin } from "./stage-registry";
-import { generateMatchesForStage } from "./match-generation.engine";
+import {
+  finalizeMatchGeneration,
+  generateMatchesForStage,
+  insertMatchGenerationBatch,
+  prepareMatchGeneration,
+} from "./match-generation.engine";
 import { applyStageMovement } from "./movement.engine";
 import {
   evaluateStageQualification,
@@ -1151,18 +1156,49 @@ function chunkEvenly(ids: string[], chunks: number): string[][] {
   return result;
 }
 
-export async function generateStageMatches(slug: string, stageId: string) {
+async function assertStageInTournament(slug: string, stageId: string) {
   const tournamentId = await resolveTournamentId(slug);
   const stage = await prisma.tournamentStage.findFirst({
     where: { id: stageId, tournamentId },
   });
   if (!stage) throw new Error("Stage not found.");
+  return { tournamentId, stage };
+}
+
+/** Full generate in one process (sync / internal). Prefer chunked phases from the UI. */
+export async function generateStageMatches(slug: string, stageId: string) {
+  await assertStageInTournament(slug, stageId);
   return generateMatchesForStage(stageId);
 }
 
+export async function prepareStageMatchGeneration(
+  slug: string,
+  stageId: string,
+) {
+  await assertStageInTournament(slug, stageId);
+  return prepareMatchGeneration(stageId);
+}
+
+export async function insertStageMatchGenerationBatch(
+  slug: string,
+  stageId: string,
+  cursor: number,
+) {
+  await assertStageInTournament(slug, stageId);
+  return insertMatchGenerationBatch(stageId, cursor);
+}
+
+export async function finalizeStageMatchGeneration(
+  slug: string,
+  stageId: string,
+) {
+  await assertStageInTournament(slug, stageId);
+  return finalizeMatchGeneration(stageId);
+}
+
 /**
- * Shuffle seed order and regenerate the bracket — only allowed before any
- * match results are recorded.
+ * Shuffle seed order and prepare an empty bracket — client continues with
+ * insert/finalize batches (same path as Generate Matches).
  */
 export async function reshuffleStageBracket(slug: string, stageId: string) {
   const tournamentId = await resolveTournamentId(slug);
@@ -1210,7 +1246,7 @@ export async function reshuffleStageBracket(slug: string, stageId: string) {
     { method: "MANUAL", redistribute: false, skipGraph: true },
   );
 
-  return generateMatchesForStage(stageId);
+  return prepareMatchGeneration(stageId);
 }
 
 export async function advanceStageAdmin(slug: string, stageId: string) {
@@ -1593,7 +1629,8 @@ async function seedStageFromFeeders(
 }
 
 /**
- * Persist buffered stage drafts, seed the target stage, then generate matches.
+ * Persist buffered stage drafts, seed the target stage, then prepare an empty
+ * bracket. Client continues with insert/finalize batches.
  * Seed from PREVIOUS_STAGE runs qualification from ALL earlier stages that
  * point here (not only the immediate previous stage).
  */
@@ -1602,7 +1639,11 @@ export async function commitStageAndGenerate(
   stageId: string,
   drafts: StageCommitDraft[],
 ): Promise<{
-  matchCount: number;
+  jobId: string;
+  bracketId: string;
+  total: number;
+  cursor: number;
+  complete: false;
   moved: number;
 }> {
   const tournamentId = await resolveTournamentId(slug);
@@ -1671,9 +1712,8 @@ export async function commitStageAndGenerate(
     }
   }
 
-  const generated = await generateMatchesForStage(stageId);
-  // Do not reload full match payloads here — client fetches /matches after.
-  return { matchCount: generated.matchCount, moved };
+  const prepared = await prepareMatchGeneration(stageId);
+  return { ...prepared, moved };
 }
 
 /**

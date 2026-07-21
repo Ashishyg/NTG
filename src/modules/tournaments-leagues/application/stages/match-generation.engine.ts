@@ -1,8 +1,24 @@
-import { BracketType, MatchStatus, ParticipantType, type StageType } from "@prisma/client";
+import {
+  BracketType,
+  MatchStatus,
+  ParticipantType,
+  type StageType,
+} from "@prisma/client";
+import { randomBytes } from "crypto";
 import { prisma } from "@core/database/client";
 import { getStagePlugin } from "./stage-registry";
 import { resolveStageSeeding, snakeDistribute } from "./seeding.engine";
-import type { StageGenerateContext } from "@tournaments-leagues/domain/stages/types";
+import type {
+  GeneratedMatch,
+  StageGenerateContext,
+} from "@tournaments-leagues/domain/stages/types";
+
+/** Matches created per insert request — keep each Vercel invocation short. */
+export const MATCH_INSERT_BATCH = 40;
+
+function newId(): string {
+  return `c${randomBytes(12).toString("hex")}`;
+}
 
 function stageTypeToBracketType(type: StageType): BracketType {
   switch (type) {
@@ -23,7 +39,24 @@ function stageTypeToBracketType(type: StageType): BracketType {
   }
 }
 
-export async function generateMatchesForStage(stageId: string): Promise<{ matchCount: number }> {
+function placementKey(m: {
+  stageGroupId?: string | null;
+  roundNumber: number;
+  positionInRound: number;
+  bracketSide?: string | null;
+}): string {
+  return `${m.stageGroupId ?? ""}|${m.roundNumber}|${m.positionInRound}|${m.bracketSide ?? ""}`;
+}
+
+function chunkEvenly(ids: string[], chunks: number): string[][] {
+  const result: string[][] = Array.from({ length: Math.max(1, chunks) }, () => []);
+  ids.forEach((id, i) => {
+    result[i % result.length]!.push(id);
+  });
+  return result;
+}
+
+async function loadStageForGenerate(stageId: string) {
   const stage = await prisma.tournamentStage.findUnique({
     where: { id: stageId },
     include: {
@@ -37,72 +70,86 @@ export async function generateMatchesForStage(stageId: string): Promise<{ matchC
       bracket: true,
     },
   });
-
   if (!stage) throw new Error("Stage not found.");
+  return stage;
+}
 
+async function ensureGroupSlotsFromSeeding(
+  stage: Awaited<ReturnType<typeof loadStageForGenerate>>,
+): Promise<Awaited<ReturnType<typeof loadStageForGenerate>>> {
+  const seedingMethod =
+    stage.seedingMethod === "RANDOM" ? "MANUAL" : stage.seedingMethod;
+  const seeded = await resolveStageSeeding({
+    tournamentId: stage.tournamentId,
+    stageId: stage.id,
+    method: seedingMethod,
+  });
+
+  if (stage.groups.length === 0 || seeded.length === 0) return stage;
+
+  const filledCounts = stage.groups.map(
+    (g) => g.slots.filter((s) => s.teamId).length,
+  );
+  const someEmpty = filledCounts.some((c) => c === 0);
+  const someFilled = filledCounts.some((c) => c > 0);
+  const noneFilled = filledCounts.every((c) => c === 0);
+  const shouldDistribute = noneFilled || (someEmpty && someFilled);
+  if (!shouldDistribute) return stage;
+
+  const method = stage.seedingMethod;
+  const distribution =
+    method === "SNAKE"
+      ? snakeDistribute(
+          seeded.map((s) => s.teamId),
+          stage.groups.length,
+        )
+      : chunkEvenly(
+          seeded.map((s) => s.teamId),
+          stage.groups.length,
+        );
+
+  for (let gi = 0; gi < stage.groups.length; gi++) {
+    const group = stage.groups[gi]!;
+    const teamIds = distribution[gi] ?? [];
+    await prisma.stageGroupSlot.deleteMany({ where: { groupId: group.id } });
+    const targetSize = Math.max(teamIds.length, group.targetSize ?? 0, 2);
+    await prisma.tournamentStageGroup.update({
+      where: { id: group.id },
+      data: { targetSize },
+    });
+    await prisma.stageGroupSlot.createMany({
+      data: Array.from({ length: targetSize }, (_, si) => ({
+        groupId: group.id,
+        slotIndex: si,
+        teamId: teamIds[si] ?? null,
+      })),
+    });
+  }
+
+  return loadStageForGenerate(stage.id);
+}
+
+export async function buildGeneratedMatchesForStage(
+  stageId: string,
+): Promise<{ generated: GeneratedMatch[]; tournamentId: string; stageType: StageType }> {
+  let stage = await loadStageForGenerate(stageId);
   const plugin = getStagePlugin(stage.stageType);
   if (!plugin.runnable) {
     throw new Error(`${stage.stageType} cannot generate matches yet.`);
   }
 
+  stage = await ensureGroupSlotsFromSeeding(stage);
+
+  // Never re-shuffle RANDOM when recomputing pairings across chunked inserts —
+  // use persisted StageSeedingEntry / group slots as the stable order.
+  const seedingMethod =
+    stage.seedingMethod === "RANDOM" ? "MANUAL" : stage.seedingMethod;
+
   const seeded = await resolveStageSeeding({
     tournamentId: stage.tournamentId,
     stageId: stage.id,
-    method: stage.seedingMethod,
+    method: seedingMethod,
   });
-
-  // Fill / redistribute group slots from seeding.
-  // Redistribute when any pool is empty while teams exist (common after adding a new pool).
-  if (stage.groups.length > 0 && seeded.length > 0) {
-    const filledCounts = stage.groups.map(
-      (g) => g.slots.filter((s) => s.teamId).length,
-    );
-    const someEmpty = filledCounts.some((c) => c === 0);
-    const someFilled = filledCounts.some((c) => c > 0);
-    const noneFilled = filledCounts.every((c) => c === 0);
-    const shouldDistribute = noneFilled || (someEmpty && someFilled);
-
-    if (shouldDistribute) {
-      const method = stage.seedingMethod;
-      const distribution =
-        method === "SNAKE"
-          ? snakeDistribute(
-              seeded.map((s) => s.teamId),
-              stage.groups.length,
-            )
-          : chunkEvenly(
-              seeded.map((s) => s.teamId),
-              stage.groups.length,
-            );
-
-      for (let gi = 0; gi < stage.groups.length; gi++) {
-        const group = stage.groups[gi]!;
-        const teamIds = distribution[gi] ?? [];
-        await prisma.stageGroupSlot.deleteMany({ where: { groupId: group.id } });
-        const targetSize = Math.max(teamIds.length, group.targetSize ?? 0, 2);
-        await prisma.tournamentStageGroup.update({
-          where: { id: group.id },
-          data: { targetSize },
-        });
-        await prisma.stageGroupSlot.createMany({
-          data: Array.from({ length: targetSize }, (_, si) => ({
-            groupId: group.id,
-            slotIndex: si,
-            teamId: teamIds[si] ?? null,
-          })),
-        });
-      }
-
-      const refreshed = await prisma.tournamentStageGroup.findMany({
-        where: { stageId },
-        orderBy: { order: "asc" },
-        include: {
-          slots: { orderBy: { slotIndex: "asc" }, include: { team: true } },
-        },
-      });
-      stage.groups = refreshed;
-    }
-  }
 
   const teamNames = new Map<string, string>();
   for (const s of seeded) teamNames.set(s.teamId, s.name);
@@ -124,7 +171,10 @@ export async function generateMatchesForStage(stageId: string): Promise<{ matchC
       const teamIds = g.slots
         .filter((s) => s.teamId && !s.eliminated)
         .map((s) => {
-          names.set(s.teamId!, s.team?.name ?? teamNames.get(s.teamId!) ?? "Team");
+          names.set(
+            s.teamId!,
+            s.team?.name ?? teamNames.get(s.teamId!) ?? "Team",
+          );
           return s.teamId!;
         });
       return {
@@ -137,17 +187,44 @@ export async function generateMatchesForStage(stageId: string): Promise<{ matchC
     }),
   };
 
-  const generated = plugin.generateMatches(ctx);
+  return {
+    generated: plugin.generateMatches(ctx),
+    tournamentId: stage.tournamentId,
+    stageType: stage.stageType,
+  };
+}
 
-  // Replace existing stage bracket
+/**
+ * Wipe old bracket, create empty bracket, return total matches to insert.
+ * Does not insert matches — client continues with insert batches.
+ */
+export async function prepareMatchGeneration(stageId: string): Promise<{
+  jobId: string;
+  bracketId: string;
+  total: number;
+  cursor: number;
+  complete: false;
+}> {
+  const { generated, tournamentId, stageType } =
+    await buildGeneratedMatchesForStage(stageId);
+
+  if (generated.length === 0) {
+    throw new Error("No matches to generate — check pools / seeding.");
+  }
+
+  const stage = await prisma.tournamentStage.findUnique({
+    where: { id: stageId },
+    include: { bracket: true },
+  });
+  if (!stage) throw new Error("Stage not found.");
+
   if (stage.bracket) {
     await prisma.match.deleteMany({ where: { bracketId: stage.bracket.id } });
     await prisma.bracket.delete({ where: { id: stage.bracket.id } });
   }
 
-  // Regenerating brackets means the cup is no longer decided — drop stale champion.
   await prisma.tournamentPlacement.deleteMany({
-    where: { tournamentId: stage.tournamentId, role: "CHAMPION" },
+    where: { tournamentId, role: "CHAMPION" },
   });
 
   const totalRounds =
@@ -155,45 +232,163 @@ export async function generateMatchesForStage(stageId: string): Promise<{ matchC
 
   const bracket = await prisma.bracket.create({
     data: {
-      stageId: stage.id,
+      stageId,
       tournamentId: null,
-      type: stageTypeToBracketType(stage.stageType),
+      type: stageTypeToBracketType(stageType),
       totalRounds,
     },
   });
 
-  const keyToId = new Map<string, string>();
+  await prisma.tournamentStage.update({
+    where: { id: stageId },
+    data: { status: "READY" },
+  });
 
-  // Create matches in parallel batches — sequential creates time out on Vercel/Neon.
-  const CREATE_BATCH = 20;
-  for (let i = 0; i < generated.length; i += CREATE_BATCH) {
-    const chunk = generated.slice(i, i + CREATE_BATCH);
-    const created = await Promise.all(
-      chunk.map((m) =>
-        prisma.match.create({
-          data: {
-            bracketId: bracket.id,
-            stageGroupId: m.stageGroupId ?? null,
-            roundNumber: m.roundNumber,
-            positionInRound: m.positionInRound,
-            bracketSide: m.bracketSide ?? null,
-            status: m.status === "BYE" ? MatchStatus.BYE : MatchStatus.SCHEDULED,
-            participants: {
-              create: m.participants.map((p) => ({
-                slot: p.slot,
-                participantType: ParticipantType.TEAM,
-                tournamentTeamId: p.tournamentTeamId ?? null,
-                teamLabel: p.teamLabel ?? null,
-                seed: p.seed ?? null,
-              })),
-            },
-          },
-        }),
-      ),
-    );
-    for (let j = 0; j < chunk.length; j++) {
-      keyToId.set(chunk[j]!.key, created[j]!.id);
-    }
+  return {
+    jobId: stageId,
+    bracketId: bracket.id,
+    total: generated.length,
+    cursor: 0,
+    complete: false,
+  };
+}
+
+/**
+ * Insert the next MATCH_INSERT_BATCH matches via bulk SQL.
+ * Deterministically recomputes the full list and slices by cursor.
+ */
+export async function insertMatchGenerationBatch(
+  stageId: string,
+  cursor: number,
+  batchSize = MATCH_INSERT_BATCH,
+): Promise<{
+  jobId: string;
+  cursor: number;
+  created: number;
+  total: number;
+  complete: boolean;
+}> {
+  const stage = await prisma.tournamentStage.findUnique({
+    where: { id: stageId },
+    include: { bracket: true },
+  });
+  if (!stage?.bracket) {
+    throw new Error("Generate not prepared — call prepare first.");
+  }
+  const bracketId = stage.bracket.id;
+
+  const { generated } = await buildGeneratedMatchesForStage(stageId);
+  const total = generated.length;
+  const safeCursor = Math.max(0, Math.min(cursor, total));
+
+  // Resume: if DB already has more rows than cursor (partial prior success), advance.
+  const existingCount = await prisma.match.count({ where: { bracketId } });
+  const effectiveCursor = Math.max(safeCursor, existingCount);
+
+  if (effectiveCursor >= total) {
+    return {
+      jobId: stageId,
+      cursor: total,
+      created: 0,
+      total,
+      complete: true,
+    };
+  }
+
+  const slice = generated.slice(effectiveCursor, effectiveCursor + batchSize);
+  if (slice.length === 0) {
+    return {
+      jobId: stageId,
+      cursor: total,
+      created: 0,
+      total,
+      complete: true,
+    };
+  }
+
+  const matchRows: {
+    id: string;
+    m: GeneratedMatch;
+  }[] = slice.map((m) => ({ id: newId(), m }));
+
+  await prisma.match.createMany({
+    data: matchRows.map(({ id, m }) => ({
+      id,
+      bracketId,
+      stageGroupId: m.stageGroupId ?? null,
+      roundNumber: m.roundNumber,
+      positionInRound: m.positionInRound,
+      bracketSide: m.bracketSide ?? null,
+      status: m.status === "BYE" ? MatchStatus.BYE : MatchStatus.SCHEDULED,
+      scheduleStatus: "UNSET",
+      confirmedBySlot0: false,
+      confirmedBySlot1: false,
+    })),
+  });
+
+  const participantData = matchRows.flatMap(({ id: matchId, m }) =>
+    m.participants.map((part) => ({
+      id: newId(),
+      matchId,
+      slot: part.slot,
+      participantType: ParticipantType.TEAM,
+      tournamentTeamId: part.tournamentTeamId ?? null,
+      teamLabel: part.teamLabel ?? null,
+      seed: part.seed ?? null,
+    })),
+  );
+
+  if (participantData.length > 0) {
+    await prisma.matchParticipant.createMany({ data: participantData });
+  }
+
+  const nextCursor = effectiveCursor + slice.length;
+  return {
+    jobId: stageId,
+    cursor: nextCursor,
+    created: slice.length,
+    total,
+    complete: nextCursor >= total,
+  };
+}
+
+/**
+ * Wire next-match links, advance BYEs, mark stage LIVE.
+ */
+export async function finalizeMatchGeneration(stageId: string): Promise<{
+  complete: true;
+  matchCount: number;
+}> {
+  const stage = await prisma.tournamentStage.findUnique({
+    where: { id: stageId },
+    include: { bracket: true },
+  });
+  if (!stage?.bracket) {
+    throw new Error("Generate not prepared — call prepare first.");
+  }
+  const bracketId = stage.bracket.id;
+
+  const { generated } = await buildGeneratedMatchesForStage(stageId);
+  const dbMatches = await prisma.match.findMany({
+    where: { bracketId },
+    select: {
+      id: true,
+      roundNumber: true,
+      positionInRound: true,
+      bracketSide: true,
+      stageGroupId: true,
+    },
+  });
+
+  const idByPlacement = new Map<string, string>();
+  for (const m of dbMatches) {
+    idByPlacement.set(placementKey(m), m.id);
+  }
+
+  const keyToId = new Map<string, string>();
+  for (const m of generated) {
+    const id = idByPlacement.get(placementKey(m));
+    if (id) keyToId.set(m.key, id);
   }
 
   const linkUpdates = generated
@@ -213,19 +408,23 @@ export async function generateMatchesForStage(stageId: string): Promise<{ matchC
     })
     .filter((p): p is NonNullable<typeof p> => p != null);
 
-  for (let i = 0; i < linkUpdates.length; i += CREATE_BATCH) {
-    await Promise.all(linkUpdates.slice(i, i + CREATE_BATCH));
+  const LINK_BATCH = 40;
+  for (let i = 0; i < linkUpdates.length; i += LINK_BATCH) {
+    await Promise.all(linkUpdates.slice(i, i + LINK_BATCH));
   }
 
-  // Auto-advance BYE winners
   const byeMatches = await prisma.match.findMany({
-    where: { bracketId: bracket.id, status: MatchStatus.BYE },
+    where: { bracketId, status: MatchStatus.BYE },
     include: { participants: true },
   });
   for (const bye of byeMatches) {
     const winner = bye.participants.find((p) => p.tournamentTeamId);
     if (winner && bye.nextWinnerMatchId) {
-      await placeTeamInMatch(bye.nextWinnerMatchId, winner.tournamentTeamId!, winner.teamLabel);
+      await placeTeamInMatch(
+        bye.nextWinnerMatchId,
+        winner.tournamentTeamId!,
+        winner.teamLabel,
+      );
     }
   }
 
@@ -234,7 +433,24 @@ export async function generateMatchesForStage(stageId: string): Promise<{ matchC
     data: { status: "LIVE" },
   });
 
-  return { matchCount: generated.length };
+  return { complete: true, matchCount: generated.length };
+}
+
+/** Full generate in one process (sync / internal). Prefer chunked API from the UI. */
+export async function generateMatchesForStage(
+  stageId: string,
+): Promise<{ matchCount: number }> {
+  await prepareMatchGeneration(stageId);
+  let cursor = 0;
+  let total = Infinity;
+  for (;;) {
+    const batch = await insertMatchGenerationBatch(stageId, cursor);
+    total = batch.total;
+    cursor = batch.cursor;
+    if (batch.complete || cursor >= total) break;
+  }
+  const done = await finalizeMatchGeneration(stageId);
+  return { matchCount: done.matchCount };
 }
 
 async function placeTeamInMatch(
@@ -248,10 +464,8 @@ async function placeTeamInMatch(
     select: { bracketId: true, result: { select: { id: true } } },
   });
   if (!target) return;
-  // Never rewrite a match that already has a result.
   if (target.result) return;
 
-  // Keep a team in at most one slot in this bracket (avoids duplicate appearances)
   await prisma.matchParticipant.updateMany({
     where: {
       tournamentTeamId: teamId,
@@ -276,7 +490,6 @@ async function placeTeamInMatch(
       ? slots.find((s) => s.slot === preferredSlot)
       : null;
 
-  // Overwrite preferred slot when editing a prior result (old winner was sitting here).
   if (preferred) {
     await prisma.matchParticipant.update({
       where: { id: preferred.id },
@@ -300,14 +513,6 @@ async function placeTeamInMatch(
       participantType: ParticipantType.TEAM,
     },
   });
-}
-
-function chunkEvenly(ids: string[], chunks: number): string[][] {
-  const result: string[][] = Array.from({ length: Math.max(1, chunks) }, () => []);
-  ids.forEach((id, i) => {
-    result[i % result.length]!.push(id);
-  });
-  return result;
 }
 
 export { placeTeamInMatch };

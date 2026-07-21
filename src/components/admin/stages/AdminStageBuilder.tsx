@@ -162,7 +162,13 @@ export default function AdminStageBuilder({
               teams={teams}
               busy={state.busy}
               savingMatchIds={state.savingMatchIds}
+              generateProgress={state.generateProgress}
+              canResumeGenerate={
+                Boolean(state.pendingGenerate) &&
+                state.pendingGenerate?.stageId === selected.id
+              }
               onGenerate={() => void state.generate(selected.id)}
+              onResumeGenerate={() => void state.resumeGenerate()}
               onSetSchedule={(id, local, force) =>
                 void state.setMatchSchedule(id, local, force)
               }
