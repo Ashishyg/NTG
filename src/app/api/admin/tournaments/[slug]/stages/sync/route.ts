@@ -6,7 +6,6 @@ import {
 } from "@tournaments-leagues/index";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
 export const maxDuration = 120;
 
 type Params = { params: Promise<{ slug: string }> };
