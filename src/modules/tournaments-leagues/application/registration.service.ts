@@ -1347,7 +1347,10 @@ export async function awardPlayerBadge(
   type: PlayerBadgeType,
   awardedBy?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId }, select: { name: true } });
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    select: { name: true },
+  });
   if (!tournament) return { ok: false, error: "Tournament not found." };
 
   const label = `${tournament.name} ${type === "WINNER" ? "WINNER" : "RUNNER-UP"}`;
@@ -1361,7 +1364,9 @@ export async function awardPlayerBadge(
   return { ok: true };
 }
 
-export async function removePlayerBadge(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function removePlayerBadge(
+  id: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   await prisma.playerBadge.delete({ where: { id } }).catch(() => null);
   return { ok: true };
 }
@@ -1369,7 +1374,14 @@ export async function removePlayerBadge(id: string): Promise<{ ok: true } | { ok
 export async function listAllPlayerBadges() {
   return prisma.playerBadge.findMany({
     include: {
-      user: { select: { id: true, name: true, email: true, playerProfile: { select: { displayName: true } } } },
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          playerProfile: { select: { displayName: true } },
+        },
+      },
       tournament: { select: { name: true } },
     },
     orderBy: { awardedAt: "desc" },

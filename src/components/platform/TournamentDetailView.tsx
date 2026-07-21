@@ -1,36 +1,52 @@
+"use client";
+
+import { useState } from "react";
 import BrandIcon from "@/components/ui/BrandIcon";
 import StatusBadge from "@/components/platform/ui/StatusBadge";
 import TournamentBracket from "@/components/platform/tournament/TournamentBracket";
 import TournamentBracketEmpty from "@/components/platform/tournament/TournamentBracketEmpty";
 import TournamentFinalResults from "@/components/platform/tournament/TournamentFinalResults";
 import TournamentScheduleCard from "@/components/platform/tournament/TournamentScheduleCard";
+
+import TournamentStageBrackets from "@/components/platform/tournament/TournamentStageBrackets";
 import TournamentTeamsList from "@/components/platform/tournament/TournamentTeamsList";
+import TournamentYourGames from "@/components/platform/tournament/TournamentYourGames";
+import TournamentChampionSection, { resolveChampion } from "@/components/platform/tournament/TournamentChampionSection";
 import { gameMetaFor, formatRegistrationLabel, buildTournamentScheduleCardView } from "@/lib/tournament-display";
 import TournamentRegisterForm from "./TournamentRegisterForm";
 import type { RegistrationPreview } from "./TournamentRegisterForm";
 import type { TournamentDetail } from "@core/contracts";
 import type { ValorantRegistrationProfileCard } from "@core/contracts/registration-profile";
 import type { TournamentBracketView, FinalStandingView } from "@core/contracts/tournament-bracket";
+import type { TournamentStagePublicView } from "@core/contracts/tournament-stages";
+import type { MyGameView } from "@/modules/tournaments-leagues/application/stages/my-games.types";
+
+type ViewTab = "overview" | "brackets" | "your-games";
 
 type Props = {
   tournament: TournamentDetail;
   bracket: TournamentBracketView | null;
+  stages?: TournamentStagePublicView[];
   isLoggedIn: boolean;
   registrationPreview?: RegistrationPreview | null;
   registrationProfileCard?: ValorantRegistrationProfileCard | null;
   auctionHref?: string | null;
   auctionEnded?: boolean;
+  initialMyGames?: { games: MyGameView[]; hasTeam: boolean } | null;
 };
 
 export default function TournamentDetailView({
   tournament,
   bracket,
+  stages = [],
   isLoggedIn,
   registrationPreview,
   registrationProfileCard,
   auctionHref,
   auctionEnded,
+  initialMyGames = null,
 }: Props) {
+  const [view, setView] = useState<ViewTab>("overview");
   const meta = gameMetaFor(tournament.game);
   const dateStr = tournament.startsAt
     ? new Date(tournament.startsAt).toLocaleDateString("en-IN", {
@@ -40,7 +56,6 @@ export default function TournamentDetailView({
       })
     : "Date TBA";
 
-  const isCompleted = tournament.status === "COMPLETED";
   const mvpPlacement = tournament.placements.find((p) => p.role === "MVP");
   const adminMvp = mvpPlacement?.user
     ? {
@@ -52,6 +67,13 @@ export default function TournamentDetailView({
       ? mvpPlacement.displayName
       : null;
   const mvp = bracket?.mvp ?? adminMvp ?? null;
+
+  const championData = resolveChampion(
+    stages,
+    bracket,
+    tournament.teamDetails,
+    tournament.teams,
+  );
 
   const fallbackStandings: FinalStandingView[] = [];
 
@@ -72,17 +94,27 @@ export default function TournamentDetailView({
         : [];
 
   const showFinalResults = standings.length > 0 || Boolean(mvp);
-  const showBracket = Boolean(tournament.bracketUrl);
+  const hasNativeStages = stages.length > 0;
+  const showLegacyBracket = Boolean(tournament.bracketUrl) && !hasNativeStages;
   const showTeams =
     tournament.teams.length > 0 ||
     tournament.teamDetails.length > 0 ||
     tournament.registrationOpen;
+  /** Your Games is only for rostered team players, and only when admin enables it. */
+  const showYourGamesTab = Boolean(
+    tournament.yourGamesEnabled !== false &&
+      isLoggedIn &&
+      initialMyGames?.hasTeam,
+  );
 
   const splitColors = ["text-amber-500/90", "text-slate-300/90", "text-amber-700/90"];
   const splitBadgeColors = ["bg-amber-500/20 text-amber-500", "bg-slate-300/20 text-slate-300", "bg-amber-700/20 text-amber-700"];
 
   const showRegistrationSection =
     tournament.registrationOpen || tournament.userRegistered;
+
+  const activeView: ViewTab =
+    view === "your-games" && !showYourGamesTab ? "overview" : view;
 
   const scheduleCard = buildTournamentScheduleCardView({
     registrationFormat: tournament.registrationFormat,
@@ -136,62 +168,124 @@ export default function TournamentDetailView({
         </div>
       </div>
 
-      <div className="grid gap-12 lg:grid-cols-[1fr_24rem] lg:items-start">
-        <div className="order-1 space-y-16 lg:col-start-1 lg:row-start-1">
-          {showFinalResults ? (
-            <TournamentFinalResults
-              standings={standings}
-              mvp={mvp}
+      <div
+        className={`mb-8 flex rounded-2xl border border-white/[0.08] bg-white/[0.03] p-1 ${
+          showYourGamesTab ? "sm:max-w-xl" : "sm:max-w-md"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => setView("overview")}
+          className={`relative z-10 flex-1 cursor-pointer rounded-xl py-3 text-center text-xs font-bold uppercase tracking-[0.2em] transition ${
+            activeView === "overview" ? "text-white" : "text-white/40 hover:text-white/70"
+          }`}
+        >
+          Overview
+          {activeView === "overview" ? (
+            <span
+              className="absolute inset-0 -z-10 rounded-xl border border-cyan-500/35 bg-gradient-to-r from-cyan-500/20 to-sky-500/10 shadow-[0_0_16px_rgba(6,182,212,0.18)]"
+              aria-hidden
             />
           ) : null}
-
-          {showRegistrationSection ? (
-            <TournamentRegisterForm
-              layout="featured"
-              slug={tournament.slug}
-              game={tournament.game}
-              registrationFormat={tournament.registrationFormat}
-              isLoggedIn={isLoggedIn}
-              alreadyRegistered={tournament.userRegistered}
-              registrationOpen={tournament.registrationOpen}
-              rulebookUrl={tournament.rulebookUrl}
-              preview={registrationPreview ?? null}
-              coCaptainSlots={tournament.coCaptainSlots}
-              registrationProfileCard={registrationProfileCard ?? null}
-              userParticipantRole={tournament.userParticipantRole}
+        </button>
+        <button
+          type="button"
+          onClick={() => setView("brackets")}
+          className={`relative z-10 flex-1 cursor-pointer rounded-xl py-3 text-center text-xs font-bold uppercase tracking-[0.2em] transition ${
+            activeView === "brackets" ? "text-white" : "text-white/40 hover:text-white/70"
+          }`}
+        >
+          Brackets
+          {activeView === "brackets" ? (
+            <span
+              className="absolute inset-0 -z-10 rounded-xl border border-rose-500/35 bg-gradient-to-r from-rose-500/20 to-orange-500/10 shadow-[0_0_16px_rgba(244,63,94,0.18)]"
+              aria-hidden
             />
           ) : null}
-        </div>
+        </button>
+        {showYourGamesTab ? (
+          <button
+            type="button"
+            onClick={() => setView("your-games")}
+            className={`relative z-10 flex-1 cursor-pointer rounded-xl py-3 text-center text-xs font-bold uppercase tracking-[0.2em] transition ${
+              activeView === "your-games" ? "text-white" : "text-white/40 hover:text-white/70"
+            }`}
+          >
+            Your Games
+            {activeView === "your-games" ? (
+              <span
+                className="absolute inset-0 -z-10 rounded-xl border border-emerald-500/35 bg-gradient-to-r from-emerald-500/20 to-teal-500/10 shadow-[0_0_16px_rgba(16,185,129,0.18)]"
+                aria-hidden
+              />
+            ) : null}
+          </button>
+        ) : null}
+      </div>
 
-        <aside className="order-2 space-y-8 lg:col-start-2 lg:row-start-1 lg:row-span-2">
-          <TournamentScheduleCard schedule={scheduleCard} />
+      {activeView === "overview" ? (
+      <section className="mt-4 space-y-10">
+        {championData ? (
+          <TournamentChampionSection
+            championData={championData}
+            game={tournament.game}
+            accentHex={meta.hex}
+          />
+        ) : null}
 
-          {auctionHref ? (
-            <div className="group relative overflow-hidden rounded-[1.25rem] p-[1px] transition-all duration-300 hover:shadow-[0_0_30px_rgba(6,182,212,0.35)] shadow-xl">
-              {/* Outer cyan-indigo-purple gradient glowing background */}
-              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 via-indigo-500 to-purple-600 opacity-90 transition-all duration-300 group-hover:opacity-100" />
-              
-              <a
-                href={auctionHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="relative block w-full rounded-[19px] bg-[#0c0c0e]/95 px-6 py-4.5 text-center text-xs font-bold uppercase tracking-[0.25em] text-white transition-all duration-300 group-hover:bg-[#0c0c0e]/75"
-              >
-                <span className="relative z-10 flex items-center justify-center gap-2.5">
-                  <span className="h-2 w-2 rounded-full bg-cyan-400" />
-                  Enter Live Auction
+        <div className="grid gap-12 lg:grid-cols-[1fr_24rem] lg:items-start">
+          <div className="order-1 space-y-16 lg:col-start-1 lg:row-start-1">
+            {tournament.description ? (
+              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 sm:p-8">
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/70">
+                  {tournament.description}
+                </p>
+              </div>
+            ) : null}
+
+            {showRegistrationSection ? (
+              <TournamentRegisterForm
+                layout="featured"
+                slug={tournament.slug}
+                game={tournament.game}
+                registrationFormat={tournament.registrationFormat}
+                isLoggedIn={isLoggedIn}
+                alreadyRegistered={tournament.userRegistered}
+                registrationOpen={tournament.registrationOpen}
+                rulebookUrl={tournament.rulebookUrl}
+                preview={registrationPreview ?? null}
+                coCaptainSlots={tournament.coCaptainSlots}
+                registrationProfileCard={registrationProfileCard ?? null}
+                userParticipantRole={tournament.userParticipantRole}
+              />
+            ) : null}
+          </div>
+
+          <aside className="order-2 space-y-8 lg:col-start-2 lg:row-start-1 lg:row-span-2">
+            <TournamentScheduleCard schedule={scheduleCard} />
+
+            {auctionHref ? (
+              <div className="group relative overflow-hidden rounded-[1.25rem] p-[1px] transition-all duration-300 hover:shadow-[0_0_30px_rgba(6,182,212,0.35)] shadow-xl">
+                <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 via-indigo-500 to-purple-600 opacity-90 transition-all duration-300 group-hover:opacity-100" />
+
+                <a
+                  href={auctionHref}
+                  className="relative block w-full rounded-[19px] bg-[#0c0c0e]/95 px-6 py-4.5 text-center text-xs font-bold uppercase tracking-[0.25em] text-white transition-all duration-300 group-hover:bg-[#0c0c0e]/75"
+                >
+                  <span className="relative z-10 flex items-center justify-center gap-2.5">
+                    <span className="h-2 w-2 rounded-full bg-cyan-400" />
+                    Enter Live Auction
+                  </span>
+                </a>
+              </div>
+            ) : auctionEnded ? (
+              <div className="rounded-[1.25rem] border border-white/[0.06] bg-[#0c0c0e]/40 p-4 text-center">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">
+                  Auction Ended
                 </span>
-              </a>
-            </div>
-          ) : auctionEnded ? (
-            <div className="rounded-[1.25rem] border border-white/[0.06] bg-[#0c0c0e]/40 p-4 text-center">
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">
-                Auction Ended
-              </span>
-            </div>
-          ) : null}
+              </div>
+            ) : null}
 
-          {(tournament.prizePool || tournament.prizeNotes) && (
+            {(tournament.prizePool || tournament.prizeNotes) && (
               <div className="rounded-[1.5rem] border border-white/[0.08] bg-[#0A0A0A]/80 p-8 shadow-2xl backdrop-blur-xl">
                 <p className="text-[10px] font-medium uppercase tracking-[0.3em] text-white/40">Prizepool</p>
                 {tournament.prizePool ? (
@@ -229,36 +323,53 @@ export default function TournamentDetailView({
                 ) : null}
               </div>
             )}
-        </aside>
+          </aside>
 
-        {showTeams ? (
-          <div className="order-3 lg:col-start-1 lg:row-start-2">
-            <TournamentTeamsList
-              teams={tournament.teams}
-              teamDetails={tournament.teamDetails}
-              accentHex={meta.hex}
-              game={tournament.game}
-              registrationFormat={tournament.registrationFormat}
-            />
-          </div>
-        ) : null}
-      </div>
-
-      {showBracket && tournament.bracketUrl ? (
-        <section className="mt-16">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="h-px w-8 bg-gradient-to-r from-transparent to-rose-500" />
-            <h2 className="font-display text-2xl font-bold uppercase tracking-widest text-white">
-              Bracket
-            </h2>
-            <div className="h-px flex-1 bg-gradient-to-r from-rose-500 to-transparent opacity-30" />
-          </div>
-          {bracket ? (
+          {showTeams ? (
+            <div className="order-3 lg:col-start-1 lg:row-start-2">
+              <TournamentTeamsList
+                teams={tournament.teams}
+                teamDetails={tournament.teamDetails}
+                accentHex={meta.hex}
+                game={tournament.game}
+                registrationFormat={tournament.registrationFormat}
+              />
+            </div>
+          ) : null}
+        </div>
+      </section>
+      ) : activeView === "brackets" ? (
+      <section className="mt-4">
+        {hasNativeStages ? (
+          <TournamentStageBrackets stages={stages} accentHex={meta.hex} />
+        ) : showLegacyBracket && tournament.bracketUrl ? (
+          bracket ? (
             <TournamentBracket bracket={bracket} accentHex={meta.hex} />
           ) : (
             <TournamentBracketEmpty url={tournament.bracketUrl} />
-          )}
-        </section>
+          )
+        ) : (
+          <div className="rounded-2xl border border-dashed border-white/[0.1] bg-white/[0.02] px-6 py-12 text-center">
+            <p className="text-sm font-medium text-white/50">
+              Seedings &amp; brackets will appear here.
+            </p>
+          </div>
+        )}
+
+        {showFinalResults ? (
+          <div className="mt-16">
+            <TournamentFinalResults standings={standings} mvp={mvp} />
+          </div>
+        ) : null}
+      </section>
+      ) : showYourGamesTab ? (
+      <section className="mt-4">
+        <TournamentYourGames
+          slug={tournament.slug}
+          isLoggedIn={isLoggedIn}
+          initialData={initialMyGames}
+        />
+      </section>
       ) : null}
     </article>
   );

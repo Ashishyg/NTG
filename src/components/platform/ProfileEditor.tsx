@@ -102,8 +102,10 @@ export default function ProfileEditor() {
         setOlympusId(p.olympusId ?? "");
         setSelectedRoles(p.valorantRoles ?? []);
       }
-      const badgesData = await badgesRes.json();
-      if (badgesRes.ok && Array.isArray(badgesData.badges)) {
+      const badgesData = badgesRes.ok
+        ? await badgesRes.json().catch(() => null)
+        : null;
+      if (badgesData && Array.isArray(badgesData.badges)) {
         setBadges(badgesData.badges);
       }
     } finally {

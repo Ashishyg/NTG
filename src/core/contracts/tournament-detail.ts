@@ -52,6 +52,8 @@ export type TournamentDetail = {
   userParticipantRole: "CAPTAIN" | "CO_CAPTAIN" | "PLAYER" | null;
   coCaptainSlots: number;
   autoManageStatus: boolean;
+  /** Admin toggle — when false, Your Games tab is hidden on the public cup page. */
+  yourGamesEnabled: boolean;
 };
 
 export type PrizeSplitRow = {

@@ -49,6 +49,42 @@ enum BracketType {
   HYBRID
 }
 
+/** Stage format for the config-driven tournament builder. */
+enum StageType {
+  SINGLE_ELIMINATION
+  DOUBLE_ELIMINATION
+  ROUND_ROBIN
+  SWISS
+  GSL
+  LEAGUE
+  FREE_FOR_ALL
+  BATTLE_ROYALE
+  CUSTOM
+}
+
+enum StageStatus {
+  DRAFT
+  READY
+  LIVE
+  COMPLETE
+}
+
+enum StageMatchFormat {
+  BO1
+  BO3
+  BO5
+}
+
+enum SeedingMethod {
+  RANDOM
+  MANUAL
+  SNAKE
+  AUCTION_ORDER
+  PREVIOUS_TOURNAMENT
+  CURRENT_RANKING
+  DRAG_DROP
+}
+
 enum TournamentFormat {
   AUCTION
   STANDARD
@@ -62,6 +98,13 @@ enum MatchStatus {
   COMPLETED
   WALKOVER
   BYE
+}
+
+enum MatchScheduleStatus {
+  UNSET
+  PENDING_CONFIRM
+  CONFIRMED
+  NEEDS_RESCHEDULE
 }
 
 enum ParticipantType {
@@ -208,18 +251,19 @@ model User {
   partnerRegistrations    TournamentRegistration[]  @relation("RegistrationPartner")
   matchSlots              MatchParticipant[]
   placements              TournamentPlacement[]
-  badges                  PlayerBadge[]
   leaderboard             LeaderboardEntry[]
   leaderboardRankAudits   LeaderboardRankAuditLog[]
   captainedTeams          TournamentTeam[]          @relation("TeamCaptain")
   coCaptainedTeams        TournamentTeam[]          @relation("TeamCoCaptain")
   teamPlayers             TournamentTeamPlayer[]
+  matchResultSubmissions  MatchResult[]              @relation("MatchResultSubmissions")
   adminAuditLogs          AdminAuditLog[]
   userActivityLogs        UserActivityLog[]
   platformSettingsUpdated PlatformSetting[]         @relation("PlatformSettingUpdatedBy")
   rosterPlayers           RosterPlayer[]
   listingApplications     ListingApplication[]
   timeLimitedQaResponses  TimeLimitedQaResponse[]
+  playerBadges            PlayerBadge[]
 }
 
 model EmailOtp {
@@ -367,15 +411,19 @@ model Tournament {
   hideAfter            DateTime?
   bracketUrl           String?
   rulebookUrl          String?
+  /** When false, hide the public "Your Games" tab on the cup page. */
+  yourGamesEnabled     Boolean           @default(true)
   teams                Json?
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
 
+  /** @deprecated Prefer TournamentStage.bracket — kept for legacy 1:1 cups. */
   bracket         Bracket?
+  stages          TournamentStage[]
   tournamentTeams TournamentTeam[]
   registrations   TournamentRegistration[]
   placements      TournamentPlacement[]
-  badges          PlayerBadge[]
+  playerBadges    PlayerBadge[]
 }
 
 model TournamentTeam {
@@ -395,6 +443,10 @@ model TournamentTeam {
   updatedAt            DateTime                 @updatedAt
   players              TournamentTeamPlayer[]
   registrations        TournamentRegistration[]
+  stageGroupSlots      StageGroupSlot[]
+  stageSeedingEntries  StageSeedingEntry[]
+  matchParticipants    MatchParticipant[]
+  scheduleProposals    Match[]                  @relation("MatchScheduleProposals")
 
   @@index([tournamentId, sortOrder])
 }
@@ -458,57 +510,181 @@ model TournamentRegistration {
   @@index([teamId])
 }
 
+model TournamentStage {
+  id            String           @id @default(cuid())
+  tournamentId  String
+  tournament    Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  name          String
+  order         Int
+  stageType     StageType
+  matchFormat   StageMatchFormat @default(BO1)
+  seedingMethod SeedingMethod    @default(MANUAL)
+  status        StageStatus      @default(DRAFT)
+  config        Json?
+  tieBreakRules Json?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  groups             TournamentStageGroup[]
+  qualificationRules StageQualificationRule[]
+  seedingEntries     StageSeedingEntry[]
+  bracket            Bracket?
+  sourceSlots        StageGroupSlot[]         @relation("SlotSourceStage")
+
+  @@unique([tournamentId, order])
+  @@index([tournamentId])
+}
+
+model TournamentStageGroup {
+  id         String          @id @default(cuid())
+  stageId    String
+  stage      TournamentStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  name       String
+  order      Int
+  targetSize Int?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  slots              StageGroupSlot[]
+  qualificationRules StageQualificationRule[]
+  matches            Match[]
+  sourceSlots        StageGroupSlot[]         @relation("SlotSourceGroup")
+
+  @@unique([stageId, order])
+  @@index([stageId])
+}
+
+model StageGroupSlot {
+  id              String                @id @default(cuid())
+  groupId         String
+  group           TournamentStageGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  slotIndex       Int
+  teamId          String?
+  team            TournamentTeam?       @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  /** Placeholder wiring: fill from source stage group placement when prior stage completes. */
+  sourceStageId   String?
+  sourceStage     TournamentStage?      @relation("SlotSourceStage", fields: [sourceStageId], references: [id], onDelete: SetNull)
+  sourceGroupId   String?
+  sourceGroup     TournamentStageGroup? @relation("SlotSourceGroup", fields: [sourceGroupId], references: [id], onDelete: SetNull)
+  sourcePosition  Int?
+  eliminated      Boolean               @default(false)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@unique([groupId, slotIndex])
+  @@index([teamId])
+  @@index([sourceStageId])
+}
+
+model StageQualificationRule {
+  id          String                @id @default(cuid())
+  stageId     String
+  stage       TournamentStage       @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  groupId     String?
+  group       TournamentStageGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  priority    Int                   @default(0)
+  /** QualificationSelector JSON */
+  selector    Json
+  /** Destination JSON */
+  destination Json
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@index([stageId])
+  @@index([groupId])
+}
+
+model StageSeedingEntry {
+  id        String          @id @default(cuid())
+  stageId   String
+  stage     TournamentStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  teamId    String
+  team      TournamentTeam  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  seed      Int
+  createdAt DateTime        @default(now())
+
+  @@unique([stageId, teamId])
+  @@unique([stageId, seed])
+  @@index([stageId])
+}
+
 model Bracket {
-  id           String      @id @default(cuid())
-  tournamentId String      @unique
-  tournament   Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  id           String           @id @default(cuid())
+  /** Legacy 1:1 cup bracket (nullable when stage-scoped). */
+  tournamentId String?          @unique
+  tournament   Tournament?      @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  /** Stage-scoped bracket (preferred). */
+  stageId      String?          @unique
+  stage        TournamentStage? @relation(fields: [stageId], references: [id], onDelete: Cascade)
   type         BracketType
   totalRounds  Int
   matches      Match[]
 }
 
 model Match {
-  id                 String             @id @default(cuid())
+  id                 String                @id @default(cuid())
   bracketId          String
-  bracket            Bracket            @relation(fields: [bracketId], references: [id], onDelete: Cascade)
+  bracket            Bracket               @relation(fields: [bracketId], references: [id], onDelete: Cascade)
+  stageGroupId       String?
+  stageGroup         TournamentStageGroup? @relation(fields: [stageGroupId], references: [id], onDelete: SetNull)
   roundNumber        Int
   positionInRound    Int
   bracketSide        String?
-  status             MatchStatus        @default(SCHEDULED)
+  status             MatchStatus           @default(SCHEDULED)
   scheduledAt        DateTime?
+  scheduleStatus     MatchScheduleStatus   @default(UNSET)
+  scheduleProposedByTeamId String?
+  scheduleProposedByTeam   TournamentTeam? @relation("MatchScheduleProposals", fields: [scheduleProposedByTeamId], references: [id], onDelete: SetNull)
+  confirmedBySlot0   Boolean               @default(false)
+  confirmedBySlot1   Boolean               @default(false)
+  resultDeadlineAt   DateTime?
   nextWinnerMatchId  String?
   nextLoserMatchId   String?
-  nextWinnerMatch    Match?             @relation("WinnerAdvance", fields: [nextWinnerMatchId], references: [id], onDelete: SetNull)
-  nextLoserMatch     Match?             @relation("LoserAdvance", fields: [nextLoserMatchId], references: [id], onDelete: SetNull)
-  winnerAdvancesFrom Match[]            @relation("WinnerAdvance")
-  loserAdvancesFrom  Match[]            @relation("LoserAdvance")
+  nextWinnerMatch    Match?                @relation("WinnerAdvance", fields: [nextWinnerMatchId], references: [id], onDelete: SetNull)
+  nextLoserMatch     Match?                @relation("LoserAdvance", fields: [nextLoserMatchId], references: [id], onDelete: SetNull)
+  winnerAdvancesFrom Match[]               @relation("WinnerAdvance")
+  loserAdvancesFrom  Match[]               @relation("LoserAdvance")
   participants       MatchParticipant[]
   result             MatchResult?
 
   @@unique([bracketId, roundNumber, positionInRound, bracketSide])
+  @@index([stageGroupId])
+  @@index([scheduleProposedByTeamId])
 }
 
 model MatchParticipant {
-  id              String          @id @default(cuid())
-  matchId         String
-  match           Match           @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  slot            Int
-  participantType ParticipantType
-  userId          String?
-  user            User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
-  teamLabel       String?
-  seed            Int?
+  id               String          @id @default(cuid())
+  matchId          String
+  match            Match           @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  slot             Int
+  participantType  ParticipantType
+  userId           String?
+  user             User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  tournamentTeamId String?
+  tournamentTeam   TournamentTeam? @relation(fields: [tournamentTeamId], references: [id], onDelete: SetNull)
+  teamLabel        String?
+  seed             Int?
 
   @@unique([matchId, slot])
+  @@index([tournamentTeamId])
 }
 
 model MatchResult {
-  id           String   @id @default(cuid())
-  matchId      String   @unique
-  match        Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  winnerSlot   Int
-  scoreSummary String?
-  completedAt  DateTime @default(now())
+  id                String   @id @default(cuid())
+  matchId           String   @unique
+  match             Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  winnerSlot        Int
+  scoreSummary      String?
+  scoreA            Int?
+  scoreB            Int?
+  /** Per-game winners for BO3/BO5, e.g. [{ "winnerSlot": 0 }, { "winnerSlot": 1 }]. */
+  games             Json?
+  screenshotUrl     String?
+  submittedByUserId String?
+  submittedByUser   User?    @relation("MatchResultSubmissions", fields: [submittedByUserId], references: [id], onDelete: SetNull)
+  completedAt       DateTime @default(now())
+
+  @@index([submittedByUserId])
 }
 
 model TournamentPlacement {

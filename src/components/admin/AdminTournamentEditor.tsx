@@ -5,6 +5,8 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import ImageUploadField from "@/components/admin/ImageUploadField";
 import RulebookUploadField from "@/components/admin/RulebookUploadField";
 import { AdminSection } from "@/components/admin/AdminSection";
+import AdminStageBuilder from "@/components/admin/AdminStageBuilder";
+import type { AdminStageGraph } from "@tournaments-leagues/index";
 import { useAdminDeleteConfirm } from "@/components/admin/useAdminDeleteConfirm";
 import type { PrizeSplitRow } from "@core/contracts";
 import { emptyToNull, prizeSplitForSave } from "@/lib/admin-fields";
@@ -89,6 +91,7 @@ type TournamentData = {
   bracketUrl: string | null;
   rulebookUrl: string | null;
   publicAuction?: boolean;
+  yourGamesEnabled?: boolean;
   tournamentTeams: Team[];
   registrations: RegistrationRow[];
   poolPlayers: PoolPlayer[];
@@ -187,6 +190,7 @@ function getSavePayload(form: TournamentData) {
     advancePerGroup: form.advancePerGroup,
     rankPoints: form.rankPoints,
     publicAuction: form.publicAuction ?? false,
+    yourGamesEnabled: form.yourGamesEnabled ?? true,
   };
 }
 
@@ -212,11 +216,13 @@ export default function AdminTournamentEditor({
   seasons,
   auctionHref,
   auctionFinalized,
+  initialStageGraph = null,
 }: {
   initial: TournamentData;
   seasons: { id: string; label: string }[];
   auctionHref?: string | null;
   auctionFinalized?: boolean;
+  initialStageGraph?: AdminStageGraph | null;
 }) {
   const router = useRouter();
   const { openDeleteConfirm, DeleteConfirmDialog } = useAdminDeleteConfirm();
@@ -229,7 +235,14 @@ export default function AdminTournamentEditor({
   const tournamentTeams = initial.tournamentTeams;
   const poolPlayers = initial.poolPlayers;
   const [activeTab, setActiveTab] = useState<
-    "general" | "auction" | "media" | "prizes" | "standings" | "registrations" | "teams"
+    | "general"
+    | "auction"
+    | "media"
+    | "prizes"
+    | "stages"
+    | "standings"
+    | "registrations"
+    | "teams"
   >("general");
   const initialMvpRole = initial.placements.find((p) => p.role === "MVP");
   const initialMvpUser = initialMvpRole?.user;
@@ -848,6 +861,15 @@ export default function AdminTournamentEditor({
       ),
     },
     {
+      id: "stages" as const,
+      label: "Format / Stages",
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h10M4 18h7" />
+        </svg>
+      ),
+    },
+    {
       id: "standings" as const,
       label: "Results & MVP",
       icon: (
@@ -1075,6 +1097,8 @@ export default function AdminTournamentEditor({
                     <option value="DRAFT" className="bg-[#0a1020]">Draft (admin only, hidden from cups list badge)</option>
                     <option value="UPCOMING" className="bg-[#0a1020]">Upcoming (announced, registration not open)</option>
                     <option value="REGISTRATION_OPEN" className="bg-[#0a1020]">Registration Open</option>
+                    <option value="AUCTION_LIVE" className="bg-[#0a1020]">Auction Live</option>
+                    <option value="AUCTION_COMPLETED" className="bg-[#0a1020]">Auction Done (awaiting cup)</option>
                     <option value="IN_PROGRESS" className="bg-[#0a1020]">Live (Ongoing)</option>
                     <option value="COMPLETED" className="bg-[#0a1020]">Completed</option>
                     <option value="CANCELLED" className="bg-[#0a1020]">Cancelled</option>
@@ -1092,7 +1116,8 @@ export default function AdminTournamentEditor({
                     <div>
                       <p className="font-semibold text-white/95">Auto-manage status from dates</p>
                       <p className="text-xs text-white/40 mt-0.5">
-                        Opens registration on the date below, goes Live 1 min before cup start, completes after cup end
+                        Draft → Upcoming before registration, opens registration on the date
+                        below, goes Live near cup start, completes after cup end
                       </p>
                     </div>
                   </label>
@@ -1640,6 +1665,61 @@ export default function AdminTournamentEditor({
             </AdminSection>
           </div>
         )}
+
+        <div className={activeTab === "stages" ? "space-y-4" : "hidden"}>
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/[0.06] bg-[#0c1424]/40 px-5 py-4">
+            <div>
+              <h4 className="text-xs font-semibold text-white/80">Your Games tab</h4>
+              <p className="mt-0.5 text-[10px] text-white/40">
+                When enabled, rostered players see a Your Games tab on the public cup page to
+                schedule matches and submit results.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const nextVal = !(form.yourGamesEnabled ?? true);
+                setForm((current) => {
+                  const next = { ...current, yourGamesEnabled: nextVal };
+                  savedCupBaselineRef.current = {
+                    ...savedCupBaselineRef.current,
+                    yourGamesEnabled: nextVal,
+                  };
+                  return next;
+                });
+                void fetch(`/api/admin/tournaments/${form.slug}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ yourGamesEnabled: nextVal }),
+                });
+              }}
+              className={`relative h-8 w-14 shrink-0 rounded-full border transition-colors ${
+                form.yourGamesEnabled ?? true
+                  ? "border-emerald-400/40 bg-emerald-500/20"
+                  : "border-white/10 bg-white/[0.04]"
+              }`}
+              aria-pressed={form.yourGamesEnabled ?? true}
+              aria-label={
+                form.yourGamesEnabled ?? true
+                  ? "Hide Your Games tab"
+                  : "Show Your Games tab"
+              }
+            >
+              <span
+                className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${
+                  form.yourGamesEnabled ?? true
+                    ? "left-[calc(100%-1.625rem)]"
+                    : "left-0.5"
+                }`}
+              />
+            </button>
+          </div>
+          <AdminStageBuilder
+            slug={form.slug}
+            teams={tournamentTeams.map((t) => ({ id: t.id, name: t.name }))}
+            initialGraph={initialStageGraph}
+          />
+        </div>
 
         {/* Tab 4: Bracket & MVP */}
         {activeTab === "standings" && (
