@@ -35,7 +35,9 @@ export default async function AdminTournamentEditPage({ params }: Props) {
     getTournamentAdmin(slug),
     listUnassignedPlayerRegistrations(slug),
     listSeasonsAdmin(),
-    getStageGraphAdmin(slug).catch(() => null),
+    getStageGraphAdmin(slug, { skipChainRepair: true, includeMatches: false }).catch(
+      () => null,
+    ),
     prisma.$queryRawUnsafe<{ publicAuction: boolean; yourGamesEnabled: boolean }[]>(
       'SELECT "publicAuction", "yourGamesEnabled" FROM "Tournament" WHERE slug = $1 LIMIT 1',
       slug

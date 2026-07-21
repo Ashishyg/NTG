@@ -14,6 +14,33 @@ import type { Graph, StageNode } from "./types";
 
 type TeamOpt = { id: string; name: string };
 
+/** Light graph responses omit matches — keep any already-loaded match rows. */
+function applyGraphPayload(
+  prev: Graph | null,
+  data: AdminStageGraph,
+): Graph {
+  const next = graphFromPayload(data);
+  if (!prev) return next;
+  return {
+    ...next,
+    stages: next.stages.map((s) => {
+      const prior = prev.stages.find((p) => p.id === s.id);
+      if (
+        prior &&
+        (s.matches?.length ?? 0) === 0 &&
+        (prior.matches?.length ?? 0) > 0
+      ) {
+        return {
+          ...s,
+          matches: prior.matches,
+          matchCount: Math.max(s.matchCount, prior.matchCount),
+        };
+      }
+      return s;
+    }),
+  };
+}
+
 export function useStageBuilderState(
   slug: string,
   teams: TeamOpt[],
@@ -23,6 +50,7 @@ export function useStageBuilderState(
     initialGraph ? graphFromPayload(initialGraph) : null,
   );
   const [loading, setLoading] = useState(!initialGraph);
+  const [matchesLoading, setMatchesLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,18 +64,20 @@ export function useStageBuilderState(
   graphRef.current = graph;
   const scheduleSaveGen = useRef(new Map<string, number>());
   const scheduleAbort = useRef(new Map<string, AbortController>());
+  const matchesLoadedRef = useRef(new Set<string>());
 
   const load = useCallback(
     async (opts?: { silent?: boolean }) => {
       if (!opts?.silent) setLoading(true);
       setError(null);
       try {
-        const qs = opts?.silent ? "?skipRepair=1" : "";
-        const res = await fetch(`/api/admin/tournaments/${slug}/stages${qs}`);
+        // Light graph only — matches load on demand for the Matches tab.
+        const res = await fetch(`/api/admin/tournaments/${slug}/stages`);
         const data = (await requireApiJson(res)) as unknown as AdminStageGraph;
-        setGraph(graphFromPayload(data));
+        setGraph((prev) => applyGraphPayload(prev, data));
         setDirty(false);
         setSelectedId((prev) => prev ?? data.stages[0]?.id ?? null);
+        matchesLoadedRef.current.clear();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load stages");
       } finally {
@@ -57,8 +87,49 @@ export function useStageBuilderState(
     [slug],
   );
 
+  const loadMatchesForStage = useCallback(
+    async (stageId: string, opts?: { force?: boolean }) => {
+      if (!opts?.force && matchesLoadedRef.current.has(stageId)) {
+        const existing = graphRef.current?.stages.find((s) => s.id === stageId);
+        if ((existing?.matches?.length ?? 0) > 0 || existing?.matchCount === 0) {
+          return;
+        }
+      }
+      setMatchesLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(
+          `/api/admin/tournaments/${slug}/stages/${stageId}/matches`,
+        );
+        const data = await requireApiJson(res);
+        const matches = (data.matches ?? []) as NonNullable<
+          StageNode["matches"]
+        >;
+        const matchCount =
+          typeof data.matchCount === "number" ? data.matchCount : matches.length;
+        setGraph((g) => {
+          if (!g) return g;
+          return {
+            ...g,
+            stages: g.stages.map((s) =>
+              s.id === stageId ? { ...s, matches, matchCount } : s,
+            ),
+          };
+        });
+        matchesLoadedRef.current.add(stageId);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to load matches");
+      } finally {
+        setMatchesLoading(false);
+      }
+    },
+    [slug],
+  );
+
   useEffect(() => {
-    void load({ silent: Boolean(initialGraph) });
+    // SSR already provided a light graph — don't re-fetch and risk timeout.
+    if (initialGraph) return;
+    void load();
   }, [load, initialGraph]);
 
   const selected = graph?.stages.find((s) => s.id === selectedId) ?? null;
@@ -105,7 +176,9 @@ export function useStageBuilderState(
         }),
       });
       const data = await requireApiJson(res);
-      setGraph(graphFromPayload(data as unknown as AdminStageGraph));
+      setGraph((prev) =>
+        applyGraphPayload(prev, data as unknown as AdminStageGraph),
+      );
       setDirty(false);
       const stages = data.stages as { id: string }[] | undefined;
       const last = stages?.[stages.length - 1];
@@ -128,7 +201,9 @@ export function useStageBuilderState(
         { method: "DELETE" },
       );
       const data = await requireApiJson(res);
-      setGraph(graphFromPayload(data as unknown as AdminStageGraph));
+      setGraph((prev) =>
+        applyGraphPayload(prev, data as unknown as AdminStageGraph),
+      );
       setDirty(false);
       const stages = data.stages as { id?: string }[] | undefined;
       setSelectedId(stages?.[0]?.id ?? null);
@@ -276,7 +351,9 @@ export function useStageBuilderState(
         },
       );
       const data = await requireApiJson(res);
-      setGraph(graphFromPayload(data as unknown as AdminStageGraph));
+      setGraph((prev) =>
+        applyGraphPayload(prev, data as unknown as AdminStageGraph),
+      );
       setDirty(false);
       setSyncNote("Stage settings saved.");
     } catch (e) {
@@ -315,7 +392,9 @@ export function useStageBuilderState(
         },
       );
       const data = await requireApiJson(res);
-      setGraph(graphFromPayload(data as unknown as AdminStageGraph));
+      setGraph((prev) =>
+        applyGraphPayload(prev, data as unknown as AdminStageGraph),
+      );
       setDirty(false);
       setSyncNote("Teams & pools saved.");
     } catch (e) {
@@ -350,7 +429,9 @@ export function useStageBuilderState(
         },
       );
       const data = await requireApiJson(res);
-      setGraph(graphFromPayload(data as unknown as AdminStageGraph));
+      setGraph((prev) =>
+        applyGraphPayload(prev, data as unknown as AdminStageGraph),
+      );
       setDirty(false);
       setSyncNote("Qualification rules saved.");
     } catch (e) {
@@ -533,7 +614,10 @@ export function useStageBuilderState(
         },
       );
       const data = await requireApiJson(res);
-      setGraph(graphFromPayload(data.graph as unknown as AdminStageGraph));
+      setGraph((prev) =>
+        applyGraphPayload(prev, data.graph as unknown as AdminStageGraph),
+      );
+      matchesLoadedRef.current.add(stageId);
       setDirty(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Generate failed");
@@ -561,7 +645,10 @@ export function useStageBuilderState(
         body: JSON.stringify({ drafts: buildDrafts(graphRef.current) }),
       });
       const data = await requireApiJson(res);
-      setGraph(graphFromPayload(data.graph as unknown as AdminStageGraph));
+      setGraph((prev) =>
+        applyGraphPayload(prev, data.graph as unknown as AdminStageGraph),
+      );
+      matchesLoadedRef.current.clear();
       setDirty(false);
       const lines = (
         data.synced as Array<{
@@ -613,10 +700,10 @@ export function useStageBuilderState(
         },
       );
       await requireApiJson(res);
-      await load({ silent: true });
+      await loadMatchesForStage(selectedId, { force: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save result");
-      void load({ silent: true });
+      void loadMatchesForStage(selectedId, { force: true });
     } finally {
       setSavingMatchIds((prev) => {
         const next = new Set(prev);
@@ -647,7 +734,7 @@ export function useStageBuilderState(
         },
       );
       await requireApiJson(res);
-      await load({ silent: true });
+      if (selectedId) await loadMatchesForStage(selectedId, { force: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to assign team");
     } finally {
@@ -668,7 +755,10 @@ export function useStageBuilderState(
         { method: "POST" },
       );
       const data = await requireApiJson(res);
-      setGraph(graphFromPayload(data.graph as unknown as AdminStageGraph));
+      setGraph((prev) =>
+        applyGraphPayload(prev, data.graph as unknown as AdminStageGraph),
+      );
+      matchesLoadedRef.current.add(stageId);
       setDirty(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Reshuffle failed");
@@ -705,7 +795,7 @@ export function useStageBuilderState(
       await requireApiJson(res);
       // Ignore stale soft-saves that finished after a newer Force/save.
       if (scheduleSaveGen.current.get(matchId) !== gen) return;
-      await load({ silent: true });
+      if (selectedId) await loadMatchesForStage(selectedId, { force: true });
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") return;
       if (scheduleSaveGen.current.get(matchId) !== gen) return;
@@ -779,7 +869,12 @@ export function useStageBuilderState(
     assignBracketTeam,
     reshuffleBracket,
     setMatchSchedule,
-    reload: () => load({ silent: true }),
+    loadMatchesForStage,
+    matchesLoading,
+    reload: () =>
+      selectedId
+        ? loadMatchesForStage(selectedId, { force: true })
+        : load({ silent: true }),
   };
 }
 

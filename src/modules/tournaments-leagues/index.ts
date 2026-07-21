@@ -81,6 +81,7 @@ export {
 } from "./application/admin-tournament.service";
 export {
   getStageGraphAdmin,
+  getStageMatchesAdmin,
   replaceStageGraph,
   createStage,
   updateStage,

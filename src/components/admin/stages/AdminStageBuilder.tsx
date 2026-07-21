@@ -25,6 +25,11 @@ export default function AdminStageBuilder({
     setActiveTab("settings");
   }, [state.selectedId]);
 
+  useEffect(() => {
+    if (activeTab !== "matches" || !state.selectedId) return;
+    void state.loadMatchesForStage(state.selectedId);
+  }, [activeTab, state.selectedId, state.loadMatchesForStage]);
+
   if (state.loading && !state.graph) {
     return <p className="text-sm text-white/50">Loading stage builder…</p>;
   }
@@ -148,6 +153,9 @@ export default function AdminStageBuilder({
             />
           ) : null}
           {activeTab === "matches" ? (
+            state.matchesLoading && !(selected.matches?.length) ? (
+              <p className="px-1 py-8 text-sm text-white/45">Loading matches…</p>
+            ) : (
             <StageMatchesTab
               slug={slug}
               selected={selected}
@@ -166,6 +174,7 @@ export default function AdminStageBuilder({
               onResultSaved={() => void state.reload()}
               onError={(message) => state.setError(message)}
             />
+            )
           ) : null}
         </StageDetailTabs>
       ) : null}

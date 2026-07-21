@@ -228,14 +228,87 @@ async function getStageRosterTeamIds(stageId: string): Promise<string[]> {
   return ids;
 }
 
+type MatchRow = NonNullable<AdminStageNode["matches"]>[number];
+
+function mapAdminMatch(m: {
+  id: string;
+  roundNumber: number;
+  positionInRound: number;
+  bracketSide: string | null;
+  status: string;
+  stageGroupId: string | null;
+  scheduledAt: Date | null;
+  scheduleStatus: string;
+  confirmedBySlot0: boolean;
+  confirmedBySlot1: boolean;
+  resultDeadlineAt: Date | null;
+  stageGroup: { name: string } | null;
+  participants: {
+    slot: number;
+    tournamentTeamId: string | null;
+    teamLabel: string | null;
+  }[];
+  result: {
+    winnerSlot: number;
+    scoreSummary: string | null;
+    scoreA: number | null;
+    scoreB: number | null;
+    screenshotUrl: string | null;
+    games?: unknown;
+  } | null;
+}): MatchRow {
+  return {
+    id: m.id,
+    roundNumber: m.roundNumber,
+    positionInRound: m.positionInRound,
+    bracketSide: m.bracketSide,
+    status: m.status,
+    stageGroupId: m.stageGroupId,
+    stageGroupName: m.stageGroup?.name ?? null,
+    scheduledAt: m.scheduledAt?.toISOString() ?? null,
+    scheduleStatus: m.scheduleStatus,
+    confirmedBySlot0: m.confirmedBySlot0,
+    confirmedBySlot1: m.confirmedBySlot1,
+    resultDeadlineAt: m.resultDeadlineAt?.toISOString() ?? null,
+    participants: m.participants.map((p) => ({
+      slot: p.slot,
+      teamId: p.tournamentTeamId,
+      teamLabel: p.teamLabel,
+    })),
+    result: m.result
+      ? {
+          winnerSlot: m.result.winnerSlot,
+          scoreSummary: m.result.scoreSummary,
+          scoreA: m.result.scoreA ?? null,
+          scoreB: m.result.scoreB ?? null,
+          screenshotUrl: m.result.screenshotUrl ?? null,
+          games: parseStoredGames((m.result as { games?: unknown }).games),
+        }
+      : null,
+  };
+}
+
+/**
+ * Admin stage graph. Defaults are fast: no chain repair, no match payloads.
+ * Pass `includeMatches: true` (all stages) or a stageId (one stage) when needed.
+ */
 export async function getStageGraphAdmin(
   slug: string,
-  options?: { skipChainRepair?: boolean },
+  options?: {
+    skipChainRepair?: boolean;
+    includeMatches?: boolean | string;
+  },
 ): Promise<AdminStageGraph> {
   const tournamentId = await resolveTournamentId(slug);
-  if (!options?.skipChainRepair) {
+  // Writes call sync explicitly; reads must stay cheap for Vercel.
+  if (options?.skipChainRepair === false) {
     await syncStageChain(tournamentId);
   }
+  const includeMatches = options?.includeMatches ?? false;
+  const matchStageId =
+    typeof includeMatches === "string" ? includeMatches : null;
+  const loadAllMatches = includeMatches === true;
+
   const stages = await prisma.tournamentStage.findMany({
     where: { tournamentId },
     orderBy: { order: "asc" },
@@ -255,20 +328,35 @@ export async function getStageGraphAdmin(
         include: { team: { select: { name: true } } },
       },
       bracket: {
-        include: {
-          _count: { select: { matches: true } },
-          matches: {
-            orderBy: [{ roundNumber: "asc" }, { positionInRound: "asc" }],
-            include: {
-              participants: { orderBy: { slot: "asc" } },
-              result: true,
-              stageGroup: { select: { name: true } },
-            },
-          },
-        },
+        include: { _count: { select: { matches: true } } },
       },
     },
   });
+
+  const matchesByStageId = new Map<string, MatchRow[]>();
+  if (loadAllMatches || matchStageId) {
+    const stageIds = matchStageId
+      ? [matchStageId]
+      : stages.map((s) => s.id);
+    const brackets = await prisma.bracket.findMany({
+      where: { stageId: { in: stageIds } },
+      select: {
+        stageId: true,
+        matches: {
+          orderBy: [{ roundNumber: "asc" }, { positionInRound: "asc" }],
+          include: {
+            participants: { orderBy: { slot: "asc" } },
+            result: true,
+            stageGroup: { select: { name: true } },
+          },
+        },
+      },
+    });
+    for (const b of brackets) {
+      if (!b.stageId) continue;
+      matchesByStageId.set(b.stageId, b.matches.map(mapAdminMatch));
+    }
+  }
 
   const nodes: AdminStageNode[] = stages.map((s) => ({
     id: s.id,
@@ -309,37 +397,7 @@ export async function getStageGraphAdmin(
       seed: e.seed,
     })),
     matchCount: s.bracket?._count.matches ?? 0,
-    matches: (s.bracket?.matches ?? []).map((m) => ({
-      id: m.id,
-      roundNumber: m.roundNumber,
-      positionInRound: m.positionInRound,
-      bracketSide: m.bracketSide,
-      status: m.status,
-      stageGroupId: m.stageGroupId,
-      stageGroupName: m.stageGroup?.name ?? null,
-      scheduledAt: m.scheduledAt?.toISOString() ?? null,
-      scheduleStatus: m.scheduleStatus,
-      confirmedBySlot0: m.confirmedBySlot0,
-      confirmedBySlot1: m.confirmedBySlot1,
-      resultDeadlineAt: m.resultDeadlineAt?.toISOString() ?? null,
-      participants: m.participants.map((p) => ({
-        slot: p.slot,
-        teamId: p.tournamentTeamId,
-        teamLabel: p.teamLabel,
-      })),
-      result: m.result
-        ? {
-            winnerSlot: m.result.winnerSlot,
-            scoreSummary: m.result.scoreSummary,
-            scoreA: m.result.scoreA ?? null,
-            scoreB: m.result.scoreB ?? null,
-            screenshotUrl: m.result.screenshotUrl ?? null,
-            games: parseStoredGames(
-              (m.result as { games?: unknown }).games,
-            ),
-          }
-        : null,
-    })),
+    matches: matchesByStageId.get(s.id) ?? [],
   }));
 
   const graphInput = toGraphInput(nodes);
@@ -354,6 +412,39 @@ export async function getStageGraphAdmin(
   ];
 
   return { stages: nodes, validation };
+}
+
+/** Load match payloads for a single stage (Matches tab). */
+export async function getStageMatchesAdmin(
+  slug: string,
+  stageId: string,
+): Promise<{ matches: MatchRow[]; matchCount: number }> {
+  const tournamentId = await resolveTournamentId(slug);
+  const stage = await prisma.tournamentStage.findFirst({
+    where: { id: stageId, tournamentId },
+    select: { id: true },
+  });
+  if (!stage) throw new Error("Stage not found.");
+
+  const bracket = await prisma.bracket.findUnique({
+    where: { stageId },
+    select: {
+      _count: { select: { matches: true } },
+      matches: {
+        orderBy: [{ roundNumber: "asc" }, { positionInRound: "asc" }],
+        include: {
+          participants: { orderBy: { slot: "asc" } },
+          result: true,
+          stageGroup: { select: { name: true } },
+        },
+      },
+    },
+  });
+  const matches = (bracket?.matches ?? []).map(mapAdminMatch);
+  return {
+    matches,
+    matchCount: bracket?._count.matches ?? matches.length,
+  };
 }
 
 function toGraphInput(nodes: AdminStageNode[]): StageGraphInput {
@@ -1027,7 +1118,7 @@ export async function generateStageMatches(slug: string, stageId: string) {
   });
   if (!stage) throw new Error("Stage not found.");
   const result = await generateMatchesForStage(stageId);
-  const graph = await getStageGraphAdmin(slug);
+  const graph = await getStageGraphAdmin(slug, { includeMatches: stageId });
   return { ...result, graph };
 }
 
@@ -1082,7 +1173,7 @@ export async function reshuffleStageBracket(slug: string, stageId: string) {
   );
 
   const result = await generateMatchesForStage(stageId);
-  const graph = await getStageGraphAdmin(slug);
+  const graph = await getStageGraphAdmin(slug, { includeMatches: stageId });
   return { ...result, graph };
 }
 
@@ -1093,7 +1184,7 @@ export async function advanceStageAdmin(slug: string, stageId: string) {
   });
   if (!stage) throw new Error("Stage not found.");
   const result = await applyStageMovement(stageId);
-  const graph = await getStageGraphAdmin(slug);
+  const graph = await getStageGraphAdmin(slug, { includeMatches: stageId });
   return { ...result, graph };
 }
 
@@ -1542,7 +1633,7 @@ export async function commitStageAndGenerate(
   }
 
   const generated = await generateMatchesForStage(stageId);
-  const graph = await getStageGraphAdmin(slug, { skipChainRepair: true });
+  const graph = await getStageGraphAdmin(slug, { includeMatches: stageId });
   return { matchCount: generated.matchCount, moved, graph };
 }
 

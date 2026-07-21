@@ -9,6 +9,7 @@ import type { StageGraphInput } from "@tournaments-leagues/domain/stages/types";
 import type { StageType } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -17,10 +18,18 @@ export async function GET(req: Request, { params }: Params) {
   if (!isAuthedAdmin(auth)) return guardResponse(auth)!;
 
   const { slug } = await params;
-  const skipRepair = new URL(req.url).searchParams.get("skipRepair") === "1";
+  const url = new URL(req.url);
+  // Default: light graph (structure only). Matches load via /stages/[id]/matches.
+  const matchesStageId = url.searchParams.get("matchesStageId");
+  const includeAllMatches = url.searchParams.get("includeMatches") === "1";
   try {
     const graph = await getStageGraphAdmin(slug, {
-      skipChainRepair: skipRepair,
+      skipChainRepair: true,
+      includeMatches: includeAllMatches
+        ? true
+        : matchesStageId
+          ? matchesStageId
+          : false,
     });
     return NextResponse.json(graph);
   } catch (err) {
