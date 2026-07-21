@@ -49,14 +49,10 @@ export {
   getValorantRegistrationProfileCard,
   switchPlayerToCaptain,
   setTournamentPlacements,
-  awardPlayerBadge,
-  removePlayerBadge,
-  listAllPlayerBadges,
   updateTournamentAdmin,
   adminAddTournamentRegistration,
   adminRemoveTournamentRegistration,
 } from "./application/registration.service";
-export type { PlayerBadgeType } from "./application/registration.service";
 export {
   listTournamentsAdmin,
   getTournamentAdmin,
@@ -79,3 +75,43 @@ export {
   defaultPrizeSplit,
   syncRegistrationStatus,
 } from "./application/admin-tournament.service";
+export {
+  getStageGraphAdmin,
+  replaceStageGraph,
+  createStage,
+  updateStage,
+  deleteStage,
+  putStageGroups,
+  putStageRules,
+  putStageSeeding,
+  generateStageMatches,
+  advanceStageAdmin,
+  commitStageAndGenerate,
+  syncAllStages,
+  reshuffleStageBracket,
+} from "./application/stages/admin-stage.service";
+export {
+  adminSetMatchSchedule,
+  confirmMatchSchedule,
+  proposeMatchSchedule,
+  listMyGames,
+  submitMatchResultWithProof,
+  updateStageScheduleSettings,
+  mergeStageScheduleConfig,
+  resolveUserTeamIds,
+} from "./application/stages/match-schedule.service";
+export type { MyGameView } from "./application/stages/match-schedule.service";
+export type {
+  StageCommitDraft,
+  StageSeedSource,
+  AdminStageGraph,
+} from "./application/stages/admin-stage.service";
+export { mapStagesToPublic } from "./application/stages/stage-query.service";
+export {
+  generateStage,
+  advanceStage,
+  recordStageMatchResult,
+  clearStageMatchResult,
+  assignMatchParticipant,
+} from "./application/stages/stage-lifecycle.service";
+export { listStagePlugins, isStageTypeRunnable } from "./application/stages/stage-registry";

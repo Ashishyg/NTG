@@ -5,6 +5,7 @@ import {
   listSeasonsAdmin,
   listUnassignedPlayerRegistrations,
   parsePrizeSplit,
+  getStageGraphAdmin,
 } from "@tournaments-leagues/index";
 import { serverEnv } from "@core/config/env.server";
 import { displayCs2Ranks, displayValorantRegistration } from "@auth-membership/domain/game-profile";
@@ -30,22 +31,17 @@ export default async function AdminTournamentEditPage({ params }: Props) {
   const session = await getSession();
   const userId = session?.user?.id;
 
-  const [t, poolPlayers, seasons, [row]] = await Promise.all([
+  const [t, poolPlayers, seasons, stageGraph, [row]] = await Promise.all([
     getTournamentAdmin(slug),
     listUnassignedPlayerRegistrations(slug),
     listSeasonsAdmin(),
+    getStageGraphAdmin(slug).catch(() => null),
     prisma.$queryRawUnsafe<{ publicAuction: boolean }[]>(
       'SELECT "publicAuction" FROM "Tournament" WHERE slug = $1 LIMIT 1',
       slug
     ),
   ]);
   if (!t) notFound();
-
-  const [auctionRow] = await prisma.$queryRawUnsafe<{ finalized: boolean }[]>(
-    'SELECT finalized FROM auction_sessions WHERE tournament_id = $1 LIMIT 1',
-    t.id
-  );
-  const auctionFinalized = auctionRow?.finalized ?? false;
 
   const initial = {
     slug: t.slug,
@@ -158,6 +154,11 @@ export default async function AdminTournamentEditPage({ params }: Props) {
     : null;
 
   return (
-    <AdminTournamentEditor initial={initial} seasons={seasons} auctionHref={auctionHref} auctionFinalized={auctionFinalized} />
+    <AdminTournamentEditor
+      initial={initial}
+      seasons={seasons}
+      auctionHref={auctionHref}
+      initialStageGraph={stageGraph}
+    />
   );
 }

@@ -5,6 +5,8 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import ImageUploadField from "@/components/admin/ImageUploadField";
 import RulebookUploadField from "@/components/admin/RulebookUploadField";
 import { AdminSection } from "@/components/admin/AdminSection";
+import AdminStageBuilder from "@/components/admin/AdminStageBuilder";
+import type { AdminStageGraph } from "@tournaments-leagues/index";
 import { useAdminDeleteConfirm } from "@/components/admin/useAdminDeleteConfirm";
 import type { PrizeSplitRow } from "@core/contracts";
 import { emptyToNull, prizeSplitForSave } from "@/lib/admin-fields";
@@ -174,7 +176,9 @@ function getSavePayload(form: TournamentData) {
     autoManageStatus: form.autoManageStatus,
     bracketUrl: emptyToNull(form.bracketUrl),
     rulebookUrl: emptyToNull(form.rulebookUrl),
-    registrationFormat: SUPPORTS_FORMAT.includes(form.game) ? form.registrationFormat : null,
+    registrationFormat: SUPPORTS_FORMAT.includes(form.game)
+      ? (form.registrationFormat ?? "AUCTION")
+      : null,
     format: form.format || null,
     coCaptainSlots: form.coCaptainSlots,
     startingBudget: form.startingBudget,
@@ -211,12 +215,12 @@ export default function AdminTournamentEditor({
   initial,
   seasons,
   auctionHref,
-  auctionFinalized,
+  initialStageGraph = null,
 }: {
   initial: TournamentData;
   seasons: { id: string; label: string }[];
   auctionHref?: string | null;
-  auctionFinalized?: boolean;
+  initialStageGraph?: AdminStageGraph | null;
 }) {
   const router = useRouter();
   const { openDeleteConfirm, DeleteConfirmDialog } = useAdminDeleteConfirm();
@@ -229,7 +233,14 @@ export default function AdminTournamentEditor({
   const tournamentTeams = initial.tournamentTeams;
   const poolPlayers = initial.poolPlayers;
   const [activeTab, setActiveTab] = useState<
-    "general" | "auction" | "media" | "prizes" | "standings" | "registrations" | "teams"
+    | "general"
+    | "auction"
+    | "media"
+    | "prizes"
+    | "stages"
+    | "standings"
+    | "registrations"
+    | "teams"
   >("general");
   const initialMvpRole = initial.placements.find((p) => p.role === "MVP");
   const initialMvpUser = initialMvpRole?.user;
@@ -254,8 +265,6 @@ export default function AdminTournamentEditor({
   const savedCupBaselineRef = useRef(getSavePayload(initialFormState));
 
   const [loading, setLoading] = useState(false);
-  const [confirmCreateAuction, setConfirmCreateAuction] = useState(false);
-  const [bypassAuctionSavedLock, setBypassAuctionSavedLock] = useState(false);
   const isDirty = useMemo(() => {
     const cupDirty = !savePayloadsEqual(getSavePayload(form), savedCupBaselineRef.current);
     const mvpDirty =
@@ -472,27 +481,12 @@ export default function AdminTournamentEditor({
   }
 
   async function createAuction() {
-    // The auction app reads settings (incl. rank points) straight from the DB, not from
-    // this form's in-memory state — save first so unsaved edits aren't sent as stale defaults.
-    if (isDirty) {
-      const saved = await saveAll();
-      if (!saved) return;
-    }
-
     setLoading(true);
     setMessage(null);
     try {
-      const res = await fetch(`/api/admin/tournaments/${form.slug}/auction`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bypass: bypassAuctionSavedLock }),
-      });
+      const res = await fetch(`/api/admin/tournaments/${form.slug}/auction`, { method: "POST" });
       const data = await readJsonResponse(res);
       setMessage(res.ok ? "Auction created." : String(data.error ?? "Failed to create auction."));
-      if (res.ok) {
-        setConfirmCreateAuction(false);
-        setBypassAuctionSavedLock(false);
-      }
     } finally {
       setLoading(false);
     }
@@ -506,12 +500,12 @@ export default function AdminTournamentEditor({
       if (!form.registrationOpensAt || !form.startsAt || !form.endsAt) {
         setMessage("Auto-manage requires registration open, cup start, and cup end dates.");
         setLoading(false);
-        return false;
+        return;
       }
       if (isAuctionFormat && (!form.auctionStartsAt || !form.auctionEndsAt)) {
         setMessage("Auction cups require auction start and auction end dates.");
         setLoading(false);
-        return false;
+        return;
       }
       const opens = new Date(form.registrationOpensAt).getTime();
       const closeAnchor = isAuctionFormat
@@ -528,29 +522,29 @@ export default function AdminTournamentEditor({
             : "Registration must open before it closes (1 minute before cup start).",
         );
         setLoading(false);
-        return false;
+        return;
       }
       if (isAuctionFormat && auctionEnd !== null) {
         if (closes >= new Date(form.auctionStartsAt!).getTime()) {
           setMessage("Auction must start after registration closes.");
           setLoading(false);
-          return false;
+          return;
         }
         if (new Date(form.auctionStartsAt!).getTime() >= auctionEnd) {
           setMessage("Auction end must be after auction start.");
           setLoading(false);
-          return false;
+          return;
         }
         if (auctionEnd >= starts) {
           setMessage("Cup start must be after the auction ends.");
           setLoading(false);
-          return false;
+          return;
         }
       }
       if (isAuctionFormat ? starts >= ends : closes >= ends) {
         setMessage("Cup end must be after cup start.");
         setLoading(false);
-        return false;
+        return;
       }
     }
 
@@ -579,7 +573,7 @@ export default function AdminTournamentEditor({
           hideAfter: null,
           bracketUrl: emptyToNull(form.bracketUrl),
           rulebookUrl: emptyToNull(form.rulebookUrl),
-          registrationFormat: SUPPORTS_FORMAT.includes(form.game) ? form.registrationFormat : null,
+          registrationFormat: SUPPORTS_FORMAT.includes(form.game) ? (form.registrationFormat ?? "AUCTION") : null,
           format: form.format || null,
           coCaptainSlots: form.coCaptainSlots,
           startingBudget: form.startingBudget,
@@ -596,7 +590,7 @@ export default function AdminTournamentEditor({
       const data = await readJsonResponse(res);
       if (!res.ok) {
         setMessage(String(data.error ?? "Save failed."));
-        return false;
+        return;
       }
 
       if (data.tournament) {
@@ -619,7 +613,7 @@ export default function AdminTournamentEditor({
         const d = await readJsonResponse(pRes);
         if (!pRes.ok) {
           setMessage(String(d.error ?? "MVP save failed."));
-          return false;
+          return;
         }
         savedMvpRef.current = { enabled: mvpEnabled, userId: selectedMvp?.id ?? null };
       }
@@ -627,10 +621,8 @@ export default function AdminTournamentEditor({
       setMessage("All changes successfully saved.");
       setSavedStatus(true);
       setTimeout(() => setSavedStatus(false), 2500);
-      return true;
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Something went wrong.");
-      return false;
     } finally {
       setLoading(false);
     }
@@ -844,6 +836,15 @@ export default function AdminTournamentEditor({
       icon: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+    },
+    {
+      id: "stages" as const,
+      label: "Format / Stages",
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h10M4 18h7" />
         </svg>
       ),
     },
@@ -1383,70 +1384,19 @@ export default function AdminTournamentEditor({
                   </div>
                 )}
 
-                <div className="border-t border-white/[0.04] pt-4 flex flex-col gap-4">
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div>
-                      <h4 className="text-xs font-semibold text-white/80">Initialize Auction Instance</h4>
-                      <p className="text-[10px] text-white/40 mt-0.5">
-                        Sends current configurations to register the cup in the auction platform. This wipes and rebuilds any existing auction for this cup.
-                      </p>
-                      {auctionFinalized && (
-                        <p className="mt-1 text-[10px] font-semibold text-amber-300">
-                          This auction has already been saved in the auction app. Resetting it is blocked by default.
-                        </p>
-                      )}
-                    </div>
-                    {!confirmCreateAuction && (
-                      <button
-                        type="button"
-                        onClick={() => setConfirmCreateAuction(true)}
-                        disabled={loading}
-                        className="cta inline-flex rounded-full px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] disabled:opacity-50"
-                      >
-                        Create / Reset Auction
-                      </button>
-                    )}
+                <div className="border-t border-white/[0.04] pt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div>
+                    <h4 className="text-xs font-semibold text-white/80">Initialize Auction Instance</h4>
+                    <p className="text-[10px] text-white/40 mt-0.5">Sends current configurations to register the cup in the auction platform.</p>
                   </div>
-
-                  {confirmCreateAuction && (
-                    <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-4 space-y-3">
-                      <p className="text-xs text-amber-200">
-                        This will delete and rebuild the auction from scratch — any live progress, sold players, and
-                        team budgets in the auction app will be lost. This cannot be undone.
-                      </p>
-                      {auctionFinalized && (
-                        <label className="flex items-center gap-2 text-[11px] text-amber-200">
-                          <input
-                            type="checkbox"
-                            checked={bypassAuctionSavedLock}
-                            onChange={(e) => setBypassAuctionSavedLock(e.target.checked)}
-                          />
-                          I understand the auction was already saved, and want to reset it anyway.
-                        </label>
-                      )}
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={createAuction}
-                          disabled={loading || (auctionFinalized && !bypassAuctionSavedLock)}
-                          className="cta inline-flex rounded-full px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] disabled:opacity-50"
-                        >
-                          {loading ? "Sending..." : "Confirm Create / Reset"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setConfirmCreateAuction(false);
-                            setBypassAuctionSavedLock(false);
-                          }}
-                          disabled={loading}
-                          className="rounded-full border border-white/10 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60 transition-colors hover:border-white/20 hover:text-white/80"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={createAuction}
+                    disabled={loading}
+                    className="cta inline-flex rounded-full px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] disabled:opacity-50"
+                  >
+                    {loading ? "Sending..." : "Create / Reset Auction"}
+                  </button>
                 </div>
 
                 {/* Public Auction Visibility Toggle */}
@@ -1640,6 +1590,14 @@ export default function AdminTournamentEditor({
             </AdminSection>
           </div>
         )}
+
+        <div className={activeTab === "stages" ? "space-y-4" : "hidden"}>
+          <AdminStageBuilder
+            slug={form.slug}
+            teams={tournamentTeams.map((t) => ({ id: t.id, name: t.name }))}
+            initialGraph={initialStageGraph}
+          />
+        </div>
 
         {/* Tab 4: Bracket & MVP */}
         {activeTab === "standings" && (
@@ -1892,7 +1850,6 @@ export default function AdminTournamentEditor({
                       <tr>
                         <th className="px-3 py-2">Name</th>
                         <th className="px-3 py-2">Email</th>
-                        <th className="px-3 py-2">Phone</th>
                         <th className="px-3 py-2">Role</th>
                         <th className="px-3 py-2">Team</th>
                         {form.game === "CS2" ? (
@@ -1924,7 +1881,6 @@ export default function AdminTournamentEditor({
                         <tr key={r.id} className="border-b border-white/[0.04]">
                           <td className="px-3 py-2 font-medium text-white/85">{r.displayName ?? "—"}</td>
                           <td className="px-3 py-2">{r.email ?? "—"}</td>
-                          <td className="px-3 py-2 font-mono">{r.phone ?? "—"}</td>
                           <td className="px-3 py-2">{formatParticipantRole(r.participantRole)}</td>
                           <td className="px-3 py-2">{r.teamName ?? "—"}</td>
                           {form.game === "CS2" ? (

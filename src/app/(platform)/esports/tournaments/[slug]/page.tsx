@@ -3,7 +3,12 @@ import TournamentDetailView from "@/components/platform/TournamentDetailView";
 import { fetchChallongeBracket } from "@/lib/challonge-api";
 import { getSession } from "@core/auth/session";
 import { requireAdmin } from "@core/auth/require-admin";
-import { getTournamentDetail, getRegistrationEligibility, getValorantRegistrationProfileCard } from "@tournaments-leagues/index";
+import {
+  getTournamentDetail,
+  getRegistrationEligibility,
+  getValorantRegistrationProfileCard,
+  mapStagesToPublic,
+} from "@tournaments-leagues/index";
 import { serverEnv } from "@core/config/env.server";
 import { auctionLink } from "@/lib/auction-link";
 import { prisma } from "@core/database/client";
@@ -24,9 +29,11 @@ export default async function TournamentDetailPage({ params }: Props) {
   const raw = await getTournamentDetail(slug, userId);
   if (!raw) notFound();
   const tournament = raw;
-  const bracket = tournament.bracketUrl
-    ? await fetchChallongeBracket(tournament.bracketUrl)
-    : null;
+  const stages = await mapStagesToPublic(tournament.id);
+  const bracket =
+    stages.length === 0 && tournament.bracketUrl
+      ? await fetchChallongeBracket(tournament.bracketUrl)
+      : null;
 
   const admin = await requireAdmin();
   const registrationPreview = userId
@@ -53,13 +60,12 @@ export default async function TournamentDetailPage({ params }: Props) {
   const auctionEligible =
     tournament.registrationFormat === "AUCTION" &&
     !!userId &&
+    tournament.userRegistered &&
     !!serverEnv.auctionUrl &&
     !!serverEnv.auctionJwtSecret;
-  // Admins can always enter, but only for tournaments that are actually auction-format.
-  // Any logged-in main-site account sees the button if publicAuction is enabled by the
-  // admin — they don't need to be registered for this specific tournament, since the
-  // auction app grants them observer access regardless (only captains/admins get controls).
-  const showEnterButton = tournament.registrationFormat === "AUCTION" && (admin.ok || (auctionEligible && publicAuction));
+  // Admins can always enter; players enter only while IN_PROGRESS, see it disabled once COMPLETED.
+  // Normal registered users only see the button if publicAuction is enabled by the admin.
+  const showEnterButton = admin.ok || (auctionEligible && publicAuction);
   const auctionHref = (showEnterButton && userId)
     ? auctionLink(tournament.id, auctionView, userId)
     : null;
@@ -70,6 +76,7 @@ export default async function TournamentDetailPage({ params }: Props) {
       <TournamentDetailView
         tournament={tournament}
         bracket={bracket}
+        stages={stages}
         isLoggedIn={!!userId}
         registrationPreview={registrationPreview}
         registrationProfileCard={registrationProfileCard}
