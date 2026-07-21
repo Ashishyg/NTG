@@ -48,14 +48,57 @@ function StatusPill({ status }: { status: string }) {
 }
 
 function destText(kind: string, label: string): string {
-  if (kind === "ELIMINATED") return "Tournament Exit";
-  if (kind === "CHAMPION")   return `Direct to ${label}`;
-  return `Advance to ${label}`;
+  if (kind === "ELIMINATED") return "Eliminated";
+  if (kind === "CHAMPION") return "Champion";
+  if (kind === "LOWER_BRACKET") return "Lower Bracket";
+  return label.replace(/^(Advance to|Advances to|Direct to)\s+/i, "");
+}
+
+/** Parse human-readable selectors like "Top 2", "Bottom 1", "2nd & 3rd" into position arrays. */
+function parsePositionsFromSelector(selector: string, totalTeams: number): number[] {
+  const s = selector.toLowerCase().trim();
+  const top = s.match(/^top\s+(\d+)$/);
+  if (top) {
+    const n = parseInt(top[1]);
+    return Array.from({ length: n }, (_, i) => i + 1);
+  }
+  const bottom = s.match(/^bottom\s+(\d+)$/);
+  if (bottom) {
+    const n = parseInt(bottom[1]);
+    return Array.from({ length: n }, (_, i) => totalTeams - n + i + 1);
+  }
+  // "2nd & 3rd & 4th" or "1st, 2nd" etc. — grab all numbers
+  const nums = [...s.matchAll(/(\d+)/g)].map((m) => parseInt(m[1]));
+  if (nums.length > 0) return nums;
+  return [];
+}
+
+type PositionStatus = "qualify" | "eliminated" | "neutral";
+
+function getPositionStatus(
+  pos: number,
+  totalTeams: number,
+  groupId: string,
+  rules: TournamentStagePublicView["qualificationRules"],
+): PositionStatus {
+  const applicable = rules.filter(
+    (r) => r.groupId === null || r.groupId === groupId,
+  );
+  for (const rule of applicable) {
+    const positions = parsePositionsFromSelector(rule.selectorLabel, totalTeams);
+    if (positions.includes(pos)) {
+      return rule.destinationKind === "ELIMINATED" ? "eliminated" : "qualify";
+    }
+  }
+  return "neutral";
 }
 
 export default function TournamentStageBrackets({ stages, accentHex = "#22d3ee" }: Props) {
   const [activeId, setActiveId] = useState(stages[0]?.id ?? "");
   const active = stages.find((s) => s.id === activeId) ?? stages[0];
+
+  const sortedStages = [...stages].sort((a, b) => a.order - b.order);
+  const isLastStage  = active?.id === sortedStages[sortedStages.length - 1]?.id;
 
   if (!active) return null;
 
@@ -65,13 +108,14 @@ export default function TournamentStageBrackets({ stages, accentHex = "#22d3ee" 
       <div className="flex flex-wrap gap-2">
         {stages.map((s) => {
           const on = s.id === active.id;
+          const locked = s.revealed === false;
           return (
             <button
               key={s.id}
               type="button"
               onClick={() => setActiveId(s.id)}
               className={`relative rounded-full px-5 py-2 text-xs font-semibold uppercase tracking-widest transition-all duration-200 ${
-                on ? "text-white" : "text-white/40 hover:text-white/70"
+                on ? "text-white" : locked ? "text-white/25 hover:text-white/45" : "text-white/40 hover:text-white/70"
               }`}
               style={
                 on
@@ -80,6 +124,11 @@ export default function TournamentStageBrackets({ stages, accentHex = "#22d3ee" 
               }
             >
               {s.name}
+              {locked ? (
+                <span className="ml-1.5 text-[9px] font-medium normal-case tracking-wide text-white/30">
+                  TBD
+                </span>
+              ) : null}
             </button>
           );
         })}
@@ -114,8 +163,19 @@ export default function TournamentStageBrackets({ stages, accentHex = "#22d3ee" 
           <StatusPill status={active.status} />
         </div>
 
+        {active.revealed === false ? (
+          <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-14 text-center">
+            <p className="font-display text-lg font-bold uppercase tracking-widest text-white/55">
+              To be decided
+            </p>
+            <p className="mt-2 text-sm text-white/35">
+              Teams and matches for this stage unlock after the previous stage is fully complete.
+            </p>
+          </div>
+        ) : (
+          <>
         {/* ── Qualification Rules ── */}
-        {(active.qualificationRules?.length ?? 0) > 0 && (() => {
+        {!isLastStage && (active.qualificationRules?.length ?? 0) > 0 && (() => {
           const deduped = [
             ...new Map(
               active.qualificationRules.map((r) => [
@@ -124,13 +184,18 @@ export default function TournamentStageBrackets({ stages, accentHex = "#22d3ee" 
               ]),
             ).values(),
           ];
+          // Qualify rules first, eliminated rules last
+          const sorted = [
+            ...deduped.filter((r) => r.destinationKind !== "ELIMINATED"),
+            ...deduped.filter((r) => r.destinationKind === "ELIMINATED"),
+          ];
           return (
             <div className="mb-8">
               <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/28">
-                Qualification
+                Qualification Criteria
               </p>
               <div className="flex flex-col gap-2.5">
-                {deduped.map((rule) => {
+                {sorted.map((rule) => {
                   const advances  = rule.destinationKind !== "ELIMINATED";
                   const eliminated = rule.destinationKind === "ELIMINATED";
                   return (
@@ -143,7 +208,7 @@ export default function TournamentStageBrackets({ stages, accentHex = "#22d3ee" 
                         className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest ${
                           advances
                             ? "bg-emerald-500/10 text-emerald-400/75 ring-1 ring-emerald-500/20"
-                            : "bg-white/[0.04] text-white/28 ring-1 ring-white/[0.08]"
+                            : "bg-rose-500/10 text-rose-400/75 ring-1 ring-rose-500/20"
                         }`}
                       >
                         {eliminated ? "Eliminated" : "Qualify"}
@@ -186,25 +251,66 @@ export default function TournamentStageBrackets({ stages, accentHex = "#22d3ee" 
                         <th className="pb-3 text-right font-medium w-8">W</th>
                         <th className="pb-3 text-right font-medium w-8">L</th>
                         <th className="pb-3 text-right font-medium w-10">RD</th>
-                        <th className="pb-3 text-right font-medium w-10">Pts</th>
+                        <th
+                          className="pb-3 text-right font-medium w-10"
+                          title="Rounds won"
+                        >
+                          RW
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {g.standings.map((row, i) => (
-                        <tr
-                          key={row.teamId}
-                          className="border-b border-white/[0.04] last:border-0"
-                        >
-                          <td className="py-2.5 text-white/30 tabular-nums text-xs">{i + 1}</td>
-                          <td className="py-2.5 font-medium text-white/80 text-[13px]">{row.teamName}</td>
-                          <td className="py-2.5 text-right tabular-nums text-white/50 text-xs">{row.wins}</td>
-                          <td className="py-2.5 text-right tabular-nums text-white/50 text-xs">{row.losses}</td>
-                          <td className="py-2.5 text-right tabular-nums text-white/50 text-xs">
-                            {row.roundDiff > 0 ? `+${row.roundDiff}` : row.roundDiff}
-                          </td>
-                          <td className="py-2.5 text-right tabular-nums font-bold text-white/90 text-xs">{row.points}</td>
-                        </tr>
-                      ))}
+                      {g.standings.map((row, i) => {
+                          const total = g.standings.length;
+                          const status = getPositionStatus(
+                            row.position || i + 1,
+                            total,
+                            g.id,
+                            active.qualificationRules ?? [],
+                          );
+                          const borderColor =
+                            status === "qualify"
+                              ? "rgba(52,211,153,0.55)"
+                              : status === "eliminated"
+                                ? "rgba(251,113,133,0.50)"
+                                : "transparent";
+                          return (
+                          <tr
+                            key={row.teamId}
+                            className="border-b border-white/[0.03] last:border-0"
+                          >
+                            <td
+                              className="py-3 pl-1 pr-2 tabular-nums text-xs text-white/35"
+                              style={{ boxShadow: `inset 3px 0 0 ${borderColor}` }}
+                            >
+                              {i + 1}
+                            </td>
+                            <td
+                              className={`py-3 font-semibold text-[13px] ${
+                                status === "qualify"
+                                  ? "text-white/90"
+                                  : status === "eliminated"
+                                    ? "text-white/35"
+                                    : "text-white/75"
+                              }`}
+                            >
+                              {row.teamName}
+                            </td>
+                            <td className="py-3 text-right tabular-nums text-white/45 text-xs">{row.wins}</td>
+                            <td className="py-3 text-right tabular-nums text-white/45 text-xs">{row.losses}</td>
+                            <td className="py-3 text-right tabular-nums text-white/45 text-xs">
+                              {row.roundDiff > 0
+                                ? `+${row.roundDiff}`
+                                : row.roundDiff < 0
+                                  ? `${row.roundDiff}`
+                                  : "0"}
+                            </td>
+                            <td className="py-3 text-right tabular-nums font-bold text-white/85 text-xs">
+                              {row.roundsFor ?? 0}
+                            </td>
+                          </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
                 ) : (
@@ -255,10 +361,11 @@ export default function TournamentStageBrackets({ stages, accentHex = "#22d3ee" 
                       className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3"
                     >
                       <div className="mb-2 flex items-center justify-between">
-                        <span className="text-[10px] uppercase tracking-widest text-white/25 font-medium">
-                          R{m.roundNumber}
-                          {m.bracketSide ? ` · ${m.bracketSide}` : ""}
-                        </span>
+                        {m.bracketSide ? (
+                          <span className="text-[10px] uppercase tracking-widest text-white/25 font-medium">
+                            {m.bracketSide}
+                          </span>
+                        ) : <span />}
                         {completed && (
                           <span className="text-[10px] uppercase tracking-widest text-white/25 font-medium">
                             Done
@@ -277,7 +384,32 @@ export default function TournamentStageBrackets({ stages, accentHex = "#22d3ee" 
                         >
                           {a?.teamLabel ?? "TBD"}
                         </span>
-                        <span className="shrink-0 text-[10px] text-white/20 font-medium">vs</span>
+                        {/* Score or vs */}
+                        {completed && m.result ? (() => {
+                          const gamesWithScores = m.result.games?.filter(
+                            (gm) => gm.scoreA != null && gm.scoreB != null,
+                          );
+                          let scoreText = "";
+                          if (gamesWithScores && gamesWithScores.length > 0) {
+                            if (m.matchFormat === "BO1" || gamesWithScores.length === 1) {
+                              scoreText = `${gamesWithScores[0]!.scoreA}–${gamesWithScores[0]!.scoreB}`;
+                            } else {
+                              const details = gamesWithScores
+                                .map((gm) => `${gm.scoreA}–${gm.scoreB}`)
+                                .join(", ");
+                              scoreText = `${m.result.scoreA ?? 0}–${m.result.scoreB ?? 0} (${details})`;
+                            }
+                          } else {
+                            scoreText = `${m.result.scoreA ?? "?"}–${m.result.scoreB ?? "?"}`;
+                          }
+                          return (
+                            <span className="shrink-0 tabular-nums text-[11px] font-bold text-white/55">
+                              {scoreText}
+                            </span>
+                          );
+                        })() : (
+                          <span className="shrink-0 text-[10px] text-white/20 font-medium">vs</span>
+                        )}
                         <span
                           className={`flex-1 truncate text-right text-[13px] font-semibold ${
                             m.result?.winnerSlot === 1
@@ -298,6 +430,8 @@ export default function TournamentStageBrackets({ stages, accentHex = "#22d3ee" 
           )
         ) : (
           <p className="text-sm text-white/30">Matches have not been generated yet.</p>
+        )}
+          </>
         )}
       </div>
     </div>

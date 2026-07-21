@@ -8,14 +8,11 @@ import {
   parseSelector,
 } from "@tournaments-leagues/domain/stages/validation";
 import { computeGroupStandings } from "./standings.engine";
-
-function readFinalsFormat(config: unknown): "BO1" | "BO3" | "BO5" | null {
-  if (config && typeof config === "object" && "finalsMatchFormat" in config) {
-    const v = (config as { finalsMatchFormat?: string }).finalsMatchFormat;
-    if (v === "BO1" || v === "BO3" || v === "BO5") return v;
-  }
-  return null;
-}
+import {
+  parseStoredGames,
+  readFinalsFormat,
+  resolveMatchFormat,
+} from "./series-format";
 
 function ordinal(n: number): string {
   const v = n % 100;
@@ -51,17 +48,17 @@ function destinationLabel(
   const d = parseDestination(raw);
   if (!d) return { label: "Unknown destination", kind: "UNKNOWN" };
   if (d.kind === "ELIMINATED") {
-    return { label: "Eliminated (DQ / out)", kind: "ELIMINATED" };
+    return { label: "Eliminated", kind: "ELIMINATED" };
   }
   if (d.kind === "CHAMPION") {
-    return { label: "Named Champion", kind: "CHAMPION" };
+    return { label: "Champion", kind: "CHAMPION" };
   }
   if (d.kind === "LOWER_BRACKET") {
-    return { label: "Drops to lower bracket", kind: "LOWER_BRACKET" };
+    return { label: "Lower Bracket", kind: "LOWER_BRACKET" };
   }
   if (d.kind === "STAGE" || d.kind === "STAGE_GROUP") {
-    const name = stageNameById.get(d.stageId) ?? "next stage";
-    return { label: `Advances to ${name}`, kind: d.kind };
+    const name = stageNameById.get(d.stageId) ?? "Next Stage";
+    return { label: name, kind: d.kind };
   }
   return { label: "Unknown destination", kind: "UNKNOWN" };
 }
@@ -107,32 +104,57 @@ export async function mapStagesToPublic(
   const stageNameById = new Map(stages.map((s) => [s.id, s.name]));
   const views: TournamentStagePublicView[] = [];
 
-  for (const stage of stages) {
+  for (let i = 0; i < stages.length; i++) {
+    const stage = stages[i]!;
+    const previous = [...stages]
+      .filter((s) => s.order < stage.order)
+      .sort((a, b) => b.order - a.order)[0];
+    const revealed =
+      !previous ||
+      previous.status === "COMPLETE" ||
+      stage.status === "COMPLETE";
+
     const groups = [];
     for (const g of stage.groups) {
-      const standings = await computeGroupStandings(stage.id, g.id);
+      const standings = revealed
+        ? await computeGroupStandings(stage.id, g.id)
+        : [];
       groups.push({
         id: g.id,
         name: g.name,
         order: g.order,
         targetSize: g.targetSize,
-        slots: g.slots.map((s) => ({
-          id: s.id,
-          slotIndex: s.slotIndex,
-          teamId: s.teamId,
-          teamName: s.team?.name ?? null,
-          sourceStageId: s.sourceStageId,
-          sourceGroupId: s.sourceGroupId,
-          sourcePosition: s.sourcePosition,
-          eliminated: s.eliminated,
-        })),
+        slots: revealed
+          ? g.slots.map((s) => ({
+              id: s.id,
+              slotIndex: s.slotIndex,
+              teamId: s.teamId,
+              teamName: s.team?.name ?? null,
+              sourceStageId: s.sourceStageId,
+              sourceGroupId: s.sourceGroupId,
+              sourcePosition: s.sourcePosition,
+              eliminated: s.eliminated,
+            }))
+          : g.slots.map((s) => ({
+              id: s.id,
+              slotIndex: s.slotIndex,
+              teamId: null,
+              teamName: null,
+              sourceStageId: null,
+              sourceGroupId: null,
+              sourcePosition: null,
+              eliminated: false,
+            })),
         standings,
       });
     }
 
     const finalsMatchFormat = readFinalsFormat(stage.config);
-    const matches = stage.bracket?.matches ?? [];
-    const maxRound = matches.reduce((m, x) => Math.max(m, x.roundNumber), 0);
+    const matches = revealed ? (stage.bracket?.matches ?? []) : [];
+    const winnersMaxRound = matches.reduce((max, x) => {
+      if (x.bracketSide === "losers" || x.bracketSide === "grand_final") return max;
+      return Math.max(max, x.roundNumber);
+    }, 0);
 
     const qualificationRules: StageQualificationRulePublic[] =
       stage.qualificationRules.map((r) => {
@@ -157,13 +179,20 @@ export async function mapStagesToPublic(
       finalsMatchFormat,
       seedingMethod: stage.seedingMethod,
       status: stage.status,
+      revealed,
       groups,
       matches: matches.map((m) => {
-        const isFinal =
+        const matchFormat = resolveMatchFormat({
+          stageMatchFormat: stage.matchFormat,
+          config: stage.config,
+          bracketSide: m.bracketSide,
+          nextWinnerMatchId: m.nextWinnerMatchId,
+          roundNumber: m.roundNumber,
+          winnersMaxRound,
+        });
+        const isFinal = matchFormat !== stage.matchFormat ||
           m.bracketSide === "grand_final" ||
-          (!m.nextWinnerMatchId &&
-            m.bracketSide !== "losers" &&
-            m.roundNumber === maxRound);
+          (!m.nextWinnerMatchId && m.bracketSide !== "losers");
         return {
           id: m.id,
           roundNumber: m.roundNumber,
@@ -171,8 +200,7 @@ export async function mapStagesToPublic(
           bracketSide: m.bracketSide,
           status: m.status,
           stageGroupId: m.stageGroupId,
-          matchFormat:
-            isFinal && finalsMatchFormat ? finalsMatchFormat : stage.matchFormat,
+          matchFormat,
           isFinal,
           scheduledAt: m.scheduledAt?.toISOString() ?? null,
           scheduleStatus: m.scheduleStatus ?? null,
@@ -188,15 +216,18 @@ export async function mapStagesToPublic(
                 scoreSummary: m.result.scoreSummary,
                 scoreA: m.result.scoreA,
                 scoreB: m.result.scoreB,
+                games: parseStoredGames((m.result as { games?: unknown }).games),
               }
             : null,
         };
       }),
-      seeding: stage.seedingEntries.map((e) => ({
-        teamId: e.teamId,
-        teamName: e.team.name,
-        seed: e.seed,
-      })),
+      seeding: revealed
+        ? stage.seedingEntries.map((e) => ({
+            teamId: e.teamId,
+            teamName: e.team.name,
+            seed: e.seed,
+          }))
+        : [],
       qualificationRules,
     });
   }

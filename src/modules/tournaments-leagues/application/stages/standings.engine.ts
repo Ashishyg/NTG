@@ -2,6 +2,7 @@ import { prisma } from "@core/database/client";
 import { getStagePlugin } from "./stage-registry";
 import type { StandingRow } from "@tournaments-leagues/domain/stages/types";
 import { parseScorePair } from "./plugins/standings-helpers";
+import { parseStoredGames } from "./series-format";
 
 export async function computeGroupStandings(
   stageId: string,
@@ -59,6 +60,7 @@ export async function computeGroupStandings(
         scoreA: m.result.scoreA,
         scoreB: m.result.scoreB,
         scoreSummary: m.result.scoreSummary,
+        games: parseStoredGames(m.result.games),
       };
     })
     .filter((r): r is NonNullable<typeof r> => Boolean(r));
@@ -175,11 +177,26 @@ export async function computeBracketStageStandings(
     if (winner) wins.set(winner, (wins.get(winner) ?? 0) + 1);
     if (loser) losses.set(loser, (losses.get(loser) ?? 0) + 1);
 
-    const scores = parseScorePair(
-      m.result.scoreA,
-      m.result.scoreB,
-      m.result.scoreSummary,
-    );
+    const storedGames = parseStoredGames((m.result as { games?: unknown }).games);
+    let scores: { a: number; b: number } | null = null;
+    if (storedGames && storedGames.length > 0) {
+      let sa = 0, sb = 0, hasSc = false;
+      for (const g of storedGames) {
+        if (typeof g.scoreA === "number" && typeof g.scoreB === "number") {
+          sa += g.scoreA;
+          sb += g.scoreB;
+          hasSc = true;
+        }
+      }
+      if (hasSc) scores = { a: sa, b: sb };
+    }
+    if (!scores) {
+      scores = parseScorePair(
+        m.result.scoreA,
+        m.result.scoreB,
+        m.result.scoreSummary,
+      );
+    }
     if (scores) {
       roundsFor.set(aId, (roundsFor.get(aId) ?? 0) + scores.a);
       roundsAgainst.set(aId, (roundsAgainst.get(aId) ?? 0) + scores.b);
@@ -198,7 +215,7 @@ export async function computeBracketStageStandings(
       wins: wins.get(teamId) ?? 0,
       losses: losses.get(teamId) ?? 0,
       draws: 0,
-      points: (wins.get(teamId) ?? 0) * 3,
+      points: wins.get(teamId) ?? 0,
       roundDiff: rf - ra,
       roundsFor: rf,
       roundsAgainst: ra,
@@ -212,6 +229,7 @@ export async function computeBracketStageStandings(
       b._depth - a._depth ||
       b.wins - a.wins ||
       b.roundDiff - a.roundDiff ||
+      b.roundsFor - a.roundsFor ||
       a.losses - b.losses ||
       a.teamName.localeCompare(b.teamName),
   );

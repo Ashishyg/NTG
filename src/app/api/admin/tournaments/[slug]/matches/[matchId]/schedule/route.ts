@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { guardResponse, isAuthedAdmin, requireAdmin } from "@/lib/auth-guard";
-import { adminSetMatchSchedule } from "@tournaments-leagues/index";
+import { adminSetMatchSchedule } from "@/modules/tournaments-leagues/application/stages/match-schedule.service";
 
 export const dynamic = "force-dynamic";
 

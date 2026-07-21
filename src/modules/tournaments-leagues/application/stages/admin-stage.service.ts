@@ -18,6 +18,7 @@ import {
   evaluateStageQualification,
   type QualificationPlacement,
 } from "./qualification.engine";
+import { parseStoredGames } from "./series-format";
 
 export type AdminStageGraph = {
   stages: AdminStageNode[];
@@ -82,6 +83,13 @@ export type AdminStageNode = {
       scoreSummary: string | null;
       scoreA: number | null;
       scoreB: number | null;
+      screenshotUrl: string | null;
+      games: {
+        winnerSlot: 0 | 1;
+        scoreA?: number | null;
+        scoreB?: number | null;
+        screenshotUrl?: string | null;
+      }[] | null;
     } | null;
   }[];
 };
@@ -113,16 +121,12 @@ function remapRuleDestination(
   if (d.kind !== "STAGE" && d.kind !== "STAGE_GROUP") return destination;
 
   const target = d.stageId ? allStages.find((s) => s.id === d.stageId) : null;
-  if (target && target.order > fromStageOrder) {
-    return { kind: "STAGE", stageId: target.id };
-  }
-
-  const nextByOrder = allStages.find((s) => s.order === fromStageOrder + 1);
-  if (nextByOrder) return { kind: "STAGE", stageId: nextByOrder.id };
+  // Keep valid later-stage destinations exactly as configured (no silent remap).
+  if (target && target.order > fromStageOrder) return destination;
   return destination;
 }
 
-/** Repair broken stage links and ensure each stage feeds the next. */
+/** Repair broken stage links — do not invent TOP→next feeders when rules exist. */
 async function syncStageChain(tournamentId: string): Promise<void> {
   const stages = await prisma.tournamentStage.findMany({
     where: { tournamentId },
@@ -138,25 +142,14 @@ async function syncStageChain(tournamentId: string): Promise<void> {
     const next = stages[i + 1];
     if (!next) continue;
 
-    for (const rule of stage.qualificationRules) {
-      const dest = rule.destination as {
-        kind?: string;
-        stageId?: string;
-        groupId?: string;
-      };
-      if (dest.kind !== "STAGE" && dest.kind !== "STAGE_GROUP") continue;
-
-      const target = dest.stageId ? stages.find((s) => s.id === dest.stageId) : null;
-      const valid = Boolean(target && target.order > stage.order);
-      if (!valid && next) {
-        await prisma.stageQualificationRule.update({
-          where: { id: rule.id },
-          data: { destination: { kind: "STAGE", stageId: next.id } },
-        });
-      }
+    // Only ensure a default feeder when the previous stage has no advancement rules at all.
+    const hasAdvanceRule = stage.qualificationRules.some((r) => {
+      const dest = r.destination as { kind?: string };
+      return dest.kind === "STAGE" || dest.kind === "STAGE_GROUP";
+    });
+    if (!hasAdvanceRule) {
+      await ensureFeederRules(stage.id, next.id);
     }
-
-    await ensureFeederRules(stage.id, next.id);
   }
 }
 
@@ -173,6 +166,9 @@ async function ensureFeederRules(
   });
   if (!previous) return;
 
+  // Never override admin-configured qualification (Top→playoffs, places→stage 2, etc.).
+  if (previous.qualificationRules.length > 0) return;
+
   const hasLink = previous.qualificationRules.some((r) =>
     ruleTargetsStage(r.destination, targetStageId),
   );
@@ -184,7 +180,7 @@ async function ensureFeederRules(
       data: previous.groups.map((g, i) => ({
         stageId: previous.id,
         groupId: g.id,
-        priority: previous.qualificationRules.length + i,
+        priority: i,
         selector: { kind: "TOP_N", n: 2 },
         destination,
       })),
@@ -194,7 +190,7 @@ async function ensureFeederRules(
       data: {
         stageId: previous.id,
         groupId: null,
-        priority: previous.qualificationRules.length,
+        priority: 0,
         selector: { kind: "TOP_N", n: 2 },
         destination,
       },
@@ -337,6 +333,10 @@ export async function getStageGraphAdmin(
             scoreSummary: m.result.scoreSummary,
             scoreA: m.result.scoreA ?? null,
             scoreB: m.result.scoreB ?? null,
+            screenshotUrl: m.result.screenshotUrl ?? null,
+            games: parseStoredGames(
+              (m.result as { games?: unknown }).games,
+            ),
           }
         : null,
     })),
@@ -600,8 +600,16 @@ export async function createStage(
     input.stageType === "SINGLE_ELIMINATION" ||
     input.stageType === "DOUBLE_ELIMINATION";
   const seedSource = order > 1 ? "PREVIOUS_STAGE" : "TEAMS";
+  const previous =
+    order > 1
+      ? await prisma.tournamentStage.findFirst({
+          where: { tournamentId, order: order - 1 },
+          select: { id: true },
+        })
+      : null;
   const config: Record<string, unknown> = {
     seedSource,
+    ...(previous ? { feederStageIds: [previous.id] } : {}),
     ...(isBracket ? { finalsMatchFormat: "BO5" as const } : {}),
   };
 
@@ -627,23 +635,23 @@ export async function createStage(
 
   // Link previous stage → this one with a default Top-2 rule when missing.
   if (order > 1) {
-    const previous = await prisma.tournamentStage.findFirst({
+    const previousFull = await prisma.tournamentStage.findFirst({
       where: { tournamentId, order: order - 1 },
       include: {
         groups: { orderBy: { order: "asc" } },
         qualificationRules: true,
       },
     });
-    if (previous) {
-      const alreadyLinked = previous.qualificationRules.some((r) =>
+    if (previousFull) {
+      const alreadyLinked = previousFull.qualificationRules.some((r) =>
         ruleTargetsStage(r.destination, created.id),
       );
       if (!alreadyLinked) {
         const destination = { kind: "STAGE", stageId: created.id };
-        if (previous.groups.length > 0) {
+        if (previousFull.groups.length > 0) {
           await prisma.stageQualificationRule.createMany({
-            data: previous.groups.map((g, i) => ({
-              stageId: previous.id,
+            data: previousFull.groups.map((g, i) => ({
+              stageId: previousFull.id,
               groupId: g.id,
               priority: i,
               selector: { kind: "TOP_N", n: 2 },
@@ -653,7 +661,7 @@ export async function createStage(
         } else {
           await prisma.stageQualificationRule.create({
             data: {
-              stageId: previous.id,
+              stageId: previousFull.id,
               groupId: null,
               priority: 0,
               selector: { kind: "TOP_N", n: 2 },
@@ -680,6 +688,11 @@ export async function updateStage(
     status: StageStatus;
     config: unknown;
     tieBreakRules: unknown;
+    seedSource: StageSeedSource;
+    feederStageIds: string[] | null;
+    finalsMatchFormat: "BO1" | "BO3" | "BO5" | null;
+    finishesAt: string | null;
+    resultWindowHours: number | null;
   }>,
 ): Promise<AdminStageGraph> {
   const tournamentId = await resolveTournamentId(slug);
@@ -687,6 +700,24 @@ export async function updateStage(
     where: { id: stageId, tournamentId },
   });
   if (!existing) throw new Error("Stage not found.");
+
+  const hasConfigPatch =
+    data.seedSource !== undefined ||
+    data.feederStageIds !== undefined ||
+    data.finalsMatchFormat !== undefined ||
+    data.finishesAt !== undefined ||
+    data.resultWindowHours !== undefined;
+
+  let nextConfig: unknown = data.config;
+  if (hasConfigPatch) {
+    nextConfig = mergeStageConfig(existing.config, {
+      seedSource: data.seedSource,
+      feederStageIds: data.feederStageIds,
+      finalsMatchFormat: data.finalsMatchFormat,
+      finishesAt: data.finishesAt,
+      resultWindowHours: data.resultWindowHours,
+    });
+  }
 
   await prisma.tournamentStage.update({
     where: { id: stageId },
@@ -697,7 +728,9 @@ export async function updateStage(
       matchFormat: data.matchFormat,
       seedingMethod: data.seedingMethod,
       status: data.status,
-      config: data.config as object | undefined,
+      ...(nextConfig !== undefined
+        ? { config: nextConfig as object }
+        : {}),
       tieBreakRules: data.tieBreakRules as object | undefined,
     },
   });
@@ -881,10 +914,10 @@ export async function putStageRules(
       await tx.stageQualificationRule.deleteMany({ where: { stageId } });
       if (rules.length > 0) {
         await tx.stageQualificationRule.createMany({
-          data: rules.map((r) => ({
+          data: rules.map((r, i) => ({
             stageId,
             groupId: r.groupId ?? null,
-            priority: r.priority ?? 0,
+            priority: i,
             selector: r.selector as object,
             destination: r.destination as object,
           })),
@@ -1073,6 +1106,8 @@ export type StageCommitDraft = {
   matchFormat: StageMatchFormat;
   seedingMethod: "MANUAL" | "RANDOM";
   seedSource: StageSeedSource;
+  /** Earlier stage ids that feed this stage when seedSource is PREVIOUS_STAGE. */
+  feederStageIds?: string[];
   /** SE/DE only — format for the final (and grand final). */
   finalsMatchFormat?: "BO1" | "BO3" | "BO5" | null;
   finishesAt?: string | null;
@@ -1102,6 +1137,7 @@ function mergeStageConfig(
   existing: unknown,
   patch: {
     seedSource?: StageSeedSource;
+    feederStageIds?: string[] | null;
     finalsMatchFormat?: "BO1" | "BO3" | "BO5" | null;
     finishesAt?: string | null;
     resultWindowHours?: number | null;
@@ -1112,6 +1148,13 @@ function mergeStageConfig(
       ? { ...(existing as Record<string, unknown>) }
       : {};
   if (patch.seedSource) base.seedSource = patch.seedSource;
+  if (patch.feederStageIds !== undefined) {
+    if (patch.feederStageIds === null || patch.feederStageIds.length === 0) {
+      delete base.feederStageIds;
+    } else {
+      base.feederStageIds = [...new Set(patch.feederStageIds.filter(Boolean))];
+    }
+  }
   if (patch.finalsMatchFormat === null) {
     delete base.finalsMatchFormat;
   } else if (patch.finalsMatchFormat) {
@@ -1128,6 +1171,15 @@ function mergeStageConfig(
     base.resultWindowHours = patch.resultWindowHours;
   }
   return base;
+}
+
+function readFeederStageIdsFromConfig(config: unknown): string[] {
+  if (!config || typeof config !== "object" || !("feederStageIds" in config)) {
+    return [];
+  }
+  const v = (config as { feederStageIds?: unknown }).feederStageIds;
+  if (!Array.isArray(v)) return [];
+  return v.filter((id): id is string => typeof id === "string" && id.length > 0);
 }
 
 async function clearStageRoster(stageId: string): Promise<void> {
@@ -1204,6 +1256,7 @@ async function persistStageDrafts(
           seedingMethod: draft.seedingMethod,
           config: mergeStageConfig(stage.config, {
             seedSource: draft.seedSource,
+            feederStageIds: draft.feederStageIds ?? null,
             finalsMatchFormat:
               draft.stageType === "SINGLE_ELIMINATION" ||
               draft.stageType === "DOUBLE_ELIMINATION"
@@ -1265,7 +1318,7 @@ async function seedStageFromFeeders(
 }> {
   const stage = await prisma.tournamentStage.findFirstOrThrow({
     where: { id: stageId },
-    select: { id: true, tournamentId: true, order: true },
+    select: { id: true, tournamentId: true, order: true, config: true },
   });
 
   const earlier = await prisma.tournamentStage.findMany({
@@ -1274,8 +1327,18 @@ async function seedStageFromFeeders(
     include: { qualificationRules: true },
   });
 
-  const hasFeeder = earlier.some((s) =>
-    s.qualificationRules.some((r) => ruleTargetsStage(r.destination, stageId)),
+  const allowedFeeders =
+    draft?.feederStageIds?.length
+      ? new Set(draft.feederStageIds)
+      : (() => {
+          const fromConfig = readFeederStageIdsFromConfig(stage.config);
+          return fromConfig.length > 0 ? new Set(fromConfig) : null;
+        })();
+
+  const hasFeeder = earlier.some(
+    (s) =>
+      (!allowedFeeders || allowedFeeders.has(s.id)) &&
+      s.qualificationRules.some((r) => ruleTargetsStage(r.destination, stageId)),
   );
 
   if (!hasFeeder) {
@@ -1285,14 +1348,20 @@ async function seedStageFromFeeders(
         "No earlier stage exists. Seed from Teams or add an earlier stage.",
       );
     }
-    await ensureFeederRules(previous.id, stageId);
-    const refreshed = await prisma.tournamentStage.findUnique({
-      where: { id: previous.id },
-      include: { qualificationRules: true },
-    });
-    if (refreshed) {
-      const idx = earlier.findIndex((s) => s.id === previous.id);
-      if (idx >= 0) earlier[idx] = refreshed;
+    // Only auto-create a feeder when the previous stage has no rules yet.
+    if (
+      previous.qualificationRules.length === 0 &&
+      (!allowedFeeders || allowedFeeders.has(previous.id))
+    ) {
+      await ensureFeederRules(previous.id, stageId);
+      const refreshed = await prisma.tournamentStage.findUnique({
+        where: { id: previous.id },
+        include: { qualificationRules: true },
+      });
+      if (refreshed) {
+        const idx = earlier.findIndex((s) => s.id === previous.id);
+        if (idx >= 0) earlier[idx] = refreshed;
+      }
     }
   }
 
@@ -1305,6 +1374,7 @@ async function seedStageFromFeeders(
   for (const feeder of earlier) {
     if (feederSeen.has(feeder.id)) continue;
     feederSeen.add(feeder.id);
+    if (allowedFeeders && !allowedFeeders.has(feeder.id)) continue;
 
     const feedsHere = feeder.qualificationRules.some((r) =>
       ruleTargetsStage(r.destination, stageId),
@@ -1337,7 +1407,7 @@ async function seedStageFromFeeders(
 
   if (teamIds.length === 0) {
     throw new Error(
-      "No teams qualified into this stage. Check Top/Bottom/Position rules on earlier stages, finish those matches, then try again.",
+      "No teams qualified into this stage. Check feeder stages on Settings, set Top/Bottom/Position rules on those stages to send teams here, finish those matches, then try again.",
     );
   }
 

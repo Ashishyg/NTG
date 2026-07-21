@@ -3,6 +3,7 @@ import {
   evaluateStageQualification,
   type QualificationPlacement,
 } from "./qualification.engine";
+import { generateMatchesForStage } from "./match-generation.engine";
 
 function destinationTargetsStage(
   destination: QualificationPlacement["destination"],
@@ -16,18 +17,74 @@ function destinationTargetsStage(
   return false;
 }
 
+async function stageHasRecordedResults(stageId: string): Promise<boolean> {
+  const hit = await prisma.matchResult.findFirst({
+    where: { match: { bracket: { stageId } } },
+    select: { id: true },
+  });
+  return hit != null;
+}
+
+async function clearStageRoster(stageId: string): Promise<void> {
+  const groups = await prisma.tournamentStageGroup.findMany({
+    where: { stageId },
+    select: { id: true },
+  });
+  const groupIds = groups.map((g) => g.id);
+  await prisma.stageSeedingEntry.deleteMany({ where: { stageId } });
+  if (groupIds.length > 0) {
+    await prisma.stageGroupSlot.updateMany({
+      where: { groupId: { in: groupIds } },
+      data: {
+        teamId: null,
+        eliminated: false,
+        sourceStageId: null,
+        sourceGroupId: null,
+        sourcePosition: null,
+      },
+    });
+  }
+}
+
+function destinationStageIds(placements: QualificationPlacement[]): string[] {
+  const ids = new Set<string>();
+  for (const p of placements) {
+    if (p.destination.kind === "STAGE") ids.add(p.destination.stageId);
+    if (p.destination.kind === "STAGE_GROUP") ids.add(p.destination.stageId);
+  }
+  return [...ids];
+}
+
 /**
  * Apply qualification placements: fill destination stage/group slots / mark eliminated.
- * STAGE destinations add teams into the next stage (evenly across its pools).
+ * STAGE destinations are re-seeded from ALL configured feeder stages (not only this one),
+ * so Stage 3 can pull from Stage 1 + Stage 2 when both are selected as feeders.
  */
 export async function applyStageMovement(stageId: string): Promise<{
   moved: number;
   eliminated: number;
   placements: QualificationPlacement[];
+  populatedStageIds: string[];
 }> {
+  const stage = await prisma.tournamentStage.findUnique({
+    where: { id: stageId },
+    select: { id: true, tournamentId: true },
+  });
+  if (!stage) {
+    return { moved: 0, eliminated: 0, placements: [], populatedStageIds: [] };
+  }
+
   const placements = await evaluateStageQualification(stageId);
   let moved = 0;
   let eliminated = 0;
+
+  const destIds = destinationStageIds(placements);
+  const clearable: string[] = [];
+  for (const destId of destIds) {
+    if (!(await stageHasRecordedResults(destId))) {
+      clearable.push(destId);
+    }
+  }
 
   for (const p of placements) {
     if (p.destination.kind === "ELIMINATED") {
@@ -41,60 +98,238 @@ export async function applyStageMovement(stageId: string): Promise<{
       continue;
     }
 
-    if (p.destination.kind === "CHAMPION" || p.destination.kind === "LOWER_BRACKET") {
+    if (p.destination.kind === "LOWER_BRACKET") {
       continue;
     }
 
-    if (p.destination.kind === "STAGE") {
-      const destStage = await prisma.tournamentStage.findUnique({
-        where: { id: p.destination.stageId },
-        select: { id: true },
+    if (p.destination.kind === "CHAMPION") {
+      await prisma.tournamentPlacement.upsert({
+        where: {
+          tournamentId_role: {
+            tournamentId: stage.tournamentId,
+            role: "CHAMPION",
+          },
+        },
+        create: {
+          tournamentId: stage.tournamentId,
+          role: "CHAMPION",
+          teamLabel: p.teamName,
+        },
+        update: { teamLabel: p.teamName },
       });
-      if (!destStage) continue;
-
-      const ok = await placeTeamIntoStage(p.destination.stageId, p.teamId, {
-        sourceStageId: stageId,
-        sourceGroupId: p.groupId,
-        sourcePosition: p.position,
-      });
-      if (ok) moved += 1;
       continue;
-    }
-
-    if (p.destination.kind === "STAGE_GROUP") {
-      const ok = await placeTeamIntoGroup(p.destination.groupId, p.teamId, {
-        sourceStageId: stageId,
-        sourceGroupId: p.groupId,
-        sourcePosition: p.position,
-      });
-      if (ok) moved += 1;
     }
   }
 
+  // If playoffs/final stage has no explicit CHAMPION rule, set champion from
+  // the completed final match winner when this is the last stage.
+  const laterCount = await prisma.tournamentStage.count({
+    where: {
+      tournamentId: stage.tournamentId,
+      order: {
+        gt: (
+          await prisma.tournamentStage.findUnique({
+            where: { id: stageId },
+            select: { order: true },
+          })
+        )?.order ?? 0,
+      },
+    },
+  });
+  if (laterCount === 0) {
+    const hasChampRule = placements.some((p) => p.destination.kind === "CHAMPION");
+    if (!hasChampRule) {
+      const finalMatch = await prisma.match.findFirst({
+        where: {
+          bracket: { stageId },
+          status: "COMPLETED",
+          OR: [
+            { bracketSide: "grand_final" },
+            { nextWinnerMatchId: null, bracketSide: { not: "losers" } },
+          ],
+        },
+        orderBy: [{ roundNumber: "desc" }, { positionInRound: "asc" }],
+        include: {
+          result: true,
+          participants: true,
+        },
+      });
+      if (finalMatch?.result) {
+        const winner = finalMatch.participants.find(
+          (p) => p.slot === finalMatch.result!.winnerSlot,
+        );
+        if (winner?.teamLabel || winner?.tournamentTeamId) {
+          const teamName =
+            winner.teamLabel ??
+            (
+              await prisma.tournamentTeam.findUnique({
+                where: { id: winner.tournamentTeamId! },
+                select: { name: true },
+              })
+            )?.name ??
+            "Champion";
+          await prisma.tournamentPlacement.upsert({
+            where: {
+              tournamentId_role: {
+                tournamentId: stage.tournamentId,
+                role: "CHAMPION",
+              },
+            },
+            create: {
+              tournamentId: stage.tournamentId,
+              role: "CHAMPION",
+              teamLabel: teamName,
+            },
+            update: { teamLabel: teamName },
+          });
+        }
+      }
+    }
+  }
+
+  // Mark complete before re-seeding destinations so this feeder counts.
   await prisma.tournamentStage.update({
     where: { id: stageId },
     data: { status: "COMPLETE" },
   });
 
-  return { moved, eliminated, placements };
+  for (const destId of clearable) {
+    await clearStageRoster(destId);
+    const fed = await applyFeedersIntoStage(destId, { requireComplete: true });
+    moved += fed.moved;
+  }
+
+  const populatedStageIds: string[] = [];
+  for (const destId of clearable) {
+    const teamCount = await prisma.stageSeedingEntry.count({
+      where: { stageId: destId },
+    });
+    if (teamCount < 2) continue;
+    try {
+      await generateMatchesForStage(destId);
+      populatedStageIds.push(destId);
+    } catch {
+      // Stage type may not be runnable yet — roster is still filled.
+    }
+  }
+
+  return { moved, eliminated, placements, populatedStageIds };
 }
 
 /**
- * Pull qualifiers into a target stage from EVERY earlier stage whose rules
+ * Undo destination seeding / generated brackets that were created when this
+ * feeder stage completed. Safe only for destinations with no recorded results.
+ */
+export async function undoStageMovement(stageId: string): Promise<void> {
+  const stage = await prisma.tournamentStage.findUnique({
+    where: { id: stageId },
+    select: {
+      id: true,
+      tournamentId: true,
+      order: true,
+      qualificationRules: { select: { destination: true } },
+    },
+  });
+  if (!stage) return;
+
+  const destIds = new Set<string>();
+  for (const r of stage.qualificationRules) {
+    const d = r.destination as { kind?: string; stageId?: string };
+    if (
+      (d.kind === "STAGE" || d.kind === "STAGE_GROUP") &&
+      typeof d.stageId === "string" &&
+      d.stageId
+    ) {
+      destIds.add(d.stageId);
+    }
+  }
+
+  // Also clear later stages that list this stage as an explicit feeder.
+  const later = await prisma.tournamentStage.findMany({
+    where: {
+      tournamentId: stage.tournamentId,
+      order: { gt: stage.order },
+    },
+    select: { id: true, config: true },
+  });
+  for (const s of later) {
+    const feeders = readFeederStageIds(s.config);
+    if (feeders.includes(stageId)) destIds.add(s.id);
+  }
+
+  for (const destId of destIds) {
+    if (await stageHasRecordedResults(destId)) continue;
+    await clearStageRoster(destId);
+    const bracket = await prisma.bracket.findFirst({
+      where: { stageId: destId },
+      select: { id: true },
+    });
+    if (bracket) {
+      await prisma.bracket.delete({ where: { id: bracket.id } });
+    }
+    await prisma.tournamentStage.update({
+      where: { id: destId },
+      data: { status: "DRAFT" },
+    });
+  }
+
+  // Clear auto-champion if this was the last stage.
+  const laterCount = await prisma.tournamentStage.count({
+    where: {
+      tournamentId: stage.tournamentId,
+      order: { gt: stage.order },
+    },
+  });
+  if (laterCount === 0) {
+    await prisma.tournamentPlacement.deleteMany({
+      where: { tournamentId: stage.tournamentId, role: "CHAMPION" },
+    });
+  }
+
+  // Clear eliminated flags on this stage's group slots.
+  const groups = await prisma.tournamentStageGroup.findMany({
+    where: { stageId },
+    select: { id: true },
+  });
+  if (groups.length > 0) {
+    await prisma.stageGroupSlot.updateMany({
+      where: { groupId: { in: groups.map((g) => g.id) } },
+      data: { eliminated: false },
+    });
+  }
+}
+
+function readFeederStageIds(config: unknown): string[] {
+  if (!config || typeof config !== "object" || !("feederStageIds" in config)) {
+    return [];
+  }
+  const v = (config as { feederStageIds?: unknown }).feederStageIds;
+  if (!Array.isArray(v)) return [];
+  return v.filter((id): id is string => typeof id === "string" && id.length > 0);
+}
+
+/**
+ * Pull qualifiers into a target stage from every allowed feeder whose rules
  * point here (e.g. Stage 1 Top→Stage 3 plus Stage 2 Top→Stage 3).
  */
-export async function applyFeedersIntoStage(targetStageId: string): Promise<{
+export async function applyFeedersIntoStage(
+  targetStageId: string,
+  opts?: { requireComplete?: boolean },
+): Promise<{
   moved: number;
   feederStageIds: string[];
   byFeeder: { stageId: string; stageName: string; count: number }[];
 }> {
   const target = await prisma.tournamentStage.findUnique({
     where: { id: targetStageId },
-    select: { id: true, tournamentId: true, order: true },
+    select: { id: true, tournamentId: true, order: true, config: true },
   });
   if (!target) {
     return { moved: 0, feederStageIds: [], byFeeder: [] };
   }
+
+  const allowed = readFeederStageIds(target.config);
+  const allowedSet = allowed.length > 0 ? new Set(allowed) : null;
 
   const earlier = await prisma.tournamentStage.findMany({
     where: {
@@ -105,15 +340,17 @@ export async function applyFeedersIntoStage(targetStageId: string): Promise<{
     include: { qualificationRules: true },
   });
 
-  const feeders = earlier.filter((s) =>
-    s.qualificationRules.some((r) => {
+  const feeders = earlier.filter((s) => {
+    if (allowedSet && !allowedSet.has(s.id)) return false;
+    if (opts?.requireComplete && s.status !== "COMPLETE") return false;
+    return s.qualificationRules.some((r) => {
       const d = r.destination as { kind?: string; stageId?: string };
       return (
         (d.kind === "STAGE" || d.kind === "STAGE_GROUP") &&
         d.stageId === targetStageId
       );
-    }),
-  );
+    });
+  });
 
   let moved = 0;
   const byFeeder: { stageId: string; stageName: string; count: number }[] = [];
@@ -297,26 +534,18 @@ async function placeTeamIntoGroup(
 }
 
 async function ensureSeedingEntry(stageId: string, teamId: string): Promise<void> {
-  const stage = await prisma.tournamentStage.findUnique({
-    where: { id: stageId },
-    select: { id: true },
-  });
-  if (!stage) return;
-
-  const existing = await prisma.stageSeedingEntry.findUnique({
-    where: { stageId_teamId: { stageId, teamId } },
-  });
-  if (existing) return;
   const max = await prisma.stageSeedingEntry.aggregate({
     where: { stageId },
     _max: { seed: true },
   });
-  await prisma.stageSeedingEntry.create({
-    data: {
+  await prisma.stageSeedingEntry.upsert({
+    where: { stageId_teamId: { stageId, teamId } },
+    create: {
       stageId,
       teamId,
       seed: (max._max.seed ?? 0) + 1,
     },
+    update: {},
   });
 }
 

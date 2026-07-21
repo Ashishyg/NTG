@@ -76,6 +76,7 @@ export const roundRobinPlugin: StageTypePlugin = {
     return matches;
   },
   computeStandings({ teamIds, teamNames, results }) {
+    // Rank by wins → RD → rounds won (from literal round scores).
     return applyResultsToStandings(teamIds, teamNames, results);
   },
 };

@@ -147,6 +147,11 @@ export async function generateMatchesForStage(stageId: string): Promise<{ matchC
     await prisma.bracket.delete({ where: { id: stage.bracket.id } });
   }
 
+  // Regenerating brackets means the cup is no longer decided — drop stale champion.
+  await prisma.tournamentPlacement.deleteMany({
+    where: { tournamentId: stage.tournamentId, role: "CHAMPION" },
+  });
+
   const totalRounds =
     generated.reduce((max, m) => Math.max(max, m.roundNumber), 0) || 1;
 
@@ -228,9 +233,11 @@ async function placeTeamInMatch(
 ): Promise<void> {
   const target = await prisma.match.findUnique({
     where: { id: matchId },
-    select: { bracketId: true },
+    select: { bracketId: true, result: { select: { id: true } } },
   });
   if (!target) return;
+  // Never rewrite a match that already has a result.
+  if (target.result) return;
 
   // Keep a team in at most one slot in this bracket (avoids duplicate appearances)
   await prisma.matchParticipant.updateMany({
@@ -254,9 +261,23 @@ async function placeTeamInMatch(
 
   const preferred =
     preferredSlot != null
-      ? slots.find((s) => s.slot === preferredSlot && !s.tournamentTeamId)
+      ? slots.find((s) => s.slot === preferredSlot)
       : null;
-  const empty = preferred ?? slots.find((s) => !s.tournamentTeamId);
+
+  // Overwrite preferred slot when editing a prior result (old winner was sitting here).
+  if (preferred) {
+    await prisma.matchParticipant.update({
+      where: { id: preferred.id },
+      data: {
+        tournamentTeamId: teamId,
+        teamLabel: teamLabel,
+        participantType: ParticipantType.TEAM,
+      },
+    });
+    return;
+  }
+
+  const empty = slots.find((s) => !s.tournamentTeamId);
   if (!empty) return;
 
   await prisma.matchParticipant.update({

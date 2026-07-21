@@ -145,6 +145,6 @@ export const doubleEliminationPlugin: StageTypePlugin = {
     return [...winners, ...losers, grandFinal];
   },
   computeStandings({ teamIds, teamNames, results }) {
-    return applyResultsToStandings(teamIds, teamNames, results, 1, 0);
+    return applyResultsToStandings(teamIds, teamNames, results);
   },
 };

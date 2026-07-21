@@ -80,9 +80,11 @@ export type StandingRow = {
   wins: number;
   losses: number;
   draws: number;
+  /** Mirrored to wins for older clients; UI shows W / RD / RW instead of Pts. */
   points: number;
   /** Round difference (rounds for − rounds against). */
   roundDiff: number;
+  /** Total rounds won across matches. */
   roundsFor: number;
   roundsAgainst: number;
   position: number;
@@ -141,6 +143,7 @@ export type StageTypePlugin = {
       scoreA?: number | null;
       scoreB?: number | null;
       scoreSummary?: string | null;
+      games?: { scoreA?: number | null; scoreB?: number | null }[] | null;
     }[];
   }) => StandingRow[];
 };

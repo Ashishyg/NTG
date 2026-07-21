@@ -429,3 +429,26 @@ header[data-site-nav] {
   background: rgba(168, 85, 247, 0.5);
   color: #fff;
 }
+
+/* Admin: pointer cursor + clearer click targets */
+.admin-shell button:not(:disabled),
+.admin-shell [role="button"]:not([aria-disabled="true"]),
+.admin-shell a[href],
+.admin-shell summary,
+.admin-shell label[for],
+.admin-shell select:not(:disabled),
+.admin-shell input[type="checkbox"]:not(:disabled),
+.admin-shell input[type="radio"]:not(:disabled),
+.admin-shell input[type="file"]:not(:disabled) {
+  cursor: pointer;
+}
+
+.admin-shell button:disabled,
+.admin-shell select:disabled,
+.admin-shell input:disabled {
+  cursor: not-allowed;
+}
+
+.admin-shell button:not(:disabled):hover {
+  filter: brightness(1.08);
+}

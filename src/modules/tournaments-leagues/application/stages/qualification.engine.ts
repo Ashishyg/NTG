@@ -15,6 +15,18 @@ export type QualificationPlacement = {
   destination: Destination;
 };
 
+function destinationIsValidLaterStage(
+  destination: Destination,
+  fromOrder: number,
+  tournamentStages: { id: string; order: number }[],
+): boolean {
+  if (destination.kind !== "STAGE" && destination.kind !== "STAGE_GROUP") {
+    return true;
+  }
+  const target = tournamentStages.find((s) => s.id === destination.stageId);
+  return Boolean(target && target.order > fromOrder);
+}
+
 export async function evaluateStageQualification(
   stageId: string,
 ): Promise<QualificationPlacement[]> {
@@ -22,7 +34,7 @@ export async function evaluateStageQualification(
     where: { id: stageId },
     include: {
       groups: { orderBy: { order: "asc" } },
-      qualificationRules: { orderBy: { priority: "asc" } },
+      qualificationRules: { orderBy: [{ priority: "asc" }, { id: "asc" }] },
     },
   });
   if (!stage) return [];
@@ -46,19 +58,22 @@ export async function evaluateStageQualification(
     groupStandings.set("__stage__", flat);
   }
 
+  const liveGroupIds = new Set(stage.groups.map((g) => g.id));
+
   for (const rule of stage.qualificationRules) {
     const selector = parseSelector(rule.selector);
-    const rawDest = parseDestination(rule.destination);
-    if (!selector || !rawDest) continue;
+    const destination = parseDestination(rule.destination);
+    if (!selector || !destination) continue;
 
-    const destination = resolveDestinationSync(
-      rawDest,
-      stage.order,
-      tournamentStages,
-    );
-    if (destination.kind === "STAGE") {
-      const exists = tournamentStages.some((s) => s.id === destination.stageId);
-      if (!exists) continue;
+    // Never invent a different destination — skip broken STAGE links.
+    if (!destinationIsValidLaterStage(destination, stage.order, tournamentStages)) {
+      continue;
+    }
+
+    // Stale groupId after pool rebuild → skip (don't silently match nothing for TOP
+    // while BOTTOM "all groups" still runs).
+    if (rule.groupId != null && !liveGroupIds.has(rule.groupId)) {
+      continue;
     }
 
     const standings =
@@ -68,7 +83,7 @@ export async function evaluateStageQualification(
           ? (groupStandings.get("__stage__") ?? [])
           : [];
 
-    // Stage-wide TOP_N across groups when no groupId: take top N from each group
+    // Stage-wide rule across groups when no groupId: apply selector per group.
     if (rule.groupId == null && stage.groups.length > 0) {
       for (const g of stage.groups) {
         const gs = groupStandings.get(g.id) ?? [];
@@ -105,27 +120,4 @@ export async function evaluateStageQualification(
   }
 
   return placements;
-}
-
-function resolveDestinationSync(
-  destination: Destination,
-  fromOrder: number,
-  tournamentStages: { id: string; order: number }[],
-): Destination {
-  if (destination.kind !== "STAGE" && destination.kind !== "STAGE_GROUP") {
-    return destination;
-  }
-
-  const stageId = destination.stageId;
-  const target = tournamentStages.find((s) => s.id === stageId);
-  if (target && target.order > fromOrder) {
-    return { kind: "STAGE", stageId: target.id };
-  }
-
-  const next = tournamentStages.find((s) => s.order === fromOrder + 1);
-  if (next) return { kind: "STAGE", stageId: next.id };
-
-  return destination.kind === "STAGE_GROUP"
-    ? { kind: "STAGE", stageId: destination.stageId }
-    : destination;
 }

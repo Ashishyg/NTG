@@ -339,6 +339,9 @@ export class TournamentRepository {
       userParticipantRole: userId ? (t.registrations[0]?.participantRole ?? null) : null,
       coCaptainSlots: t.coCaptainSlots,
       autoManageStatus: t.autoManageStatus,
+      // Default on until Prisma client is regenerated with yourGamesEnabled.
+      yourGamesEnabled:
+        (t as { yourGamesEnabled?: boolean }).yourGamesEnabled ?? true,
     };
   }
 
@@ -393,9 +396,15 @@ export class TournamentRepository {
     }[];
   }) {
     const champ = t.placements?.find((p) => p.role === "CHAMPION");
-    const championName = champ
-      ? (champ.user?.playerProfile?.displayName ?? champ.user?.name ?? champ.teamLabel ?? null)
-      : null;
+    // Only surface a winner once the cup is actually completed — leftover
+    // CHAMPION placements after bracket resets must not show on live/upcoming cups.
+    const championName =
+      t.status === "COMPLETED" && champ
+        ? (champ.user?.playerProfile?.displayName ??
+            champ.user?.name ??
+            champ.teamLabel ??
+            null)
+        : null;
 
     return {
       id: t.id,

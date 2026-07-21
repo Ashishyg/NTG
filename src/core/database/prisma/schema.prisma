@@ -263,6 +263,7 @@ model User {
   rosterPlayers           RosterPlayer[]
   listingApplications     ListingApplication[]
   timeLimitedQaResponses  TimeLimitedQaResponse[]
+  playerBadges            PlayerBadge[]
 }
 
 model EmailOtp {
@@ -410,6 +411,8 @@ model Tournament {
   hideAfter            DateTime?
   bracketUrl           String?
   rulebookUrl          String?
+  /** When false, hide the public "Your Games" tab on the cup page. */
+  yourGamesEnabled     Boolean           @default(true)
   teams                Json?
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
@@ -420,6 +423,7 @@ model Tournament {
   tournamentTeams TournamentTeam[]
   registrations   TournamentRegistration[]
   placements      TournamentPlacement[]
+  playerBadges    PlayerBadge[]
 }
 
 model TournamentTeam {
@@ -673,6 +677,8 @@ model MatchResult {
   scoreSummary      String?
   scoreA            Int?
   scoreB            Int?
+  /** Per-game winners for BO3/BO5, e.g. [{ "winnerSlot": 0 }, { "winnerSlot": 1 }]. */
+  games             Json?
   screenshotUrl     String?
   submittedByUserId String?
   submittedByUser   User?    @relation("MatchResultSubmissions", fields: [submittedByUserId], references: [id], onDelete: SetNull)
@@ -691,6 +697,20 @@ model TournamentPlacement {
   teamLabel    String?
 
   @@unique([tournamentId, role])
+}
+
+model PlayerBadge {
+  id           String      @id @default(cuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label        String
+  tournamentId String?
+  tournament   Tournament? @relation(fields: [tournamentId], references: [id], onDelete: SetNull)
+  awardedAt    DateTime    @default(now())
+  awardedBy    String?
+
+  @@unique([userId, tournamentId, label])
+  @@index([userId])
 }
 
 model LeaderboardEntry {

@@ -42,7 +42,7 @@ export type StageStandingPublic = {
   draws: number;
   points: number;
   roundDiff: number;
-  roundsFor?: number;
+  roundsFor: number;
   roundsAgainst?: number;
   position: number;
 };
@@ -69,6 +69,12 @@ export type StageMatchPublic = {
     scoreSummary: string | null;
     scoreA?: number | null;
     scoreB?: number | null;
+    games?: {
+      winnerSlot: number;
+      scoreA?: number | null;
+      scoreB?: number | null;
+      screenshotUrl?: string | null;
+    }[] | null;
   } | null;
 };
 
@@ -103,6 +109,11 @@ export type TournamentStagePublicView = {
   finalsMatchFormat: StageMatchFormatPublic | null;
   seedingMethod: SeedingMethodPublic;
   status: StageStatusPublic;
+  /**
+   * False until the previous stage is COMPLETE — teams/matches stay hidden
+   * ("To be decided") for players.
+   */
+  revealed: boolean;
   groups: TournamentStageGroupPublic[];
   matches: StageMatchPublic[];
   seeding: { teamId: string; teamName: string; seed: number }[];

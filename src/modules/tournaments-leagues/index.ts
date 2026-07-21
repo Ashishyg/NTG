@@ -49,10 +49,14 @@ export {
   getValorantRegistrationProfileCard,
   switchPlayerToCaptain,
   setTournamentPlacements,
+  awardPlayerBadge,
+  removePlayerBadge,
+  listAllPlayerBadges,
   updateTournamentAdmin,
   adminAddTournamentRegistration,
   adminRemoveTournamentRegistration,
 } from "./application/registration.service";
+export type { PlayerBadgeType } from "./application/registration.service";
 export {
   listTournamentsAdmin,
   getTournamentAdmin,
@@ -90,6 +94,21 @@ export {
   syncAllStages,
   reshuffleStageBracket,
 } from "./application/stages/admin-stage.service";
+export type { MyGameView } from "./application/stages/my-games.types";
+export type { SeriesFormat, SeriesGame, ScoreEntryMode } from "./application/stages/series-format";
+export {
+  allGamesHaveScreenshots,
+  gamesFromScores,
+  winsNeeded,
+  maxGames,
+  formatLabel as seriesFormatLabel,
+  primaryScreenshotFromGames,
+  resolveSeriesResult,
+  resolveMatchFormat,
+  readFinalsFormat,
+  scoreEntryModeForStage,
+  isLikelySeriesScore,
+} from "./application/stages/series-format";
 export {
   adminSetMatchSchedule,
   confirmMatchSchedule,
@@ -100,7 +119,6 @@ export {
   mergeStageScheduleConfig,
   resolveUserTeamIds,
 } from "./application/stages/match-schedule.service";
-export type { MyGameView } from "./application/stages/match-schedule.service";
 export type {
   StageCommitDraft,
   StageSeedSource,

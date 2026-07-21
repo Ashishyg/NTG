@@ -22,12 +22,46 @@ export async function POST(req: Request, { params }: Params) {
       scoreSummary?: string;
       scoreA?: number;
       scoreB?: number;
+      games?: {
+        winnerSlot: number;
+        scoreA?: number | null;
+        scoreB?: number | null;
+        screenshotUrl?: string | null;
+      }[];
       screenshotUrl?: string;
     };
 
     if (body.clear === true || body.winnerSlot === null) {
       await clearStageMatchResult(matchId);
       return NextResponse.json({ ok: true, cleared: true });
+    }
+
+    const games = Array.isArray(body.games)
+      ? body.games.map((g: {
+          winnerSlot: number;
+          scoreA?: number | null;
+          scoreB?: number | null;
+          screenshotUrl?: string | null;
+        }) => ({
+          winnerSlot: (g.winnerSlot === 1 ? 1 : 0) as 0 | 1,
+          scoreA: typeof g.scoreA === "number" ? g.scoreA : null,
+          scoreB: typeof g.scoreB === "number" ? g.scoreB : null,
+          screenshotUrl:
+            typeof g.screenshotUrl === "string" && g.screenshotUrl.trim()
+              ? g.screenshotUrl.trim()
+              : null,
+        }))
+      : undefined;
+
+    if (games && games.length > 0) {
+      await submitMatchResultWithProof({
+        matchId,
+        userId: auth.session.user.id,
+        games,
+        screenshotUrl: body.screenshotUrl ?? "",
+        adminOverride: true,
+      });
+      return NextResponse.json({ ok: true });
     }
 
     if (body.winnerSlot !== 0 && body.winnerSlot !== 1) {

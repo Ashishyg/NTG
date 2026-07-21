@@ -9,7 +9,9 @@ import TournamentFinalResults from "@/components/platform/tournament/TournamentF
 import TournamentScheduleCard from "@/components/platform/tournament/TournamentScheduleCard";
 
 import TournamentStageBrackets from "@/components/platform/tournament/TournamentStageBrackets";
+import TournamentTeamsList from "@/components/platform/tournament/TournamentTeamsList";
 import TournamentYourGames from "@/components/platform/tournament/TournamentYourGames";
+import TournamentChampionSection, { resolveChampion } from "@/components/platform/tournament/TournamentChampionSection";
 import { gameMetaFor, formatRegistrationLabel, buildTournamentScheduleCardView } from "@/lib/tournament-display";
 import TournamentRegisterForm from "./TournamentRegisterForm";
 import type { RegistrationPreview } from "./TournamentRegisterForm";
@@ -17,6 +19,7 @@ import type { TournamentDetail } from "@core/contracts";
 import type { ValorantRegistrationProfileCard } from "@core/contracts/registration-profile";
 import type { TournamentBracketView, FinalStandingView } from "@core/contracts/tournament-bracket";
 import type { TournamentStagePublicView } from "@core/contracts/tournament-stages";
+import type { MyGameView } from "@/modules/tournaments-leagues/application/stages/my-games.types";
 
 type ViewTab = "overview" | "brackets" | "your-games";
 
@@ -29,27 +32,8 @@ type Props = {
   registrationProfileCard?: ValorantRegistrationProfileCard | null;
   auctionHref?: string | null;
   auctionEnded?: boolean;
+  initialMyGames?: { games: MyGameView[]; hasTeam: boolean } | null;
 };
-
-function SectionHeading({
-  title,
-  accentClass = "from-transparent to-cyan-500",
-  lineClass = "from-cyan-500 to-transparent",
-}: {
-  title: string;
-  accentClass?: string;
-  lineClass?: string;
-}) {
-  return (
-    <div className="mb-8 flex items-center gap-3">
-      <div className={`h-px w-8 bg-gradient-to-r ${accentClass}`} />
-      <h2 className="font-display text-2xl font-bold uppercase tracking-widest text-white">
-        {title}
-      </h2>
-      <div className={`h-px flex-1 bg-gradient-to-r ${lineClass} opacity-30`} />
-    </div>
-  );
-}
 
 export default function TournamentDetailView({
   tournament,
@@ -60,6 +44,7 @@ export default function TournamentDetailView({
   registrationProfileCard,
   auctionHref,
   auctionEnded,
+  initialMyGames = null,
 }: Props) {
   const [view, setView] = useState<ViewTab>("overview");
   const meta = gameMetaFor(tournament.game);
@@ -83,6 +68,13 @@ export default function TournamentDetailView({
       : null;
   const mvp = bracket?.mvp ?? adminMvp ?? null;
 
+  const championData = resolveChampion(
+    stages,
+    bracket,
+    tournament.teamDetails,
+    tournament.teams,
+  );
+
   const fallbackStandings: FinalStandingView[] = [];
 
   const standings =
@@ -104,13 +96,25 @@ export default function TournamentDetailView({
   const showFinalResults = standings.length > 0 || Boolean(mvp);
   const hasNativeStages = stages.length > 0;
   const showLegacyBracket = Boolean(tournament.bracketUrl) && !hasNativeStages;
-
+  const showTeams =
+    tournament.teams.length > 0 ||
+    tournament.teamDetails.length > 0 ||
+    tournament.registrationOpen;
+  /** Your Games is only for rostered team players, and only when admin enables it. */
+  const showYourGamesTab = Boolean(
+    tournament.yourGamesEnabled !== false &&
+      isLoggedIn &&
+      initialMyGames?.hasTeam,
+  );
 
   const splitColors = ["text-amber-500/90", "text-slate-300/90", "text-amber-700/90"];
   const splitBadgeColors = ["bg-amber-500/20 text-amber-500", "bg-slate-300/20 text-slate-300", "bg-amber-700/20 text-amber-700"];
 
   const showRegistrationSection =
     tournament.registrationOpen || tournament.userRegistered;
+
+  const activeView: ViewTab =
+    view === "your-games" && !showYourGamesTab ? "overview" : view;
 
   const scheduleCard = buildTournamentScheduleCardView({
     registrationFormat: tournament.registrationFormat,
@@ -164,16 +168,20 @@ export default function TournamentDetailView({
         </div>
       </div>
 
-      <div className="mb-8 flex rounded-2xl border border-white/[0.08] bg-white/[0.03] p-1 sm:max-w-xl">
+      <div
+        className={`mb-8 flex rounded-2xl border border-white/[0.08] bg-white/[0.03] p-1 ${
+          showYourGamesTab ? "sm:max-w-xl" : "sm:max-w-md"
+        }`}
+      >
         <button
           type="button"
           onClick={() => setView("overview")}
           className={`relative z-10 flex-1 cursor-pointer rounded-xl py-3 text-center text-xs font-bold uppercase tracking-[0.2em] transition ${
-            view === "overview" ? "text-white" : "text-white/40 hover:text-white/70"
+            activeView === "overview" ? "text-white" : "text-white/40 hover:text-white/70"
           }`}
         >
           Overview
-          {view === "overview" ? (
+          {activeView === "overview" ? (
             <span
               className="absolute inset-0 -z-10 rounded-xl border border-cyan-500/35 bg-gradient-to-r from-cyan-500/20 to-sky-500/10 shadow-[0_0_16px_rgba(6,182,212,0.18)]"
               aria-hidden
@@ -184,41 +192,45 @@ export default function TournamentDetailView({
           type="button"
           onClick={() => setView("brackets")}
           className={`relative z-10 flex-1 cursor-pointer rounded-xl py-3 text-center text-xs font-bold uppercase tracking-[0.2em] transition ${
-            view === "brackets" ? "text-white" : "text-white/40 hover:text-white/70"
+            activeView === "brackets" ? "text-white" : "text-white/40 hover:text-white/70"
           }`}
         >
           Brackets
-          {view === "brackets" ? (
+          {activeView === "brackets" ? (
             <span
               className="absolute inset-0 -z-10 rounded-xl border border-rose-500/35 bg-gradient-to-r from-rose-500/20 to-orange-500/10 shadow-[0_0_16px_rgba(244,63,94,0.18)]"
               aria-hidden
             />
           ) : null}
         </button>
-        <button
-          type="button"
-          onClick={() => setView("your-games")}
-          className={`relative z-10 flex-1 cursor-pointer rounded-xl py-3 text-center text-xs font-bold uppercase tracking-[0.2em] transition ${
-            view === "your-games" ? "text-white" : "text-white/40 hover:text-white/70"
-          }`}
-        >
-          Your Games
-          {view === "your-games" ? (
-            <span
-              className="absolute inset-0 -z-10 rounded-xl border border-emerald-500/35 bg-gradient-to-r from-emerald-500/20 to-teal-500/10 shadow-[0_0_16px_rgba(16,185,129,0.18)]"
-              aria-hidden
-            />
-          ) : null}
-        </button>
+        {showYourGamesTab ? (
+          <button
+            type="button"
+            onClick={() => setView("your-games")}
+            className={`relative z-10 flex-1 cursor-pointer rounded-xl py-3 text-center text-xs font-bold uppercase tracking-[0.2em] transition ${
+              activeView === "your-games" ? "text-white" : "text-white/40 hover:text-white/70"
+            }`}
+          >
+            Your Games
+            {activeView === "your-games" ? (
+              <span
+                className="absolute inset-0 -z-10 rounded-xl border border-emerald-500/35 bg-gradient-to-r from-emerald-500/20 to-teal-500/10 shadow-[0_0_16px_rgba(16,185,129,0.18)]"
+                aria-hidden
+              />
+            ) : null}
+          </button>
+        ) : null}
       </div>
 
-      {view === "overview" ? (
-      <section className="mt-4">
-        <SectionHeading
-          title="Overview"
-          accentClass="from-transparent to-cyan-500"
-          lineClass="from-cyan-500 to-transparent"
-        />
+      {activeView === "overview" ? (
+      <section className="mt-4 space-y-10">
+        {championData ? (
+          <TournamentChampionSection
+            championData={championData}
+            game={tournament.game}
+            accentHex={meta.hex}
+          />
+        ) : null}
 
         <div className="grid gap-12 lg:grid-cols-[1fr_24rem] lg:items-start">
           <div className="order-1 space-y-16 lg:col-start-1 lg:row-start-1">
@@ -313,17 +325,21 @@ export default function TournamentDetailView({
             )}
           </aside>
 
-
+          {showTeams ? (
+            <div className="order-3 lg:col-start-1 lg:row-start-2">
+              <TournamentTeamsList
+                teams={tournament.teams}
+                teamDetails={tournament.teamDetails}
+                accentHex={meta.hex}
+                game={tournament.game}
+                registrationFormat={tournament.registrationFormat}
+              />
+            </div>
+          ) : null}
         </div>
       </section>
-      ) : view === "brackets" ? (
+      ) : activeView === "brackets" ? (
       <section className="mt-4">
-        <SectionHeading
-          title="Brackets"
-          accentClass="from-transparent to-rose-500"
-          lineClass="from-rose-500 to-transparent"
-        />
-
         {hasNativeStages ? (
           <TournamentStageBrackets stages={stages} accentHex={meta.hex} />
         ) : showLegacyBracket && tournament.bracketUrl ? (
@@ -346,16 +362,15 @@ export default function TournamentDetailView({
           </div>
         ) : null}
       </section>
-      ) : (
+      ) : showYourGamesTab ? (
       <section className="mt-4">
-        <SectionHeading
-          title="Your Games"
-          accentClass="from-transparent to-emerald-500"
-          lineClass="from-emerald-500 to-transparent"
+        <TournamentYourGames
+          slug={tournament.slug}
+          isLoggedIn={isLoggedIn}
+          initialData={initialMyGames}
         />
-        <TournamentYourGames slug={tournament.slug} isLoggedIn={isLoggedIn} />
       </section>
-      )}
+      ) : null}
     </article>
   );
 }

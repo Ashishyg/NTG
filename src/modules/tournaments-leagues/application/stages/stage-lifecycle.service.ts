@@ -1,7 +1,11 @@
-import { MatchStatus, ParticipantType } from "@prisma/client";
+import { MatchStatus, ParticipantType, Prisma } from "@prisma/client";
 import { prisma } from "@core/database/client";
 import { generateMatchesForStage, placeTeamInMatch } from "./match-generation.engine";
-import { applyStageMovement, isStageMatchesComplete } from "./movement.engine";
+import {
+  applyStageMovement,
+  isStageMatchesComplete,
+  undoStageMovement,
+} from "./movement.engine";
 import { LeaderboardRepository } from "@tournaments-leagues/infrastructure/leaderboard.repository";
 
 const leaderboardRepo = new LeaderboardRepository();
@@ -14,6 +18,23 @@ export async function advanceStage(stageId: string) {
   return applyStageMovement(stageId);
 }
 
+async function clearTeamFromNextMatch(
+  nextMatchId: string | null,
+  teamId: string | null | undefined,
+): Promise<void> {
+  if (!nextMatchId || !teamId) return;
+  const next = await prisma.match.findUnique({
+    where: { id: nextMatchId },
+    select: { result: { select: { id: true } } },
+  });
+  // Don't tear down a decided downstream match.
+  if (next?.result) return;
+  await prisma.matchParticipant.updateMany({
+    where: { matchId: nextMatchId, tournamentTeamId: teamId },
+    data: { tournamentTeamId: null, teamLabel: null },
+  });
+}
+
 /**
  * Record a match result and advance winners/losers into next matches.
  * When the whole stage completes, run qualification + movement.
@@ -22,6 +43,9 @@ export async function recordStageMatchResult(args: {
   matchId: string;
   winnerSlot: number;
   scoreSummary?: string | null;
+  scoreA?: number | null;
+  scoreB?: number | null;
+  games?: { winnerSlot: number }[] | null;
 }): Promise<{ advancedStage: boolean }> {
   const match = await prisma.match.findUnique({
     where: { id: args.matchId },
@@ -37,16 +61,60 @@ export async function recordStageMatchResult(args: {
     throw new Error("winnerSlot must be 0 or 1.");
   }
 
+  const scoreA =
+    typeof args.scoreA === "number" && Number.isFinite(args.scoreA)
+      ? Math.trunc(args.scoreA)
+      : null;
+  const scoreB =
+    typeof args.scoreB === "number" && Number.isFinite(args.scoreB)
+      ? Math.trunc(args.scoreB)
+      : null;
+  const scoreSummary =
+    args.scoreSummary?.trim() ||
+    (scoreA != null && scoreB != null ? `${scoreA}-${scoreB}` : null);
+  const gamesJson =
+    args.games != null
+      ? (args.games as Prisma.InputJsonValue)
+      : undefined;
+
+  // Editing an existing result: pull the old winner/loser out of later slots first.
+  if (match.result) {
+    const prevWinner = match.participants.find(
+      (p) => p.slot === match.result!.winnerSlot,
+    );
+    const prevLoser = match.participants.find(
+      (p) => p.slot !== match.result!.winnerSlot,
+    );
+    await clearTeamFromNextMatch(
+      match.nextWinnerMatchId,
+      prevWinner?.tournamentTeamId,
+    );
+    await clearTeamFromNextMatch(
+      match.nextLoserMatchId,
+      prevLoser?.tournamentTeamId,
+    );
+  }
+
   await prisma.matchResult.upsert({
     where: { matchId: args.matchId },
     create: {
       matchId: args.matchId,
       winnerSlot: args.winnerSlot,
-      scoreSummary: args.scoreSummary ?? null,
+      scoreSummary,
+      scoreA,
+      scoreB,
+      ...(gamesJson !== undefined
+        ? ({ games: gamesJson } as { games: Prisma.InputJsonValue })
+        : {}),
     },
     update: {
       winnerSlot: args.winnerSlot,
-      scoreSummary: args.scoreSummary ?? null,
+      scoreSummary,
+      scoreA,
+      scoreB,
+      ...(gamesJson !== undefined
+        ? ({ games: gamesJson } as { games: Prisma.InputJsonValue })
+        : {}),
       completedAt: new Date(),
     },
   });
@@ -119,22 +187,37 @@ export async function clearStageMatchResult(matchId: string): Promise<void> {
   const winner = match.participants.find((p) => p.slot === match.result!.winnerSlot);
   const loser = match.participants.find((p) => p.slot !== match.result!.winnerSlot);
 
-  // Best-effort: clear teams this match pushed into later bracket slots
-  async function clearIfPlaced(nextMatchId: string | null, teamId: string | null | undefined) {
-    if (!nextMatchId || !teamId) return;
-    await prisma.matchParticipant.updateMany({
-      where: { matchId: nextMatchId, tournamentTeamId: teamId },
-      data: { tournamentTeamId: null, teamLabel: null },
-    });
-  }
-  await clearIfPlaced(match.nextWinnerMatchId, winner?.tournamentTeamId);
-  await clearIfPlaced(match.nextLoserMatchId, loser?.tournamentTeamId);
+  await clearTeamFromNextMatch(match.nextWinnerMatchId, winner?.tournamentTeamId);
+  await clearTeamFromNextMatch(match.nextLoserMatchId, loser?.tournamentTeamId);
+
+  const stageId = match.bracket.stageId;
+  const stageWasComplete = stageId
+    ? (
+        await prisma.tournamentStage.findUnique({
+          where: { id: stageId },
+          select: { status: true },
+        })
+      )?.status === "COMPLETE"
+    : false;
 
   await prisma.matchResult.delete({ where: { matchId } });
+
+  // Restore a playable match status (keep schedule / confirmations intact).
+  const reopenStatus =
+    match.scheduleStatus === "CONFIRMED" ? MatchStatus.LIVE : MatchStatus.SCHEDULED;
   await prisma.match.update({
     where: { id: matchId },
-    data: { status: MatchStatus.SCHEDULED },
+    data: { status: reopenStatus },
   });
+
+  // If this result had finished the stage, reopen it and undo destination seeding.
+  if (stageId && stageWasComplete) {
+    await prisma.tournamentStage.updateMany({
+      where: { id: stageId, status: "COMPLETE" },
+      data: { status: "LIVE" },
+    });
+    await undoStageMovement(stageId);
+  }
 
   void leaderboardRepo.recomputeFromCompletedMatches().catch(() => {});
 }

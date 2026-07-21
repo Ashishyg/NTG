@@ -101,7 +101,7 @@ export const singleEliminationPlugin: StageTypePlugin = {
     return matches;
   },
   computeStandings({ teamIds, teamNames, results }) {
-    return applyResultsToStandings(teamIds, teamNames, results, 1, 0);
+    return applyResultsToStandings(teamIds, teamNames, results);
   },
 };
 

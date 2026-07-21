@@ -36,8 +36,8 @@ export default async function AdminTournamentEditPage({ params }: Props) {
     listUnassignedPlayerRegistrations(slug),
     listSeasonsAdmin(),
     getStageGraphAdmin(slug).catch(() => null),
-    prisma.$queryRawUnsafe<{ publicAuction: boolean }[]>(
-      'SELECT "publicAuction" FROM "Tournament" WHERE slug = $1 LIMIT 1',
+    prisma.$queryRawUnsafe<{ publicAuction: boolean; yourGamesEnabled: boolean }[]>(
+      'SELECT "publicAuction", "yourGamesEnabled" FROM "Tournament" WHERE slug = $1 LIMIT 1',
       slug
     ),
   ]);
@@ -82,6 +82,7 @@ export default async function AdminTournamentEditPage({ params }: Props) {
     teamsPerGroup: t.teamsPerGroup,
     advancePerGroup: t.advancePerGroup,
     publicAuction: resolveEffectivePublicAuction(row?.publicAuction ?? false, t),
+    yourGamesEnabled: row?.yourGamesEnabled ?? true,
     rankPoints: (t.rankPoints as { rank: string; floor: number }[] | null) ?? null,
     bracketUrl: t.bracketUrl,
     rulebookUrl: t.rulebookUrl,

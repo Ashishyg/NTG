@@ -23,9 +23,6 @@ function stubPlugin(type: StageType): StageTypePlugin {
   };
 }
 
-export const swissPlugin = stubPlugin("SWISS");
-export const gslPlugin = stubPlugin("GSL");
-export const leaguePlugin = stubPlugin("LEAGUE");
 export const freeForAllPlugin = stubPlugin("FREE_FOR_ALL");
 export const battleRoyalePlugin = stubPlugin("BATTLE_ROYALE");
 export const customPlugin = stubPlugin("CUSTOM");

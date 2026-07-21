@@ -76,7 +76,8 @@ export async function getHeroCupStatus(): Promise<HeroCupStatus | null> {
   const tournaments = await prisma.tournament.findMany({
     where: {
       registrationFormat: "AUCTION",
-      status: { notIn: ["CANCELLED", "COMPLETED"] },
+      // Draft cups are admin-only prep — don't drive the public hero timer from them.
+      status: { notIn: ["CANCELLED", "COMPLETED", "DRAFT"] },
       registrationOpensAt: { not: null },
       auctionStartsAt: { not: null },
       auctionEndsAt: { not: null },

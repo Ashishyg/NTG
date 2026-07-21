@@ -17,7 +17,12 @@ export type BracketMatchView = {
     teamId: string | null;
     teamLabel: string | null;
   }[];
-  result: { winnerSlot: number; scoreSummary: string | null } | null;
+  result: {
+    winnerSlot: number;
+    scoreSummary: string | null;
+    scoreA?: number | null;
+    scoreB?: number | null;
+  } | null;
 };
 
 export type BracketTeamOption = { id: string; name: string };
@@ -89,10 +94,19 @@ function MatchCard({
       title={scheduleTitle}
       style={{
         height: CARD_H,
-        borderColor: hasResult ? `${accentHex}28` : "rgba(255,255,255,0.08)",
-        boxShadow: hasResult ? `0 0 14px -5px ${accentHex}50` : "none",
+        // Neutral glass border/glow when a result is recorded (removes red outline)
+        borderColor: hasResult ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.10)",
+        boxShadow: hasResult
+          ? `0 0 20px -6px rgba(255,255,255,0.12), inset 0 1px 0 rgba(255,255,255,0.06)`
+          : "inset 0 1px 0 rgba(255,255,255,0.05)",
+        // Glassmorphism base
+        background: hasResult
+          ? `linear-gradient(135deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0.025) 100%)`
+          : `linear-gradient(135deg, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.018) 100%)`,
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
       }}
-      className="relative z-[1] w-full overflow-hidden rounded-lg border bg-[#111114] text-xs"
+      className="relative z-[1] w-full overflow-hidden rounded-xl border text-xs"
     >
       {([a, b] as const).map((p, slot) => {
         const won  = m.result?.winnerSlot === slot;
@@ -103,22 +117,40 @@ function MatchCard({
           !p?.teamLabel || p.teamLabel === "TBD"
         );
 
-        const scoreStr   = m.result?.scoreSummary?.split("-")[slot]?.trim();
-        const hasScore   = m.result?.scoreSummary != null;
+        const scoreFromFields =
+          m.result?.scoreA != null && m.result?.scoreB != null
+            ? slot === 0
+              ? String(m.result.scoreA)
+              : String(m.result.scoreB)
+            : null;
+        const scoreStr =
+          scoreFromFields ??
+          m.result?.scoreSummary?.split(/[-–]/)[slot]?.trim();
+        const hasScore =
+          scoreFromFields != null || m.result?.scoreSummary != null;
         const displayScore = hasScore ? scoreStr : m.result ? (won ? "W" : "L") : null;
 
         const row = (
           <div
             style={{ height: CARD_H / 2 }}
-            className={`flex items-stretch ${slot === 0 ? "border-b border-white/[0.07]" : ""}${won ? " bg-white/[0.04]" : ""}`}
+            className={`flex items-stretch ${slot === 0 ? "border-b border-white/[0.07]" : ""}${
+              won ? " bg-white/[0.06]" : ""
+            }`}
           >
-            <div className={`flex min-w-0 flex-1 items-center px-3 ${won ? "font-semibold text-emerald-400" : lost ? "text-white/28" : "text-white/65"}`}>
+            <div
+              className={`flex min-w-0 flex-1 items-center px-3 ${
+                won ? "font-semibold text-emerald-400" : lost ? "text-white/30" : "text-white/60"
+              }`}
+            >
               <span className="truncate">{p?.teamLabel ?? "TBD"}</span>
             </div>
             {displayScore != null && (
               <div
                 className="flex w-8 shrink-0 items-center justify-center border-l border-white/[0.07] text-[11px] font-bold tabular-nums"
-                style={{ color: won ? accentHex : "rgba(255,255,255,0.2)" }}
+                style={{
+                  color: won ? "#34d399" : "rgba(255,255,255,0.22)",
+                  background: won ? "rgba(52,211,153,0.12)" : "transparent",
+                }}
               >
                 {displayScore}
               </div>
@@ -129,7 +161,7 @@ function MatchCard({
         if (canPick) {
           return (
             <button key={slot} type="button" onClick={() => onPickWinner?.(m.id, slot)}
-              className="w-full text-left hover:bg-white/[0.04] transition-colors">
+              className="w-full text-left hover:bg-white/[0.05] transition-colors">
               {row}
             </button>
           );
@@ -139,7 +171,7 @@ function MatchCard({
           return (
             <div key={slot} className="relative">
               <select
-                className="h-[37px] w-full appearance-none border-0 bg-transparent px-3 text-xs text-white/55 outline-none hover:bg-white/[0.04]"
+                className="h-[37px] w-full appearance-none border-0 bg-transparent px-3 text-xs text-white/45 outline-none hover:bg-white/[0.04]"
                 value={p?.teamId ?? ""} disabled={saving}
                 onChange={(e) => {
                   const id = e.target.value;
@@ -320,49 +352,35 @@ export default function NativeEliminationBracket({
     return <p className="text-sm text-white/30">No bracket matches generated yet.</p>;
   }
 
-  const winners   = matches.filter((m) => m.bracketSide !== "losers" && m.bracketSide !== "grand_final");
-  const losers    = matches.filter((m) => m.bracketSide === "losers");
-  const grandFinal = matches.filter((m) => m.bracketSide === "grand_final");
+  // grand_final is included in the winners block so the layout engine
+  // places it as the rightmost column, vertically centred automatically.
+  const winners    = matches.filter((m) => m.bracketSide !== "losers");
+  const losers     = matches.filter((m) => m.bracketSide === "losers");
+  const hasDoubleElim = losers.length > 0;
 
   const winnersMax = Math.max(...winners.map((m) => m.roundNumber), 1);
   const losersMax  = Math.max(...losers.map((m) => m.roundNumber), 1);
-  const hasDoubleElim = losers.length > 0;
 
   const shared = { matchFormat, onPickWinner, onAssignTeam, teamOptions, savingMatchIds, accentHex };
-
-  // Compute grand final side width so we can place it correctly
-  const gfMatches = grandFinal.length;
 
   return (
     <div className="space-y-10">
       {headerSlot && <div className="flex flex-wrap gap-2">{headerSlot}</div>}
 
-      {/* ── Winners / single-elim bracket ── */}
+      {/* ── Winners / single-elim bracket (includes Grand Final column) ── */}
       <div className="space-y-1">
         {hasDoubleElim && (
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30 mb-2">
             Winners Bracket
           </p>
         )}
-        {/* Horizontal scroll wrapper */}
         <div className="overflow-x-auto pb-3" style={{ WebkitOverflowScrolling: "touch" }}>
-          <div className="flex items-start" style={{ gap: COL_GAP }}>
-            <BracketSide
-              {...shared}
-              matches={winners.length > 0 ? winners : matches}
-              totalRounds={winners.length > 0 ? winnersMax : Math.max(...matches.map((m) => m.roundNumber), 1)}
-              finalsMatchFormat={finalsMatchFormat}
-            />
-            {gfMatches > 0 && (
-              <BracketSide
-                {...shared}
-                matches={grandFinal}
-                totalRounds={1}
-                finalsMatchFormat={finalsMatchFormat}
-                forceGrandFinalLabel
-              />
-            )}
-          </div>
+          <BracketSide
+            {...shared}
+            matches={winners.length > 0 ? winners : matches}
+            totalRounds={winners.length > 0 ? winnersMax : Math.max(...matches.map((m) => m.roundNumber), 1)}
+            finalsMatchFormat={finalsMatchFormat}
+          />
         </div>
       </div>
 

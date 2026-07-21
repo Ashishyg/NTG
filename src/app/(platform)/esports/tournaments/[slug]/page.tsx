@@ -7,6 +7,7 @@ import {
   getTournamentDetail,
   getRegistrationEligibility,
   getValorantRegistrationProfileCard,
+  listMyGames,
   mapStagesToPublic,
 } from "@tournaments-leagues/index";
 import { serverEnv } from "@core/config/env.server";
@@ -18,7 +19,7 @@ type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
-  const t = await getTournamentDetail(slug);
+  const t = await getTournamentDetail(slug).catch(() => null);
   return { title: t ? t.name : "Tournament" };
 }
 
@@ -26,35 +27,67 @@ export default async function TournamentDetailPage({ params }: Props) {
   const { slug } = await params;
   const session = await getSession();
   const userId = session?.user?.id;
-  const raw = await getTournamentDetail(slug, userId);
-  if (!raw) notFound();
-  const tournament = raw;
-  const stages = await mapStagesToPublic(tournament.id);
+
+  let tournament;
+  try {
+    tournament = await getTournamentDetail(slug, userId);
+  } catch (err) {
+    console.error("[tournament-detail] getTournamentDetail failed:", slug, err);
+    throw err;
+  }
+  if (!tournament) notFound();
+
+  let stages: Awaited<ReturnType<typeof mapStagesToPublic>> = [];
+  try {
+    stages = await mapStagesToPublic(tournament.id);
+  } catch (err) {
+    console.error("[tournament-detail] mapStagesToPublic failed:", slug, err);
+  }
+
+  let publicAuction = false;
+  let yourGamesEnabled = true;
+  try {
+    const [dbRow] = await prisma.$queryRawUnsafe<
+      { publicAuction: boolean; yourGamesEnabled: boolean }[]
+    >(
+      'SELECT "publicAuction", "yourGamesEnabled" FROM "Tournament" WHERE id = $1 LIMIT 1',
+      tournament.id,
+    );
+    publicAuction = resolveEffectivePublicAuction(
+      dbRow?.publicAuction ?? false,
+      tournament,
+    );
+    yourGamesEnabled = dbRow?.yourGamesEnabled ?? true;
+  } catch (err) {
+    console.error("[tournament-detail] publicAuction lookup failed:", slug, err);
+    publicAuction = resolveEffectivePublicAuction(false, tournament);
+    yourGamesEnabled = true;
+  }
+
+  const [admin, registrationPreview, myGames] = await Promise.all([
+    requireAdmin(),
+    userId ? getRegistrationEligibility(slug, userId) : Promise.resolve(null),
+    userId && yourGamesEnabled
+      ? listMyGames(slug, userId).catch(() => ({ games: [], hasTeam: false }))
+      : Promise.resolve(null),
+  ]);
+
   const bracket =
     stages.length === 0 && tournament.bracketUrl
       ? await fetchChallongeBracket(tournament.bracketUrl)
       : null;
 
-  const admin = await requireAdmin();
-  const registrationPreview = userId
-    ? await getRegistrationEligibility(slug, userId)
-    : null;
   const registrationProfileCard =
-    userId && raw.game === "VALORANT" && raw.userRegistered
+    userId && tournament.game === "VALORANT" && tournament.userRegistered
       ? await getValorantRegistrationProfileCard(slug, userId)
       : null;
 
-  // Fetch public status of the auction from the database
-  const [dbRow] = await prisma.$queryRawUnsafe<{ publicAuction: boolean }[]>(
-    'SELECT "publicAuction" FROM "Tournament" WHERE id = $1 LIMIT 1',
-    tournament.id
-  );
-  const publicAuction = resolveEffectivePublicAuction(dbRow?.publicAuction ?? false, tournament);
+  tournament = { ...tournament, yourGamesEnabled };
 
-  // Auction handoff: routes the user to the right screen; the auction app re-checks access server-side.
   const auctionView = admin.ok
     ? "auctioneer"
-    : tournament.userParticipantRole === "CAPTAIN" || tournament.userParticipantRole === "CO_CAPTAIN"
+    : tournament.userParticipantRole === "CAPTAIN" ||
+        tournament.userParticipantRole === "CO_CAPTAIN"
       ? "captain"
       : "observe";
   const auctionEligible =
@@ -63,13 +96,13 @@ export default async function TournamentDetailPage({ params }: Props) {
     tournament.userRegistered &&
     !!serverEnv.auctionUrl &&
     !!serverEnv.auctionJwtSecret;
-  // Admins can always enter; players enter only while IN_PROGRESS, see it disabled once COMPLETED.
-  // Normal registered users only see the button if publicAuction is enabled by the admin.
   const showEnterButton = admin.ok || (auctionEligible && publicAuction);
-  const auctionHref = (showEnterButton && userId)
-    ? auctionLink(tournament.id, auctionView, userId)
-    : null;
-  const auctionEnded = auctionEligible && !admin.ok && tournament.status === "COMPLETED";
+  const auctionHref =
+    showEnterButton && userId
+      ? auctionLink(tournament.id, auctionView, userId)
+      : null;
+  const auctionEnded =
+    auctionEligible && !admin.ok && tournament.status === "COMPLETED";
 
   return (
     <>
@@ -82,6 +115,7 @@ export default async function TournamentDetailPage({ params }: Props) {
         registrationProfileCard={registrationProfileCard}
         auctionHref={auctionHref}
         auctionEnded={auctionEnded}
+        initialMyGames={myGames}
       />
       {admin.ok ? (
         <div className="mt-16 border-t border-white/[0.06] pt-8 text-center">

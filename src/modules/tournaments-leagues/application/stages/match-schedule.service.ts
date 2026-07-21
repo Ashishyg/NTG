@@ -1,44 +1,22 @@
 import { MatchScheduleStatus, MatchStatus, Prisma } from "@prisma/client";
 import { prisma } from "@core/database/client";
 import { recordStageMatchResult } from "./stage-lifecycle.service";
+import {
+  allGamesHaveScreenshots,
+  formatLabel,
+  isLikelySeriesScore,
+  primaryScreenshotFromGames,
+  resolveMatchFormat,
+  resolveSeriesResult,
+  scoreEntryModeForStage,
+  type ScoreEntryMode,
+  type SeriesGame,
+} from "./series-format";
+import type { MyGameView } from "./my-games.types";
+
+export type { MyGameView } from "./my-games.types";
 
 const DEFAULT_RESULT_WINDOW_HOURS = 3;
-
-export type MyGameView = {
-  matchId: string;
-  stageId: string;
-  stageName: string;
-  stageOrder: number;
-  stageFinishesAt: string | null;
-  resultWindowHours: number;
-  roundNumber: number;
-  positionInRound: number;
-  bracketSide: string | null;
-  status: string;
-  scheduledAt: string | null;
-  scheduleStatus: string;
-  confirmedBySlot0: boolean;
-  confirmedBySlot1: boolean;
-  resultDeadlineAt: string | null;
-  mySlot: 0 | 1;
-  myTeamId: string;
-  myTeamName: string;
-  opponentTeamId: string | null;
-  opponentTeamName: string | null;
-  iConfirmed: boolean;
-  opponentConfirmed: boolean;
-  canConfirm: boolean;
-  canPropose: boolean;
-  canSubmitResult: boolean;
-  resultOverdue: boolean;
-  result: {
-    winnerSlot: number;
-    scoreA: number | null;
-    scoreB: number | null;
-    scoreSummary: string | null;
-    screenshotUrl: string | null;
-  } | null;
-};
 
 function readStageScheduleConfig(config: unknown): {
   finishesAt: string | null;
@@ -121,14 +99,41 @@ async function loadMatchForSchedule(matchId: string) {
       result: true,
       bracket: {
         include: {
-          stage: { select: { id: true, name: true, order: true, config: true, tournamentId: true } },
+          stage: {
+            select: {
+              id: true,
+              name: true,
+              order: true,
+              config: true,
+              tournamentId: true,
+              matchFormat: true,
+              stageType: true,
+            },
+          },
           tournament: { select: { id: true, slug: true } },
+          matches: {
+            select: {
+              roundNumber: true,
+              bracketSide: true,
+            },
+          },
         },
       },
     },
   });
   if (!match) throw new Error("Match not found.");
   return match;
+}
+
+function winnersMaxRoundFromMatches(
+  matches: { roundNumber: number; bracketSide: string | null }[],
+): number {
+  let max = 0;
+  for (const m of matches) {
+    if (m.bracketSide === "losers" || m.bracketSide === "grand_final") continue;
+    if (m.roundNumber > max) max = m.roundNumber;
+  }
+  return max;
 }
 
 function userSlotOnMatch(
@@ -290,7 +295,21 @@ export async function listMyGames(
       bracket: {
         include: {
           stage: {
-            select: { id: true, name: true, order: true, config: true },
+            select: {
+              id: true,
+              name: true,
+              order: true,
+              config: true,
+              status: true,
+              matchFormat: true,
+              stageType: true,
+            },
+          },
+          matches: {
+            select: {
+              roundNumber: true,
+              bracketSide: true,
+            },
           },
         },
       },
@@ -298,14 +317,34 @@ export async function listMyGames(
     orderBy: [{ scheduledAt: "asc" }, { roundNumber: "asc" }],
   });
 
+  // Hide later-stage games until the previous stage is complete.
+  const allStages = await prisma.tournamentStage.findMany({
+    where: { tournamentId: tournament.id },
+    orderBy: { order: "asc" },
+    select: { id: true, order: true, status: true },
+  });
+  const stageRevealed = (order: number) => {
+    const previous = [...allStages]
+      .filter((s) => s.order < order)
+      .sort((a, b) => b.order - a.order)[0];
+    return !previous || previous.status === "COMPLETE";
+  };
+
   const now = Date.now();
   const games: MyGameView[] = [];
 
   for (const m of matches) {
+    const stage = m.bracket.stage;
+    if (stage) {
+      if (!stageRevealed(stage.order)) continue;
+    }
+    // Submitted results leave Your Games — only open / reset matches stay.
+    // Admin edits happen in the stage builder; players re-submit after a reset.
+    if (m.result) continue;
+
     const mine = userSlotOnMatch(m, teamSet);
     if (!mine) continue;
     const opp = m.participants.find((p) => p.slot !== mine.slot);
-    const stage = m.bracket.stage;
     const cfg = readStageScheduleConfig(stage?.config);
     const iConfirmed =
       mine.slot === 0 ? m.confirmedBySlot0 : m.confirmedBySlot1;
@@ -319,6 +358,17 @@ export async function listMyGames(
       m.resultDeadlineAt != null &&
       m.resultDeadlineAt.getTime() < now;
 
+    const winnersMax = winnersMaxRoundFromMatches(m.bracket.matches ?? []);
+    const matchFormat = resolveMatchFormat({
+      stageMatchFormat: stage?.matchFormat,
+      config: stage?.config,
+      bracketSide: m.bracketSide,
+      nextWinnerMatchId: m.nextWinnerMatchId,
+      roundNumber: m.roundNumber,
+      winnersMaxRound: winnersMax,
+    });
+    const scoreEntryMode = scoreEntryModeForStage(stage?.stageType);
+
     games.push({
       matchId: m.id,
       stageId: stage?.id ?? "",
@@ -326,6 +376,11 @@ export async function listMyGames(
       stageOrder: stage?.order ?? 0,
       stageFinishesAt: cfg.finishesAt,
       resultWindowHours: cfg.resultWindowHours,
+      stageType: stage?.stageType ?? null,
+      scoreEntryMode,
+      matchFormat,
+      formatLabel:
+        scoreEntryMode === "rounds" ? "Round scores" : formatLabel(matchFormat),
       roundNumber: m.roundNumber,
       positionInRound: m.positionInRound,
       bracketSide: m.bracketSide,
@@ -357,16 +412,9 @@ export async function listMyGames(
         confirmed &&
         Boolean(m.scheduledAt) &&
         (!m.resultDeadlineAt || m.resultDeadlineAt.getTime() >= now),
+      canEditResult: false,
       resultOverdue: overdue,
-      result: m.result
-        ? {
-            winnerSlot: m.result.winnerSlot,
-            scoreA: m.result.scoreA,
-            scoreB: m.result.scoreB,
-            scoreSummary: m.result.scoreSummary,
-            screenshotUrl: m.result.screenshotUrl,
-          }
-        : null,
+      result: null,
     });
   }
 
@@ -376,60 +424,186 @@ export async function listMyGames(
 export async function submitMatchResultWithProof(args: {
   matchId: string;
   userId: string;
-  winnerSlot: number;
-  scoreA: number;
-  scoreB: number;
-  screenshotUrl: string;
+  winnerSlot?: number;
+  scoreA?: number;
+  scoreB?: number;
+  games?: SeriesGame[];
+  /** Top-level proof; derived from per-game screenshots when omitted. */
+  screenshotUrl?: string;
   adminOverride?: boolean;
 }): Promise<{ advancedStage: boolean }> {
-  if (args.winnerSlot !== 0 && args.winnerSlot !== 1) {
-    throw new Error("winnerSlot must be 0 or 1.");
-  }
-  if (!Number.isFinite(args.scoreA) || !Number.isFinite(args.scoreB)) {
-    throw new Error("Scores are required.");
-  }
-  if (args.scoreA < 0 || args.scoreB < 0) {
-    throw new Error("Scores cannot be negative.");
-  }
-  if (!args.screenshotUrl?.trim() && !args.adminOverride) {
-    throw new Error("Screenshot is required.");
+  const match = await loadMatchForSchedule(args.matchId);
+  if (match.status === MatchStatus.BYE) throw new Error("Cannot result a bye.");
+
+  const stage = match.bracket.stage;
+  const scoreEntryMode: ScoreEntryMode = scoreEntryModeForStage(stage?.stageType);
+  const winnersMax = winnersMaxRoundFromMatches(match.bracket.matches ?? []);
+  const matchFormat = resolveMatchFormat({
+    stageMatchFormat: stage?.matchFormat,
+    config: stage?.config,
+    bracketSide: match.bracketSide,
+    nextWinnerMatchId: match.nextWinnerMatchId,
+    roundNumber: match.roundNumber,
+    winnersMaxRound: winnersMax,
+  });
+
+  let scoreA: number;
+  let scoreB: number;
+  let winnerSlot: number;
+  let games: SeriesGame[] | undefined = args.games;
+
+  const useRounds =
+    scoreEntryMode === "rounds" &&
+    (!games || games.length === 0) &&
+    (args.adminOverride ||
+      (typeof args.scoreA === "number" && typeof args.scoreB === "number"));
+
+  if (games && games.length > 0 && scoreEntryMode === "series") {
+    const resolved = resolveSeriesResult(matchFormat, games);
+    scoreA = resolved.scoreA;
+    scoreB = resolved.scoreB;
+    winnerSlot = resolved.winnerSlot;
+    games = games.map((g) => ({
+      winnerSlot: g.winnerSlot,
+      scoreA: g.scoreA ?? null,
+      scoreB: g.scoreB ?? null,
+      screenshotUrl: g.screenshotUrl?.trim() || null,
+    }));
+  } else if (useRounds || (args.adminOverride && (!games || games.length === 0))) {
+    // Round Robin / standings: store literal round (or goal) scores as-is.
+    if (args.winnerSlot !== 0 && args.winnerSlot !== 1) {
+      throw new Error("winnerSlot must be 0 or 1.");
+    }
+    if (!Number.isFinite(args.scoreA) || !Number.isFinite(args.scoreB)) {
+      throw new Error("Scores are required.");
+    }
+    if ((args.scoreA as number) < 0 || (args.scoreB as number) < 0) {
+      throw new Error("Scores cannot be negative.");
+    }
+    scoreA = Math.trunc(args.scoreA as number);
+    scoreB = Math.trunc(args.scoreB as number);
+    winnerSlot = args.winnerSlot as 0 | 1;
+    const winnerScore = winnerSlot === 0 ? scoreA : scoreB;
+    const loserScore = winnerSlot === 0 ? scoreB : scoreA;
+    if (winnerScore <= loserScore) {
+      throw new Error("Winning team score must be higher than the losing team.");
+    }
+    games = [];
+  } else if (games && games.length > 0) {
+    // Non-elim stage accidentally sent games — treat as series only if totals look like maps.
+    const resolved = resolveSeriesResult(matchFormat, games);
+    scoreA = resolved.scoreA;
+    scoreB = resolved.scoreB;
+    winnerSlot = resolved.winnerSlot;
+    games = games.map((g) => ({
+      winnerSlot: g.winnerSlot,
+      scoreA: g.scoreA ?? null,
+      scoreB: g.scoreB ?? null,
+      screenshotUrl: g.screenshotUrl?.trim() || null,
+    }));
+  } else {
+    if (args.winnerSlot !== 0 && args.winnerSlot !== 1) {
+      throw new Error("winnerSlot must be 0 or 1.");
+    }
+    if (!Number.isFinite(args.scoreA) || !Number.isFinite(args.scoreB)) {
+      throw new Error("Scores are required.");
+    }
+    if ((args.scoreA as number) < 0 || (args.scoreB as number) < 0) {
+      throw new Error("Scores cannot be negative.");
+    }
+    const a = Math.trunc(args.scoreA as number);
+    const b = Math.trunc(args.scoreB as number);
+    const w = args.winnerSlot as 0 | 1;
+
+    // Literal round scores on series stages (shouldn't happen for players) —
+    // only synthesize BO games when totals look like map wins.
+    if (!isLikelySeriesScore(a, b)) {
+      throw new Error(
+        "Enter a best-of series result (game winners), not round totals.",
+      );
+    }
+
+    const synthetic: SeriesGame[] = [];
+    const loserSlot = (w === 0 ? 1 : 0) as 0 | 1;
+    const loserScore = w === 0 ? b : a;
+    const winnerScore = w === 0 ? a : b;
+    const sharedShot = args.screenshotUrl?.trim() || null;
+    for (let i = 0; i < loserScore; i++) {
+      synthetic.push({ winnerSlot: loserSlot, screenshotUrl: sharedShot });
+    }
+    for (let i = 0; i < winnerScore; i++) {
+      synthetic.push({ winnerSlot: w, screenshotUrl: sharedShot });
+    }
+    const resolved = resolveSeriesResult(matchFormat, synthetic);
+    scoreA = resolved.scoreA;
+    scoreB = resolved.scoreB;
+    winnerSlot = resolved.winnerSlot;
+    games = synthetic;
   }
 
-  const match = await loadMatchForSchedule(args.matchId);
-  if (match.result) throw new Error("Result already submitted.");
-  if (match.status === MatchStatus.BYE) throw new Error("Cannot result a bye.");
+  const primaryShot =
+    args.screenshotUrl?.trim() ||
+    (games && games.length > 0
+      ? primaryScreenshotFromGames(games)
+      : null) ||
+    null;
+
+  if (!args.adminOverride) {
+    if (scoreEntryMode === "rounds") {
+      if (!primaryShot) {
+        throw new Error("Screenshot is required.");
+      }
+    } else {
+      if (!games || !allGamesHaveScreenshots(games)) {
+        throw new Error("Upload a screenshot for each game.");
+      }
+      if (!primaryShot) {
+        throw new Error("Screenshot is required.");
+      }
+    }
+  }
 
   if (!args.adminOverride) {
     const tournamentId =
-      match.bracket.stage?.tournamentId ?? match.bracket.tournament?.id;
+      stage?.tournamentId ?? match.bracket.tournament?.id;
     if (!tournamentId) throw new Error("Tournament not found for match.");
     const teamIds = new Set(await resolveUserTeamIds(tournamentId, args.userId));
     const mine = userSlotOnMatch(match, teamIds);
     if (!mine) throw new Error("You are not on a team in this match.");
 
-    if (match.scheduleStatus !== MatchScheduleStatus.CONFIRMED) {
+    if (match.scheduleStatus !== MatchScheduleStatus.CONFIRMED && !match.result) {
       throw new Error("Match time must be confirmed by both teams first.");
     }
-    if (match.resultDeadlineAt && match.resultDeadlineAt.getTime() < Date.now()) {
+    // No player edits after submit — deadline only gates first submission.
+    if (match.result) {
+      throw new Error(
+        "Result already submitted. Ask an admin to reset if it needs changing.",
+      );
+    }
+    if (
+      match.resultDeadlineAt &&
+      match.resultDeadlineAt.getTime() < Date.now()
+    ) {
       throw new Error(
         "Result deadline has passed. Ask an admin to record the result.",
       );
     }
   }
 
-  const scoreSummary = `${args.scoreA}-${args.scoreB}`;
+  const scoreSummary = `${scoreA}-${scoreB}`;
   const advanced = await recordStageMatchResult({
     matchId: args.matchId,
-    winnerSlot: args.winnerSlot,
+    winnerSlot,
     scoreSummary,
+    scoreA,
+    scoreB,
+    games,
   });
 
   await prisma.matchResult.update({
     where: { matchId: args.matchId },
     data: {
-      scoreA: Math.trunc(args.scoreA),
-      scoreB: Math.trunc(args.scoreB),
-      screenshotUrl: args.screenshotUrl?.trim() || null,
+      screenshotUrl: primaryShot,
       submittedByUserId: args.userId,
     },
   });
