@@ -16,35 +16,32 @@ const leaderboardRepo = new LeaderboardRepository();
 export async function listTournamentPreviews(): Promise<TournamentPreview[]> {
   const previews = await tournamentRepo.listPreviews();
 
-  // Prefer DB placements. Only hit Challonge when a completed cup still lacks a champion —
-  // never fan out parallel fetches (Challonge 429s quickly in dev / calendar loads).
-  const enriched: TournamentPreview[] = [];
-  for (const t of previews) {
-    let championName = t.championName ?? null;
-    const bracketUrl = t.bracketUrl ?? null;
+  return Promise.all(
+    previews.map(async (t) => {
+      let championName = t.championName ?? null;
 
-    if (
-      !championName &&
-      bracketUrl &&
-      (t.status === "COMPLETED" || t.status === "IN_PROGRESS")
-    ) {
-      try {
-        const bracketData = await fetchChallongeBracket(bracketUrl);
-        const champ = bracketData?.finalStandings.find((s) => s.rank === 1);
-        if (champ) championName = champ.name;
-      } catch (err) {
-        console.warn(`[challonge-preview-fetch] failed for ${t.slug}:`, err);
+      const bracketUrl = t.bracketUrl ?? null;
+
+      if (bracketUrl) {
+        championName = null; // Strictly resolve from Challonge, no DB/static fallback
+        try {
+          const bracketData = await fetchChallongeBracket(bracketUrl);
+          const champ = bracketData?.finalStandings.find((s) => s.rank === 1);
+          if (champ) {
+            championName = champ.name;
+          }
+        } catch (err) {
+          console.error(`[challonge-preview-fetch] failed for ${t.slug}:`, err);
+        }
       }
-    }
 
-    enriched.push({
-      ...t,
-      championName,
-      bracketUrl,
-    });
-  }
-
-  return enriched;
+      return {
+        ...t,
+        championName,
+        bracketUrl,
+      };
+    })
+  );
 }
 
 export async function getTournamentBySlug(slug: string): Promise<TournamentPreview | null> {
@@ -76,8 +73,7 @@ export async function getHeroCupStatus(): Promise<HeroCupStatus | null> {
   const tournaments = await prisma.tournament.findMany({
     where: {
       registrationFormat: "AUCTION",
-      // Draft cups are admin-only prep — don't drive the public hero timer from them.
-      status: { notIn: ["CANCELLED", "COMPLETED", "DRAFT"] },
+      status: { notIn: ["CANCELLED", "COMPLETED"] },
       registrationOpensAt: { not: null },
       auctionStartsAt: { not: null },
       auctionEndsAt: { not: null },
@@ -161,16 +157,6 @@ export async function recordMatchResult(
   winnerSlot: number,
   scoreSummary?: string,
 ): Promise<void> {
-  const { recordStageMatchResult } = await import("./stages/stage-lifecycle.service");
-  const match = await prisma.match.findUnique({
-    where: { id: matchId },
-    include: { bracket: { select: { stageId: true } } },
-  });
-  if (match?.bracket.stageId) {
-    await recordStageMatchResult({ matchId, winnerSlot, scoreSummary });
-    return;
-  }
-
   await prisma.$transaction(async (tx) => {
     await tx.matchResult.upsert({
       where: { matchId },
@@ -182,5 +168,6 @@ export async function recordMatchResult(
       data: { status: "COMPLETED" },
     });
   });
+  // Leaderboard recompute runs in same module — reads match results from DB
   await leaderboardRepo.recomputeFromCompletedMatches();
 }

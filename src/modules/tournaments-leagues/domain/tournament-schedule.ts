@@ -122,16 +122,14 @@ export function computeAutoStatus(
     if (ts >= auctionEnd) return "AUCTION_COMPLETED";
     if (ts >= auctionStart) return "AUCTION_LIVE";
     if (ts >= opens) return "REGISTRATION_OPEN";
-    // Schedule is set but registration hasn't opened yet — announce as Upcoming
-    // instead of leaving the cup stuck in Draft (hidden from the public cups list).
-    return "UPCOMING";
+    return t.status;
   }
 
   const ends = t.endsAt!.getTime();
   if (ts >= ends) return "COMPLETED";
   if (ts >= closeAt) return "IN_PROGRESS";
   if (ts >= opens) return "REGISTRATION_OPEN";
-  return "UPCOMING";
+  return t.status;
 }
 
 export function isTournamentRegistrationLive(

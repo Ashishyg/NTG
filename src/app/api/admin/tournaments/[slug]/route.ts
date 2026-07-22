@@ -31,12 +31,11 @@ export async function GET(_req: Request, { params }: Props) {
     return NextResponse.json({ error: "Tournament not found." }, { status: 404 });
   }
 
-  const [row] = await prisma.$queryRawUnsafe<{ publicAuction: boolean; yourGamesEnabled: boolean }[]>(
-    'SELECT "publicAuction", "yourGamesEnabled" FROM "Tournament" WHERE slug = $1 LIMIT 1',
+  const [row] = await prisma.$queryRawUnsafe<{ publicAuction: boolean }[]>(
+    'SELECT "publicAuction" FROM "Tournament" WHERE slug = $1 LIMIT 1',
     slug
   );
   (tournament as any).publicAuction = row?.publicAuction ?? false;
-  (tournament as any).yourGamesEnabled = row?.yourGamesEnabled ?? true;
 
   return NextResponse.json({ tournament });
 }
@@ -55,41 +54,6 @@ export async function PATCH(req: Request, { params }: Props) {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
-  // Flag-only patches (Your Games / Public Auction) — skip full cup validation.
-  const keys = Object.keys(body);
-  const flagOnly =
-    keys.length > 0 &&
-    keys.every((k) => k === "yourGamesEnabled" || k === "publicAuction");
-  if (flagOnly) {
-    const tournament = await getTournamentAdmin(slug);
-    if (!tournament) {
-      return NextResponse.json({ error: "Tournament not found." }, { status: 404 });
-    }
-    if (body.publicAuction !== undefined) {
-      const isPublic = !!body.publicAuction;
-      await prisma.$executeRawUnsafe(
-        'UPDATE "Tournament" SET "publicAuction" = $1 WHERE slug = $2',
-        isPublic,
-        slug,
-      );
-      (tournament as { publicAuction?: boolean }).publicAuction = isPublic;
-    }
-    if (body.yourGamesEnabled !== undefined) {
-      const enabled = !!body.yourGamesEnabled;
-      await prisma.$executeRawUnsafe(
-        'UPDATE "Tournament" SET "yourGamesEnabled" = $1 WHERE slug = $2',
-        enabled,
-        slug,
-      );
-      (tournament as { yourGamesEnabled?: boolean }).yourGamesEnabled = enabled;
-    }
-    await logAdminAction(auth.userId, "tournament.update", slug, {
-      fields: keys,
-      tournamentName: tournament.name,
-    });
-    return NextResponse.json({ ok: true, tournament });
   }
 
   let result;
@@ -151,16 +115,6 @@ export async function PATCH(req: Request, { params }: Props) {
       slug
     );
     (result.tournament as any).publicAuction = isPublic;
-  }
-
-  if (body.yourGamesEnabled !== undefined) {
-    const enabled = !!body.yourGamesEnabled;
-    await prisma.$executeRawUnsafe(
-      'UPDATE "Tournament" SET "yourGamesEnabled" = $1 WHERE slug = $2',
-      enabled,
-      slug,
-    );
-    (result.tournament as { yourGamesEnabled?: boolean }).yourGamesEnabled = enabled;
   }
 
   await logAdminAction(auth.userId, "tournament.update", slug, {

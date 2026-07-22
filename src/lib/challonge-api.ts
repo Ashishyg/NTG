@@ -277,71 +277,12 @@ function normalizeResponse(url: string, data: ChallongeResponse): TournamentBrac
   };
 }
 
-/** In-process cache — Next `revalidate` alone does not stop parallel preview fan-out in dev. */
-const CACHE_TTL_OK_MS = 5 * 60_000;
-const CACHE_TTL_MISS_MS = 60_000;
-const CACHE_TTL_429_MS = 10 * 60_000;
-const MIN_GAP_MS = 350;
-
-type CacheEntry = { expiresAt: number; value: TournamentBracketView | null };
-
-const memoryCache = new Map<string, CacheEntry>();
-let lastRequestAt = 0;
-let fetchChain: Promise<unknown> = Promise.resolve();
-let rateLimitedUntil = 0;
-let logged429 = false;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitForChallongeSlot(): Promise<boolean> {
-  if (Date.now() < rateLimitedUntil) return false;
-  const gap = MIN_GAP_MS - (Date.now() - lastRequestAt);
-  if (gap > 0) await sleep(gap);
-  lastRequestAt = Date.now();
-  return true;
-}
-
 export async function fetchChallongeBracket(
   bracketUrl: string,
 ): Promise<TournamentBracketView | null> {
   const slug = challongeSlugFromUrl(bracketUrl);
   const apiKey = process.env.CHALLONGE_API_KEY;
   if (!slug || !apiKey) return null;
-
-  const cached = memoryCache.get(slug);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.value;
-  }
-
-  // Serialize all Challonge calls process-wide
-  const run = fetchChain.then(() => fetchChallongeBracketUncached(bracketUrl, slug, apiKey));
-  fetchChain = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
-}
-
-async function fetchChallongeBracketUncached(
-  bracketUrl: string,
-  slug: string,
-  apiKey: string,
-): Promise<TournamentBracketView | null> {
-  const cached = memoryCache.get(slug);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.value;
-  }
-
-  const allowed = await waitForChallongeSlot();
-  if (!allowed) {
-    memoryCache.set(slug, {
-      value: null,
-      expiresAt: rateLimitedUntil,
-    });
-    return null;
-  }
 
   const params = new URLSearchParams({
     api_key: apiKey,
@@ -352,62 +293,23 @@ async function fetchChallongeBracketUncached(
   try {
     const res = await fetch(
       `https://api.challonge.com/v1/tournaments/${encodeURIComponent(slug)}.json?${params}`,
-      { next: { revalidate: 300 } },
+      { next: { revalidate: 120 } },
     );
 
-    if (res.status === 429) {
-      rateLimitedUntil = Date.now() + CACHE_TTL_429_MS;
-      memoryCache.set(slug, { value: null, expiresAt: rateLimitedUntil });
-      if (!logged429) {
-        logged429 = true;
-        console.warn(
-          `[challonge] rate limited (429) — cooling down ${CACHE_TTL_429_MS / 1000}s; using cache/DB fallbacks`,
-        );
-      }
-      return null;
-    }
-
     if (!res.ok) {
-      memoryCache.set(slug, {
-        value: null,
-        expiresAt: Date.now() + CACHE_TTL_MISS_MS,
-      });
-      if (res.status !== 404) {
-        console.warn(`[challonge] ${slug} HTTP ${res.status}`);
-      }
+      console.error(`[challonge] ${slug} HTTP ${res.status}`);
       return null;
     }
 
     const data = (await res.json()) as ChallongeResponse;
-    if (!data.tournament) {
-      memoryCache.set(slug, {
-        value: null,
-        expiresAt: Date.now() + CACHE_TTL_MISS_MS,
-      });
-      return null;
-    }
+    if (!data.tournament) return null;
 
     const { matches } = extractChallongePayload(data);
-    if (matches.length === 0) {
-      memoryCache.set(slug, {
-        value: null,
-        expiresAt: Date.now() + CACHE_TTL_MISS_MS,
-      });
-      return null;
-    }
+    if (matches.length === 0) return null;
 
-    const value = normalizeResponse(bracketUrl, data);
-    memoryCache.set(slug, {
-      value,
-      expiresAt: Date.now() + CACHE_TTL_OK_MS,
-    });
-    return value;
+    return normalizeResponse(bracketUrl, data);
   } catch (error) {
-    memoryCache.set(slug, {
-      value: null,
-      expiresAt: Date.now() + CACHE_TTL_MISS_MS,
-    });
-    console.warn("[challonge] fetch failed:", error);
+    console.error("[challonge] fetch failed:", error);
     return null;
   }
 }

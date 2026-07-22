@@ -9,7 +9,7 @@ export type TournamentDisplay = {
   game: string;
   format: string;
   date: string;
-  status: "Hosted" | "Soon" | "Live" | "Open" | "Upcoming" | "Auction" | "Post-Auction";
+  status: "Hosted" | "Soon" | "Live" | "Open" | "Upcoming";
   iconPath: string;
   hex: string;
   championName?: string | null;
@@ -29,7 +29,7 @@ const gameMeta: Record<
 export function formatRegistrationLabel(format: string | null | undefined): string {
   switch (format) {
     case "AUCTION":
-      return "Auction";
+      return "Auction Draft";
     case "STANDARD":
       return "Standard (5v5)";
     case "SOLO":
@@ -53,16 +53,11 @@ function mapDisplayStatus(status: TournamentStatus): TournamentDisplay["status"]
       return "Hosted";
     case "IN_PROGRESS":
       return "Live";
-    case "AUCTION_LIVE":
-      return "Auction";
-    case "AUCTION_COMPLETED":
-      return "Post-Auction";
     case "REGISTRATION_OPEN":
       return "Open";
     case "UPCOMING":
       return "Upcoming";
     case "DRAFT":
-      return "Soon";
     default:
       return "Soon";
   }

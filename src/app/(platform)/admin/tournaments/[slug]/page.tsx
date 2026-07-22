@@ -34,13 +34,11 @@ export default async function AdminTournamentEditPage({ params }: Props) {
     getTournamentAdmin(slug),
     listUnassignedPlayerRegistrations(slug),
     listSeasonsAdmin(),
-    // Stage graph loads client-side — SSR was timing out on Vercel.
-    prisma.$queryRawUnsafe<{ publicAuction: boolean; yourGamesEnabled: boolean }[]>(
-      'SELECT "publicAuction", "yourGamesEnabled" FROM "Tournament" WHERE slug = $1 LIMIT 1',
+    prisma.$queryRawUnsafe<{ publicAuction: boolean }[]>(
+      'SELECT "publicAuction" FROM "Tournament" WHERE slug = $1 LIMIT 1',
       slug
     ),
   ]);
-  const stageGraph = null;
   if (!t) notFound();
 
   const [auctionRow] = await prisma.$queryRawUnsafe<{ finalized: boolean }[]>(
@@ -82,7 +80,6 @@ export default async function AdminTournamentEditPage({ params }: Props) {
     teamsPerGroup: t.teamsPerGroup,
     advancePerGroup: t.advancePerGroup,
     publicAuction: resolveEffectivePublicAuction(row?.publicAuction ?? false, t),
-    yourGamesEnabled: row?.yourGamesEnabled ?? true,
     rankPoints: (t.rankPoints as { rank: string; floor: number }[] | null) ?? null,
     bracketUrl: t.bracketUrl,
     rulebookUrl: t.rulebookUrl,
@@ -161,12 +158,6 @@ export default async function AdminTournamentEditPage({ params }: Props) {
     : null;
 
   return (
-    <AdminTournamentEditor
-      initial={initial}
-      seasons={seasons}
-      auctionHref={auctionHref}
-      auctionFinalized={auctionFinalized}
-      initialStageGraph={stageGraph}
-    />
+    <AdminTournamentEditor initial={initial} seasons={seasons} auctionHref={auctionHref} auctionFinalized={auctionFinalized} />
   );
 }

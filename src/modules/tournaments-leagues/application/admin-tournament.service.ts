@@ -41,7 +41,6 @@ export type CreateTournamentInput = {
   hubBannerUrl?: string;
   hubCarouselImages?: string[];
   showOnEsportsHub?: boolean;
-  yourGamesEnabled?: boolean;
 };
 
 export type UpdateTournamentInput = Partial<
@@ -383,8 +382,6 @@ export async function updateTournamentFull(
       : Prisma.JsonNull;
   }
   if (input.showOnEsportsHub !== undefined) data.showOnEsportsHub = input.showOnEsportsHub;
-  // yourGamesEnabled is persisted via raw SQL in the admin route (same as publicAuction)
-  // until the Prisma client is regenerated with the new column.
   if (input.registrationFormat !== undefined) {
     data.registrationFormat = (input.registrationFormat as import("@prisma/client").TournamentFormat | null) ?? null;
   }

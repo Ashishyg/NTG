@@ -70,25 +70,12 @@ describe("tournament-schedule", () => {
   });
 
   it("computes standard status from timeline", () => {
-    expect(computeAutoStatus(standard, new Date("2026-05-20T11:00:00Z"))).toBe("UPCOMING");
     expect(computeAutoStatus(standard, new Date("2026-06-01T11:00:00Z"))).toBe("REGISTRATION_OPEN");
     expect(computeAutoStatus(standard, new Date("2026-06-10T10:00:00Z"))).toBe("IN_PROGRESS");
     expect(computeAutoStatus(standard, new Date("2026-06-10T19:00:00Z"))).toBe("COMPLETED");
   });
 
-  it("promotes draft cups to upcoming before registration opens", () => {
-    const draft = { ...standard, status: "DRAFT" as TournamentStatus };
-    expect(computeAutoStatus(draft, new Date("2026-05-20T11:00:00Z"))).toBe("UPCOMING");
-    expect(
-      computeAutoStatus(
-        { ...auction, status: "DRAFT" as TournamentStatus },
-        new Date("2026-07-01T12:00:00Z"),
-      ),
-    ).toBe("UPCOMING");
-  });
-
   it("computes auction status from timeline", () => {
-    expect(computeAutoStatus(auction, new Date("2026-07-01T12:00:00Z"))).toBe("UPCOMING");
     expect(computeAutoStatus(auction, new Date("2026-07-10T12:00:00Z"))).toBe("REGISTRATION_OPEN");
     expect(computeAutoStatus(auction, new Date("2026-07-17T11:00:00Z"))).toBe("AUCTION_LIVE");
     expect(computeAutoStatus(auction, new Date("2026-07-19T12:00:00Z"))).toBe("AUCTION_COMPLETED");
